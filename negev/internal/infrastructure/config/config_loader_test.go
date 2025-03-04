@@ -79,3 +79,9 @@ func TestNormalizeMAC(t *testing.T) {
 		t.Fatalf("NormalizeMAC dotted = %q", got)
 	}
 }
+
+func TestMACPrefix(t *testing.T) {
+	if got := macPrefix("AA:BB:CC:DD:EE:FF"); got != "aabbcc" {
+		t.Fatalf("macPrefix = %q", got)
+	}
+}

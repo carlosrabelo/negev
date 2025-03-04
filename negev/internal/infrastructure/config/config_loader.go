@@ -9,6 +9,7 @@ import (
 
 type switchEntry struct {
 	Platform       string            `yaml:"platform"`
+	LegacyPlatform string            `yaml:"vendor"`
 	Target         string            `yaml:"target"`
 	Transport      string            `yaml:"transport"`
 	Username       string            `yaml:"username"`
@@ -23,6 +24,7 @@ type switchEntry struct {
 
 type Config struct {
 	Platform       string            `yaml:"platform"`
+	LegacyVendor   string            `yaml:"vendor"`
 	Transport      string            `yaml:"transport"`
 	Username       string            `yaml:"username"`
 	Password       string            `yaml:"password"`
@@ -52,6 +54,11 @@ func Load(yamlFile, target string, verbosityLevel int) (*Config, error) {
 	}
 
 	verbose := verbosityLevel == 1 || verbosityLevel == 3
+	primaryPlatform := cfg.Platform
+	if primaryPlatform == "" {
+		primaryPlatform = cfg.LegacyVendor
+	}
+	cfg.Platform = primaryPlatform
 	if cfg.Transport == "" {
 		cfg.Transport = "telnet"
 	}
@@ -63,6 +70,11 @@ func Load(yamlFile, target string, verbosityLevel int) (*Config, error) {
 		if sw.Transport == "" {
 			sw.Transport = cfg.Transport
 		}
+		rawPlatform := sw.Platform
+		if rawPlatform == "" {
+			rawPlatform = sw.LegacyPlatform
+		}
+		sw.Platform = rawPlatform
 		if sw.Platform == "" {
 			sw.Platform = cfg.Platform
 		}

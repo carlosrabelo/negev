@@ -43,3 +43,28 @@ func TestLoadRequiresSwitches(t *testing.T) {
 		t.Fatal("expected error when no switches are defined")
 	}
 }
+
+func TestLoadLegacyVendorFallback(t *testing.T) {
+	yamlData := `
+vendor: ios
+transport: telnet
+username: admin
+password: secret
+enable_password: enable
+default_vlan: "1"
+switches:
+  - target: 192.168.1.10
+    vendor: ios
+`
+	tmpFile := filepath.Join(t.TempDir(), "cfg.yaml")
+	if err := os.WriteFile(tmpFile, []byte(yamlData), 0644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(tmpFile, "", 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Platform != "ios" || cfg.Switches[0].Platform != "ios" {
+		t.Fatalf("legacy vendor fallback failed: global=%q switch=%q", cfg.Platform, cfg.Switches[0].Platform)
+	}
+}

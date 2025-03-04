@@ -11,7 +11,7 @@ VLAN automation for Cisco IOS switches over Telnet/SSH. MAC-based assignment wit
 - [x] Build scripts in `.make/`: `build.sh`, `test.sh`, `install.sh`, `uninstall.sh`, `run.sh`, `clean.sh`
 - [x] Go 1.22.3 toolchain, local `GOCACHE=.gocache`, ldflags injection for `version` and `buildTime`
 - [x] YAML config loading with global → switch merge: `debugf` helper for conditional debug output
-- [ ] Backward compat: `vendor` → `platform`, `LegacyPlatform`/`LegacyVendor` fallback
+- [x] Backward compat: `vendor` → `platform`, `LegacyPlatform`/`LegacyVendor` fallback
 - [ ] `NormalizeMAC`: strips `:` and `.`, lowercases to 12 hex chars
 - [ ] MAC prefix = first 6 chars of normalized MAC
 - [ ] Config path resolution: `./config.yaml`, `~/.config/negev/`, `/etc/negev/` (Linux); `%APPDATA%`, `%ProgramData%` (Windows)

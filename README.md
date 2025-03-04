@@ -2,6 +2,27 @@
 
 Automates VLAN assignments on access switches from MAC address prefixes.
 
+
+## Configuration
+
+Create `config.yaml` in the current directory. Negev also searches `~/.config/negev/` and `/etc/negev/` (Linux), or `%APPDATA%\negev\` and `%ProgramData%\negev\` (Windows).
+
+```yaml
+platform: auto
+transport: telnet
+username: admin
+password: cisco123
+enable_password: cisco123
+default_vlan: "1"
+no_data_vlan: "999"
+allowed_vlans:
+  - "10"
+  - "20"
+switches:
+  - target: 192.168.1.10
+    platform: ios
+```
+
 ## Development
 
 ```bash

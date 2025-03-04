@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -46,6 +47,26 @@ func debugf(verbose bool, format string, args ...any) {
 	}
 }
 
+func normalizeVLAN(vlan, context string) (string, error) {
+	n, err := strconv.Atoi(strings.TrimSpace(vlan))
+	if err != nil {
+		return "", fmt.Errorf("invalid VLAN number in %s: %s", context, vlan)
+	}
+	if n < 1 || n > 4094 {
+		return "", fmt.Errorf("VLAN %s in %s must be between 1 and 4094", vlan, context)
+	}
+	return strconv.Itoa(n), nil
+}
+
+func validatePlatform(platform string) error {
+	switch platform {
+	case "ios", "auto":
+		return nil
+	default:
+		return fmt.Errorf("platform %s is invalid, must be 'ios' or 'auto'", platform)
+	}
+}
+
 func Load(yamlFile, target string, verbosityLevel int) (*Config, error) {
 	data, err := os.ReadFile(yamlFile)
 	if err != nil {
@@ -61,26 +82,73 @@ func Load(yamlFile, target string, verbosityLevel int) (*Config, error) {
 	if primaryPlatform == "" {
 		primaryPlatform = cfg.LegacyVendor
 	}
-	cfg.Platform = primaryPlatform
+	cfg.Platform = strings.ToLower(strings.TrimSpace(primaryPlatform))
+
 	if cfg.Transport == "" {
 		cfg.Transport = "telnet"
 	}
+	cfg.Transport = strings.ToLower(cfg.Transport)
+	if cfg.Transport != "telnet" && cfg.Transport != "ssh" {
+		return nil, fmt.Errorf("transport %s is invalid, must be 'telnet' or 'ssh'", cfg.Transport)
+	}
+
+	if cfg.DefaultVlan == "" {
+		return nil, fmt.Errorf("global default_vlan is required")
+	}
+	normalized, err := normalizeVLAN(cfg.DefaultVlan, "global default_vlan")
+	if err != nil {
+		return nil, err
+	}
+	cfg.DefaultVlan = normalized
+	if cfg.NoDataVlan == "" {
+		return nil, fmt.Errorf("global no_data_vlan is required")
+	}
+	normalized, err = normalizeVLAN(cfg.NoDataVlan, "global no_data_vlan")
+	if err != nil {
+		return nil, err
+	}
+	cfg.NoDataVlan = normalized
+	if cfg.Username == "" {
+		return nil, fmt.Errorf("global username is required")
+	}
+	if cfg.Password == "" {
+		return nil, fmt.Errorf("global password is required")
+	}
+	if cfg.EnablePassword == "" {
+		return nil, fmt.Errorf("global enable_password is required")
+	}
+
 	debugf(verbose, "DEBUG: Global values: Platform=%s, Transport=%s, DefaultVlan=%s, NoDataVlan=%s\n",
 		cfg.Platform, cfg.Transport, cfg.DefaultVlan, cfg.NoDataVlan)
 
 	for i := range cfg.Switches {
 		sw := &cfg.Switches[i]
+		if sw.Target == "" {
+			return nil, fmt.Errorf("target is required for switch %d", i)
+		}
+		sw.Transport = strings.ToLower(strings.TrimSpace(sw.Transport))
 		if sw.Transport == "" {
 			sw.Transport = cfg.Transport
 		}
+		if sw.Transport != "telnet" && sw.Transport != "ssh" {
+			return nil, fmt.Errorf("transport %s is invalid for switch %s", sw.Transport, sw.Target)
+		}
+
 		rawPlatform := sw.Platform
 		if rawPlatform == "" {
 			rawPlatform = sw.LegacyPlatform
 		}
-		sw.Platform = rawPlatform
+		sw.Platform = strings.ToLower(strings.TrimSpace(rawPlatform))
 		if sw.Platform == "" {
 			sw.Platform = cfg.Platform
 		}
+		if sw.Platform == "" {
+			return nil, fmt.Errorf("platform is required for switch %s", sw.Target)
+		}
+		if err := validatePlatform(sw.Platform); err != nil {
+			return nil, fmt.Errorf("invalid platform for switch %s: %w", sw.Target, err)
+		}
+
 		if sw.Username == "" {
 			sw.Username = cfg.Username
 		}
@@ -92,9 +160,21 @@ func Load(yamlFile, target string, verbosityLevel int) (*Config, error) {
 		}
 		if sw.DefaultVlan == "" {
 			sw.DefaultVlan = cfg.DefaultVlan
+		} else {
+			normalized, err := normalizeVLAN(sw.DefaultVlan, fmt.Sprintf("switch %s default_vlan", sw.Target))
+			if err != nil {
+				return nil, err
+			}
+			sw.DefaultVlan = normalized
 		}
 		if sw.NoDataVlan == "" {
 			sw.NoDataVlan = cfg.NoDataVlan
+		} else {
+			normalized, err := normalizeVLAN(sw.NoDataVlan, fmt.Sprintf("switch %s no_data_vlan", sw.Target))
+			if err != nil {
+				return nil, err
+			}
+			sw.NoDataVlan = normalized
 		}
 		if len(sw.AllowedVlans) == 0 {
 			sw.AllowedVlans = cfg.AllowedVlans

@@ -17,6 +17,7 @@ type switchEntry struct {
 	Password       string            `yaml:"password"`
 	EnablePassword string            `yaml:"enable_password"`
 	DefaultVlan    string            `yaml:"default_vlan"`
+	NoDataVlan     string            `yaml:"no_data_vlan"`
 	ExcludeMacs    []string          `yaml:"exclude_macs"`
 	MacToVlan      map[string]string `yaml:"mac_to_vlan"`
 	AllowedVlans   []string          `yaml:"allowed_vlans"`
@@ -31,6 +32,7 @@ type Config struct {
 	Password       string            `yaml:"password"`
 	EnablePassword string            `yaml:"enable_password"`
 	DefaultVlan    string            `yaml:"default_vlan"`
+	NoDataVlan     string            `yaml:"no_data_vlan"`
 	ExcludeMacs    []string          `yaml:"exclude_macs"`
 	MacToVlan      map[string]string `yaml:"mac_to_vlan"`
 	AllowedVlans   []string          `yaml:"allowed_vlans"`
@@ -63,8 +65,8 @@ func Load(yamlFile, target string, verbosityLevel int) (*Config, error) {
 	if cfg.Transport == "" {
 		cfg.Transport = "telnet"
 	}
-	debugf(verbose, "DEBUG: Global values: Platform=%s, Transport=%s, DefaultVlan=%s\n",
-		cfg.Platform, cfg.Transport, cfg.DefaultVlan)
+	debugf(verbose, "DEBUG: Global values: Platform=%s, Transport=%s, DefaultVlan=%s, NoDataVlan=%s\n",
+		cfg.Platform, cfg.Transport, cfg.DefaultVlan, cfg.NoDataVlan)
 
 	for i := range cfg.Switches {
 		sw := &cfg.Switches[i]
@@ -90,6 +92,9 @@ func Load(yamlFile, target string, verbosityLevel int) (*Config, error) {
 		}
 		if sw.DefaultVlan == "" {
 			sw.DefaultVlan = cfg.DefaultVlan
+		}
+		if sw.NoDataVlan == "" {
+			sw.NoDataVlan = cfg.NoDataVlan
 		}
 		if len(sw.AllowedVlans) == 0 {
 			sw.AllowedVlans = cfg.AllowedVlans

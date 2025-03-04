@@ -68,3 +68,14 @@ switches:
 		t.Fatalf("legacy vendor fallback failed: global=%q switch=%q", cfg.Platform, cfg.Switches[0].Platform)
 	}
 }
+
+func TestNormalizeMAC(t *testing.T) {
+	got := NormalizeMAC("AA:BB:CC:DD:EE:FF")
+	if got != "aabbccddeeff" {
+		t.Fatalf("NormalizeMAC colon = %q", got)
+	}
+	got = NormalizeMAC("aabb.ccdd.eeff")
+	if got != "aabbccddeeff" {
+		t.Fatalf("NormalizeMAC dotted = %q", got)
+	}
+}

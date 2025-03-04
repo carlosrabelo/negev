@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
@@ -109,4 +110,8 @@ func Load(yamlFile, target string, verbosityLevel int) (*Config, error) {
 		return nil, fmt.Errorf("no switches defined in the YAML configuration")
 	}
 	return &cfg, nil
+}
+
+func NormalizeMAC(mac string) string {
+	return strings.ToLower(strings.ReplaceAll(strings.ReplaceAll(mac, ":", ""), ".", ""))
 }

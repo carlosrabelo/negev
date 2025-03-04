@@ -7,7 +7,7 @@ VLAN automation for Cisco IOS switches over Telnet/SSH. MAC-based assignment wit
 ## Foundation
 
 - [x] Go module layout (`negev/cmd/` + `negev/internal/`) with hexagonal architecture (domain/ports/services → application → infrastructure → platform)
-- [ ] Build system: Makefile with `build`, `test`, `fmt`, `lint`, `quality`, `install`, `uninstall`, `run`, `clean`, `deps`, `info`, `version`, `help`
+- [x] Build system: Makefile with `build`, `test`, `fmt`, `lint`, `quality`, `install`, `uninstall`, `run`, `clean`, `deps`, `info`, `version`, `help`
 - [ ] Build scripts in `.make/`: `build.sh`, `test.sh`, `install.sh`, `uninstall.sh`, `run.sh`, `clean.sh`
 - [ ] Go 1.22.3 toolchain, local `GOCACHE=.gocache`, ldflags injection for `version` and `buildTime`
 - [ ] YAML config loading with global → switch merge: `debugf` helper for conditional debug output

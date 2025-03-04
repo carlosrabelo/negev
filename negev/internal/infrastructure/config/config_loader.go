@@ -115,3 +115,11 @@ func Load(yamlFile, target string, verbosityLevel int) (*Config, error) {
 func NormalizeMAC(mac string) string {
 	return strings.ToLower(strings.ReplaceAll(strings.ReplaceAll(mac, ":", ""), ".", ""))
 }
+
+func macPrefix(mac string) string {
+	n := NormalizeMAC(mac)
+	if len(n) > 6 {
+		return n[:6]
+	}
+	return n
+}

@@ -13,7 +13,7 @@ VLAN automation for Cisco IOS switches over Telnet/SSH. MAC-based assignment wit
 - [x] YAML config loading with global → switch merge: `debugf` helper for conditional debug output
 - [x] Backward compat: `vendor` → `platform`, `LegacyPlatform`/`LegacyVendor` fallback
 - [x] `NormalizeMAC`: strips `:` and `.`, lowercases to 12 hex chars
-- [ ] MAC prefix = first 6 chars of normalized MAC
+- [x] MAC prefix = first 6 chars of normalized MAC
 - [ ] Config path resolution: `./config.yaml`, `~/.config/negev/`, `/etc/negev/` (Linux); `%APPDATA%`, `%ProgramData%` (Windows)
 - [ ] `NoDataVlan` field (quarantine VLAN, reserved)
 - [ ] Config validation: required fields (`default_vlan`, `no_data_vlan`, `username`, `password`, `enable_password`), VLAN range 1–4094, platform enum (`ios`/`dmos`/`auto`), transport enum (`telnet`/`ssh`)

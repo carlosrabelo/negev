@@ -25,3 +25,12 @@ func TestTelnetSetAuthSequence(t *testing.T) {
 		t.Fatal("SetAuthSequence did not store prompts")
 	}
 }
+
+func TestDefaultIOSAuthSequence(t *testing.T) {
+	seq := defaultIOSAuthSequence(entities.SwitchConfig{
+		Username: "admin", Password: "p", EnablePassword: "e",
+	})
+	if len(seq) != 6 || seq[0].WaitFor != PromptUsername || seq[2].SendCmd != "enable\n" {
+		t.Fatalf("unexpected IOS sequence: %+v", seq)
+	}
+}

@@ -27,3 +27,14 @@ func (sc SwitchConfig) IsDebugEnabled() bool {
 func (sc SwitchConfig) IsRawOutputEnabled() bool {
 	return sc.VerbosityLevel == 2 || sc.VerbosityLevel == 3
 }
+
+func (sc SwitchConfig) PlatformID() string {
+	p := sc.Platform
+	if p == "" {
+		p = sc.LegacyPlatform
+	}
+	if p == "" {
+		return "ios"
+	}
+	return p
+}

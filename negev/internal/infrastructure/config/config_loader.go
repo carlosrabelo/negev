@@ -216,8 +216,13 @@ func Load(yamlFile, target string, verbosityLevel int) (*Config, error) {
 		if err != nil {
 			return nil, err
 		}
-		if len(sw.ExcludeMacs) == 0 {
-			sw.ExcludeMacs = cfg.ExcludeMacs
+		normalizedExclude := make(map[string]bool)
+		for _, mac := range append(append([]string{}, cfg.ExcludeMacs...), sw.ExcludeMacs...) {
+			normalizedExclude[NormalizeMAC(mac)] = true
+		}
+		sw.ExcludeMacs = make([]string, 0, len(normalizedExclude))
+		for mac := range normalizedExclude {
+			sw.ExcludeMacs = append(sw.ExcludeMacs, mac)
 		}
 		if len(sw.MacToVlan) == 0 {
 			sw.MacToVlan = cfg.MacToVlan

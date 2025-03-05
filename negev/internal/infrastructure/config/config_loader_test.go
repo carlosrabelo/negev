@@ -14,6 +14,7 @@ username: admin
 password: secret
 enable_password: enable
 default_vlan: "1"
+no_data_vlan: "999"
 switches:
   - target: 192.168.1.10
 `
@@ -52,6 +53,7 @@ username: admin
 password: secret
 enable_password: enable
 default_vlan: "1"
+no_data_vlan: "999"
 switches:
   - target: 192.168.1.10
     vendor: ios
@@ -83,5 +85,49 @@ func TestNormalizeMAC(t *testing.T) {
 func TestMACPrefix(t *testing.T) {
 	if got := macPrefix("AA:BB:CC:DD:EE:FF"); got != "aabbcc" {
 		t.Fatalf("macPrefix = %q", got)
+	}
+}
+
+func TestConfigLoadInvalidVlans(t *testing.T) {
+	yamlDataInvalidDefault := `
+platform: auto
+transport: telnet
+username: admin
+password: cisco123
+enable_password: cisco123
+default_vlan: "1"
+no_data_vlan: "999"
+switches:
+  - target: 192.168.1.10
+    default_vlan: "5000"
+`
+	tmpFile := filepath.Join(t.TempDir(), "test_config_invalid.yaml")
+	if err := os.WriteFile(tmpFile, []byte(yamlDataInvalidDefault), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Load(tmpFile, "", 0); err == nil {
+		t.Error("expected error due to invalid default_vlan (5000), got nil")
+	}
+}
+
+func TestValidatePlatformRejectsUnknown(t *testing.T) {
+	yamlData := `
+platform: auto
+transport: telnet
+username: admin
+password: cisco123
+enable_password: cisco123
+default_vlan: "1"
+no_data_vlan: "999"
+switches:
+  - target: 192.168.1.10
+    platform: dmos
+`
+	tmpFile := filepath.Join(t.TempDir(), "dmos.yaml")
+	if err := os.WriteFile(tmpFile, []byte(yamlData), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Load(tmpFile, "", 0); err == nil {
+		t.Fatal("expected dmos to be rejected before the DmOS driver exists")
 	}
 }

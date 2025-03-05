@@ -23,6 +23,7 @@ type switchEntry struct {
 	MacToVlan      map[string]string `yaml:"mac_to_vlan"`
 	AllowedVlans   []string          `yaml:"allowed_vlans"`
 	ProtectedVlans []string          `yaml:"protected_vlans"`
+	ExcludePorts   []string          `yaml:"exclude_ports"`
 }
 
 type Config struct {

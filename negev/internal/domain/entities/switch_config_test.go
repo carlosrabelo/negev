@@ -2,14 +2,21 @@ package entities
 
 import "testing"
 
-func TestIsDebugEnabled(t *testing.T) {
-	if (SwitchConfig{VerbosityLevel: 0}).IsDebugEnabled() {
-		t.Fatal("verbosity 0 should not be debug")
+func TestSwitchConfigDebugAndRaw(t *testing.T) {
+	cases := []struct {
+		verbosity int
+		debug     bool
+		raw       bool
+	}{
+		{0, false, false},
+		{1, true, false},
+		{2, false, true},
+		{3, true, true},
 	}
-	if !(SwitchConfig{VerbosityLevel: 1}).IsDebugEnabled() {
-		t.Fatal("verbosity 1 should be debug")
-	}
-	if !(SwitchConfig{VerbosityLevel: 3}).IsDebugEnabled() {
-		t.Fatal("verbosity 3 should be debug")
+	for _, tc := range cases {
+		sc := SwitchConfig{VerbosityLevel: tc.verbosity}
+		if sc.IsDebugEnabled() != tc.debug || sc.IsRawOutputEnabled() != tc.raw {
+			t.Fatalf("verbosity %d: debug=%v raw=%v", tc.verbosity, sc.IsDebugEnabled(), sc.IsRawOutputEnabled())
+		}
 	}
 }

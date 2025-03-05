@@ -6,26 +6,9 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/carlosrabelo/negev/negev/internal/domain/entities"
 	"gopkg.in/yaml.v3"
 )
-
-type switchEntry struct {
-	Platform       string            `yaml:"platform"`
-	LegacyPlatform string            `yaml:"vendor"`
-	Target         string            `yaml:"target"`
-	Transport      string            `yaml:"transport"`
-	Username       string            `yaml:"username"`
-	Password       string            `yaml:"password"`
-	EnablePassword string            `yaml:"enable_password"`
-	DefaultVlan    string            `yaml:"default_vlan"`
-	NoDataVlan     string            `yaml:"no_data_vlan"`
-	ExcludeMacs    []string          `yaml:"exclude_macs"`
-	MacToVlan      map[string]string `yaml:"mac_to_vlan"`
-	AllowedVlans   []string          `yaml:"allowed_vlans"`
-	ProtectedVlans []string          `yaml:"protected_vlans"`
-	ExcludePorts   []string          `yaml:"exclude_ports"`
-	Sandbox        bool
-}
 
 type Config struct {
 	Platform       string            `yaml:"platform"`
@@ -40,7 +23,7 @@ type Config struct {
 	MacToVlan      map[string]string `yaml:"mac_to_vlan"`
 	AllowedVlans   []string          `yaml:"allowed_vlans"`
 	ProtectedVlans []string          `yaml:"protected_vlans"`
-	Switches       []switchEntry     `yaml:"switches"`
+	Switches       []entities.SwitchConfig `yaml:"switches"`
 }
 
 

@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/carlosrabelo/negev/negev/internal/domain/entities"
 )
 
 func TestLoadInheritsGlobalWhenSwitchOmitsFields(t *testing.T) {
@@ -165,7 +167,7 @@ switches:
 }
 
 func TestApplySandboxInvertsWrite(t *testing.T) {
-	cfg := &Config{Switches: []switchEntry{{Target: "192.168.1.10"}}}
+	cfg := &Config{Switches: []entities.SwitchConfig{{Target: "192.168.1.10"}}}
 	ApplySandbox(cfg, false)
 	if !cfg.Switches[0].Sandbox {
 		t.Fatal("expected sandbox when write is false")

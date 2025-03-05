@@ -12,3 +12,19 @@ func FormatPlainMac(mac string) string {
 	}
 	return b.String()
 }
+
+func IsSeparatorLine(line string) bool {
+	trimmed := strings.TrimSpace(line)
+	if trimmed == "" {
+		return true
+	}
+	if len(trimmed) < 3 {
+		return false
+	}
+	for _, ch := range trimmed {
+		if ch != '-' && ch != '=' && ch != '+' && ch != '*' {
+			return false
+		}
+	}
+	return true
+}

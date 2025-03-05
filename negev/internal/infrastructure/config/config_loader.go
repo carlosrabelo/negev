@@ -224,9 +224,14 @@ func Load(yamlFile, target string, verbosityLevel int) (*Config, error) {
 		for mac := range normalizedExclude {
 			sw.ExcludeMacs = append(sw.ExcludeMacs, mac)
 		}
-		if len(sw.MacToVlan) == 0 {
-			sw.MacToVlan = cfg.MacToVlan
+		mergedMacToVlan := make(map[string]string)
+		for prefix, vlan := range cfg.MacToVlan {
+			mergedMacToVlan[macPrefix(prefix)] = vlan
 		}
+		for prefix, vlan := range sw.MacToVlan {
+			mergedMacToVlan[macPrefix(prefix)] = vlan
+		}
+		sw.MacToVlan = mergedMacToVlan
 		_ = target
 	}
 

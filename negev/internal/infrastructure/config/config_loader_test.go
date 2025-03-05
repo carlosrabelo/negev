@@ -131,3 +131,35 @@ switches:
 		t.Fatal("expected dmos to be rejected before the DmOS driver exists")
 	}
 }
+
+func TestConfigLoadMergeMacToVlanNaive(t *testing.T) {
+	yamlData := `
+platform: auto
+transport: telnet
+username: admin
+password: cisco123
+enable_password: cisco123
+default_vlan: "1"
+no_data_vlan: "999"
+mac_to_vlan:
+  "AA:BB:CC": "10"
+  "deadbe": "100"
+switches:
+  - target: 192.168.1.10
+    platform: ios
+    mac_to_vlan:
+      "deadbe": "200"
+`
+	tmpFile := filepath.Join(t.TempDir(), "mactovlan.yaml")
+	if err := os.WriteFile(tmpFile, []byte(yamlData), 0644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(tmpFile, "", 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := cfg.Switches[0].MacToVlan
+	if got["aabbcc"] != "10" || got["deadbe"] != "200" {
+		t.Fatalf("MacToVlan = %v", got)
+	}
+}

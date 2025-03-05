@@ -54,3 +54,14 @@ func (tc *TelnetClient) Connect() error {
 func (tc *TelnetClient) SetAuthSequence(prompts []entities.AuthPrompt) {
 	tc.authSequence = prompts
 }
+
+func defaultIOSAuthSequence(cfg entities.SwitchConfig) []entities.AuthPrompt {
+	return []entities.AuthPrompt{
+		{WaitFor: PromptUsername, SendCmd: cfg.Username + "\n"},
+		{WaitFor: PromptPassword, SendCmd: cfg.Password + "\n"},
+		{WaitFor: PromptEnable, SendCmd: "enable\n"},
+		{WaitFor: PromptPassword, SendCmd: cfg.EnablePassword + "\n"},
+		{WaitFor: PromptPrivileged, SendCmd: TerminalLengthCmd},
+		{WaitFor: PromptPrivileged, SendCmd: ""},
+	}
+}

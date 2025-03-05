@@ -156,6 +156,10 @@ func Load(yamlFile, target string, verbosityLevel int) (*Config, error) {
 	for i := range cfg.Switches {
 		sw := &cfg.Switches[i]
 		var err error
+		swVerbose := verbose
+		if target != "" && sw.Target != target {
+			swVerbose = false
+		}
 		if sw.Target == "" {
 			return nil, fmt.Errorf("target is required for switch %d", i)
 		}
@@ -233,7 +237,10 @@ func Load(yamlFile, target string, verbosityLevel int) (*Config, error) {
 			mergedMacToVlan[macPrefix(prefix)] = vlan
 		}
 		sw.MacToVlan = mergedMacToVlan
-		_ = target
+		debugf(swVerbose, "DEBUG: Merged exclude_macs for %s: %v\n", sw.Target, sw.ExcludeMacs)
+		debugf(swVerbose, "DEBUG: Merged mac_to_vlan for %s: %v\n", sw.Target, sw.MacToVlan)
+		debugf(swVerbose, "DEBUG: Switch %s: Platform=%s, Transport=%s, DefaultVlan=%s\n",
+			sw.Target, sw.Platform, sw.Transport, sw.DefaultVlan)
 	}
 
 	if len(cfg.Switches) == 0 {

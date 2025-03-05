@@ -52,7 +52,7 @@ VLAN automation for Cisco IOS switches over Telnet/SSH. MAC-based assignment wit
 - [x] Security warning: "credentials are transmitted in cleartext"
 - [x] Constants: `DefaultTimeout = 120s`, `BufferSize = 4096`, `PromptUsername = "Username:"`, `PromptPassword = "Password:"`, `PromptEnable = ">"`, `PromptPrivileged = "#"`, `TerminalLengthCmd = "terminal length 0\n"`
 - [x] Custom authentication sequence via `SetAuthSequence`
-- [ ] Default IOS auth sequence when none set (Username → Password → enable → Password → terminal length 0 → #)
+- [x] Default IOS auth sequence when none set (Username → Password → enable → Password → terminal length 0 → #)
 - [ ] `Connect`: dials TCP, reads prompts and sends auth commands
 - [ ] `readUntil(pattern, timeout)`: reads chunks, sleeps 100ms between reads, checks for pattern match
 - [ ] `ExecuteCommand`: sends command + `\n`, reads until `#`, strips echo line and trailing prompt line

@@ -41,6 +41,37 @@ type Config struct {
 	Switches       []switchEntry     `yaml:"switches"`
 }
 
+
+func mergeStringSlices(global, local []string, normalize func(string) (string, error)) ([]string, error) {
+	seen := make(map[string]bool)
+	var result []string
+	add := func(v string) error {
+		if normalize != nil {
+			nv, err := normalize(v)
+			if err != nil {
+				return err
+			}
+			v = nv
+		}
+		if !seen[v] {
+			seen[v] = true
+			result = append(result, v)
+		}
+		return nil
+	}
+	for _, v := range global {
+		if err := add(v); err != nil {
+			return nil, err
+		}
+	}
+	for _, v := range local {
+		if err := add(v); err != nil {
+			return nil, err
+		}
+	}
+	return result, nil
+}
+
 func debugf(verbose bool, format string, args ...any) {
 	if verbose {
 		fmt.Printf(format, args...)
@@ -123,6 +154,7 @@ func Load(yamlFile, target string, verbosityLevel int) (*Config, error) {
 
 	for i := range cfg.Switches {
 		sw := &cfg.Switches[i]
+		var err error
 		if sw.Target == "" {
 			return nil, fmt.Errorf("target is required for switch %d", i)
 		}
@@ -176,11 +208,13 @@ func Load(yamlFile, target string, verbosityLevel int) (*Config, error) {
 			}
 			sw.NoDataVlan = normalized
 		}
-		if len(sw.AllowedVlans) == 0 {
-			sw.AllowedVlans = cfg.AllowedVlans
+		sw.AllowedVlans, err = mergeStringSlices(cfg.AllowedVlans, sw.AllowedVlans, nil)
+		if err != nil {
+			return nil, err
 		}
-		if len(sw.ProtectedVlans) == 0 {
-			sw.ProtectedVlans = cfg.ProtectedVlans
+		sw.ProtectedVlans, err = mergeStringSlices(cfg.ProtectedVlans, sw.ProtectedVlans, nil)
+		if err != nil {
+			return nil, err
 		}
 		if len(sw.ExcludeMacs) == 0 {
 			sw.ExcludeMacs = cfg.ExcludeMacs

@@ -19,3 +19,7 @@ type SwitchConfig struct {
 	VerbosityLevel int
 	CreateVLANs    bool
 }
+
+func (sc SwitchConfig) IsDebugEnabled() bool {
+	return sc.VerbosityLevel == 1 || sc.VerbosityLevel == 3
+}

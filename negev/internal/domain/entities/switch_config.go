@@ -23,3 +23,7 @@ type SwitchConfig struct {
 func (sc SwitchConfig) IsDebugEnabled() bool {
 	return sc.VerbosityLevel == 1 || sc.VerbosityLevel == 3
 }
+
+func (sc SwitchConfig) IsRawOutputEnabled() bool {
+	return sc.VerbosityLevel == 2 || sc.VerbosityLevel == 3
+}

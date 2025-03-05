@@ -42,7 +42,7 @@ VLAN automation for Cisco IOS switches over Telnet/SSH. MAC-based assignment wit
 ## Parse utilities (`internal/platform/parseutil/`)
 
 - [x] `FormatPlainMac`: 12 hex chars → `"xx:xx:xx:xx:xx:xx"` format
-- [ ] `IsSeparatorLine`: detects lines of `-`, `=`, `+`, `*` (min 3 chars) or blank lines
+- [x] `IsSeparatorLine`: detects lines of `-`, `=`, `+`, `*` (min 3 chars) or blank lines
 
 ## Transport
 

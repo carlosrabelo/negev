@@ -24,6 +24,7 @@ type switchEntry struct {
 	AllowedVlans   []string          `yaml:"allowed_vlans"`
 	ProtectedVlans []string          `yaml:"protected_vlans"`
 	ExcludePorts   []string          `yaml:"exclude_ports"`
+	Sandbox        bool
 }
 
 type Config struct {
@@ -259,4 +260,11 @@ func macPrefix(mac string) string {
 		return n[:6]
 	}
 	return n
+}
+
+// ApplySandbox sets Sandbox to the inverse of write on every switch.
+func ApplySandbox(cfg *Config, write bool) {
+	for i := range cfg.Switches {
+		cfg.Switches[i].Sandbox = !write
+	}
 }

@@ -22,8 +22,9 @@ const (
 )
 
 type TelnetClient struct {
-	conn   *telnet.Conn
-	config entities.SwitchConfig
+	conn         *telnet.Conn
+	config       entities.SwitchConfig
+	authSequence []entities.AuthPrompt
 }
 
 func NewTelnetClient(cfg entities.SwitchConfig) *TelnetClient {
@@ -48,4 +49,8 @@ func (tc *TelnetClient) Connect() error {
 	}
 	tc.conn = conn
 	return nil
+}
+
+func (tc *TelnetClient) SetAuthSequence(prompts []entities.AuthPrompt) {
+	tc.authSequence = prompts
 }

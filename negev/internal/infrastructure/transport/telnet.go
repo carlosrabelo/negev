@@ -4,10 +4,21 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"time"
 
 	"github.com/ziutek/telnet"
 
 	"github.com/carlosrabelo/negev/negev/internal/domain/entities"
+)
+
+const (
+	DefaultTimeout    = 120 * time.Second
+	BufferSize        = 4096
+	PromptUsername    = "Username:"
+	PromptPassword    = "Password:"
+	PromptEnable      = ">"
+	PromptPrivileged  = "#"
+	TerminalLengthCmd = "terminal length 0\n"
 )
 
 type TelnetClient struct {

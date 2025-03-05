@@ -163,3 +163,15 @@ switches:
 		t.Fatalf("MacToVlan = %v", got)
 	}
 }
+
+func TestApplySandboxInvertsWrite(t *testing.T) {
+	cfg := &Config{Switches: []switchEntry{{Target: "192.168.1.10"}}}
+	ApplySandbox(cfg, false)
+	if !cfg.Switches[0].Sandbox {
+		t.Fatal("expected sandbox when write is false")
+	}
+	ApplySandbox(cfg, true)
+	if cfg.Switches[0].Sandbox {
+		t.Fatal("expected sandbox disabled when write is true")
+	}
+}

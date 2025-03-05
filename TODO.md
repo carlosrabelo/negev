@@ -22,7 +22,7 @@ VLAN automation for Cisco IOS switches over Telnet/SSH. MAC-based assignment wit
 - [x] Per-switch `MacToVlan` merge: switch-specific overrides global for same prefix; `"0"`/`"00"` VLAN ignored
 - [x] Per-switch `ExcludePorts`: switch-only, normalized (trim, lowercase, dedup)
 - [x] Per-switch verbose suppression: debug output only for the target switch
-- [ ] `Sandbox = !write` (inverted boolean)
+- [x] `Sandbox = !write` (inverted boolean)
 
 ## Domain entities
 

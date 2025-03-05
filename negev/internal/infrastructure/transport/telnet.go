@@ -2,6 +2,7 @@ package transport
 
 import (
 	"fmt"
+	"log/slog"
 	"net"
 
 	"github.com/ziutek/telnet"
@@ -29,6 +30,7 @@ func (tc *TelnetClient) Connect() error {
 	if tc.conn != nil {
 		return nil
 	}
+	slog.Warn("Connecting via Telnet — credentials are transmitted in cleartext", "target", tc.config.Target)
 	conn, err := telnet.Dial("tcp", telnetDialAddr(tc.config.Target))
 	if err != nil {
 		return fmt.Errorf("failed to connect to %s: %v", tc.config.Target, err)

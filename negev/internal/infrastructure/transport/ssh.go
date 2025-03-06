@@ -1,9 +1,13 @@
 package transport
 
 import (
+	"bufio"
 	"fmt"
+	"io"
 	"log/slog"
 	"net"
+	"strings"
+	"time"
 
 	"golang.org/x/crypto/ssh"
 
@@ -14,6 +18,8 @@ type SSHClient struct {
 	config  entities.SwitchConfig
 	client  *ssh.Client
 	session *ssh.Session
+	stdin   io.WriteCloser
+	reader  *bufio.Reader
 	netConn net.Conn
 }
 
@@ -58,8 +64,105 @@ func (sc *SSHClient) Connect() error {
 		rawConn.Close()
 		return fmt.Errorf("failed to request PTY for %s: %v", sc.config.Target, err)
 	}
+	stdin, err := session.StdinPipe()
+	if err != nil {
+		session.Close()
+		client.Close()
+		rawConn.Close()
+		return fmt.Errorf("failed to get stdin pipe for %s: %v", sc.config.Target, err)
+	}
+	stdout, err := session.StdoutPipe()
+	if err != nil {
+		session.Close()
+		client.Close()
+		rawConn.Close()
+		return fmt.Errorf("failed to get stdout pipe for %s: %v", sc.config.Target, err)
+	}
+	if err := session.Shell(); err != nil {
+		session.Close()
+		client.Close()
+		rawConn.Close()
+		return fmt.Errorf("failed to start shell for %s: %v", sc.config.Target, err)
+	}
 	sc.client = client
 	sc.session = session
+	sc.stdin = stdin
+	sc.reader = bufio.NewReader(stdout)
 	sc.netConn = rawConn
+	if sc.config.IsDebugEnabled() {
+		fmt.Printf("DEBUG: Connected to %s via SSH\n", sc.config.Target)
+	}
+	initial, err := sc.readUntilAny([]string{PromptPrivileged, PromptEnable}, DefaultTimeout)
+	if err != nil {
+		sc.Disconnect()
+		return err
+	}
+	if !strings.Contains(initial, PromptPrivileged) {
+		if err := sc.send("enable\n"); err != nil {
+			sc.Disconnect()
+			return fmt.Errorf("failed to send enable command to %s: %v", sc.config.Target, err)
+		}
+		if _, err := sc.readUntil(PromptPassword, DefaultTimeout); err != nil {
+			sc.Disconnect()
+			return err
+		}
+		if err := sc.send(sc.config.EnablePassword + "\n"); err != nil {
+			sc.Disconnect()
+			return fmt.Errorf("failed to send enable password to %s: %v", sc.config.Target, err)
+		}
+		if _, err := sc.readUntil(PromptPrivileged, DefaultTimeout); err != nil {
+			sc.Disconnect()
+			return err
+		}
+	}
+	if err := sc.send(TerminalLengthCmd); err != nil {
+		sc.Disconnect()
+		return fmt.Errorf("failed to send terminal length command to %s: %v", sc.config.Target, err)
+	}
+	if _, err := sc.readUntil(PromptPrivileged, DefaultTimeout); err != nil {
+		sc.Disconnect()
+		return err
+	}
 	return nil
+}
+
+func (sc *SSHClient) send(data string) error {
+	_, err := sc.stdin.Write([]byte(data))
+	return err
+}
+
+func (sc *SSHClient) readUntil(pattern string, timeout time.Duration) (string, error) {
+	return sc.readUntilAny([]string{pattern}, timeout)
+}
+
+func (sc *SSHClient) readUntilAny(patterns []string, timeout time.Duration) (string, error) {
+	buffer := make([]byte, BufferSize)
+	n, err := sc.reader.Read(buffer)
+	got := string(buffer[:n])
+	if err != nil {
+		return got, fmt.Errorf("read error: %v", err)
+	}
+	for _, pattern := range patterns {
+		if strings.Contains(got, pattern) {
+			return got, nil
+		}
+	}
+	return got, fmt.Errorf("timeout waiting for prompts %s", strings.Join(patterns, ", "))
+}
+
+func (sc *SSHClient) Disconnect() {
+	if sc.session != nil {
+		sc.session.Close()
+		sc.session = nil
+	}
+	if sc.client != nil {
+		sc.client.Close()
+		sc.client = nil
+	}
+	if sc.netConn != nil {
+		sc.netConn.Close()
+		sc.netConn = nil
+	}
+	sc.stdin = nil
+	sc.reader = nil
 }

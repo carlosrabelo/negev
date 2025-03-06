@@ -66,7 +66,7 @@ VLAN automation for Cisco IOS switches over Telnet/SSH. MAC-based assignment wit
 - [x] Security warning: "SSH host key verification is disabled"
 - [x] `Dialer` with `DefaultTimeout` (120s)
 - [x] PTY vt100 session with ECHO=0, ISPEED/OSPEED=9600
-- [ ] `Connect`: dials, creates session, requests PTY, starts shell, reads initial prompt, elevates to enable if needed, sends `terminal length 0`
+- [x] `Connect`: dials, creates session, requests PTY, starts shell, reads initial prompt, elevates to enable if needed, sends `terminal length 0`
 - [ ] `readUntilAny(patterns, timeout)`: buffered reader, `SetReadDeadline(500ms)` for non-blocking, retries on timeout until global deadline
 - [ ] `ExecuteCommand`: sends command + `\n`, reads until `#`, strips echo line and trailing prompt line
 - [ ] `Disconnect`: closes session, client, and raw net.Conn; nil-safe

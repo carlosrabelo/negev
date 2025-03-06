@@ -178,6 +178,9 @@ func (sc *SSHClient) Disconnect() {
 	}
 	sc.stdin = nil
 	sc.reader = nil
+	if sc.config.IsDebugEnabled() {
+		fmt.Println("DEBUG: Disconnected")
+	}
 }
 
 func (sc *SSHClient) ExecuteCommand(cmd string) (string, error) {

@@ -17,6 +17,10 @@ type Client interface {
 	IsConnected() bool
 }
 
+type AuthConfigurable interface {
+	SetAuthSequence([]entities.AuthPrompt)
+}
+
 var (
 	clientCache = make(map[string]Client)
 	cacheMu     sync.Mutex

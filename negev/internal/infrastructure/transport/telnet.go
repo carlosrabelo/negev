@@ -180,6 +180,9 @@ func (tc *TelnetClient) readUntil(pattern string, timeout time.Duration) (string
 func (tc *TelnetClient) Disconnect() {
 	if tc.conn != nil {
 		tc.conn.Close()
+		if tc.config.IsDebugEnabled() {
+			fmt.Println("DEBUG: Disconnected")
+		}
 		tc.conn = nil
 	}
 }

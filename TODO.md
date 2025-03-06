@@ -70,7 +70,7 @@ VLAN automation for Cisco IOS switches over Telnet/SSH. MAC-based assignment wit
 - [x] `readUntilAny(patterns, timeout)`: buffered reader, `SetReadDeadline(500ms)` for non-blocking, retries on timeout until global deadline
 - [x] `ExecuteCommand`: sends command + `\n`, reads until `#`, strips echo line and trailing prompt line
 - [x] `Disconnect`: closes session, client, and raw net.Conn; nil-safe
-- [ ] `IsConnected`: checks `session != nil && client != nil`
+- [x] `IsConnected`: checks `session != nil && client != nil`
 - [ ] Raw output display when `IsRawOutputEnabled`
 
 ### Client cache (`internal/infrastructure/transport/client.go`)

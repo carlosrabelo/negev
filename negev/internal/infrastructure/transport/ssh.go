@@ -205,3 +205,7 @@ func (sc *SSHClient) ExecuteCommand(cmd string) (string, error) {
 	}
 	return output, nil
 }
+
+func (sc *SSHClient) IsConnected() bool {
+	return sc.session != nil && sc.client != nil
+}

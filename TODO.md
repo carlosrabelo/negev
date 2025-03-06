@@ -79,7 +79,7 @@ VLAN automation for Cisco IOS switches over Telnet/SSH. MAC-based assignment wit
 - [x] `cacheKey(cfg)`: JSON-marshals `{Transport, Target, Username, Password, EnablePassword}` → SHA256 → hex
 - [x] `Get(cfg)`: check cache → create via `newClient` → store → return
 - [x] `newClient(cfg)`: SSH if `cfg.Transport == "ssh"`, otherwise Telnet
-- [ ] `CloseAll()`: iterate cache, `Disconnect()` each, delete from map
+- [x] `CloseAll()`: iterate cache, `Disconnect()` each, delete from map
 
 ### SwitchAdapter (`internal/infrastructure/transport/switch_adapter.go`)
 

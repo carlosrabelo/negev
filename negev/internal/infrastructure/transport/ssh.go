@@ -137,17 +137,30 @@ func (sc *SSHClient) readUntil(pattern string, timeout time.Duration) (string, e
 
 func (sc *SSHClient) readUntilAny(patterns []string, timeout time.Duration) (string, error) {
 	buffer := make([]byte, BufferSize)
-	n, err := sc.reader.Read(buffer)
-	got := string(buffer[:n])
-	if err != nil {
-		return got, fmt.Errorf("read error: %v", err)
+	var output strings.Builder
+	output.Grow(BufferSize)
+	deadline := time.Now().Add(timeout)
+	if sc.netConn != nil {
+		_ = sc.netConn.SetReadDeadline(deadline)
 	}
-	for _, pattern := range patterns {
-		if strings.Contains(got, pattern) {
-			return got, nil
+	for {
+		n, err := sc.reader.Read(buffer)
+		if n > 0 {
+			output.Write(buffer[:n])
+			text := output.String()
+			for _, pattern := range patterns {
+				if strings.Contains(text, pattern) {
+					return text, nil
+				}
+			}
+		}
+		if err != nil {
+			return output.String(), fmt.Errorf("read error: %v", err)
+		}
+		if time.Now().After(deadline) {
+			return output.String(), fmt.Errorf("timeout waiting for prompts %s", strings.Join(patterns, ", "))
 		}
 	}
-	return got, fmt.Errorf("timeout waiting for prompts %s", strings.Join(patterns, ", "))
 }
 
 func (sc *SSHClient) Disconnect() {

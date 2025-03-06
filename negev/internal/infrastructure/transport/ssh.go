@@ -2,6 +2,7 @@ package transport
 
 import (
 	"fmt"
+	"log/slog"
 	"net"
 
 	"golang.org/x/crypto/ssh"
@@ -22,6 +23,7 @@ func NewSSHClient(cfg entities.SwitchConfig) *SSHClient {
 
 func (sc *SSHClient) Connect() error {
 	addr := net.JoinHostPort(sc.config.Target, "22")
+	slog.Warn("SSH host key verification is disabled — use only on trusted networks", "target", sc.config.Target)
 	sshConfig := &ssh.ClientConfig{
 		User:            sc.config.Username,
 		Auth:            []ssh.AuthMethod{ssh.Password(sc.config.Password)},

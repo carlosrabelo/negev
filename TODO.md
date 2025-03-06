@@ -75,7 +75,7 @@ VLAN automation for Cisco IOS switches over Telnet/SSH. MAC-based assignment wit
 
 ### Client cache (`internal/infrastructure/transport/client.go`)
 
-- [ ] Global `clientCache map[string]Client` with `sync.Mutex`
+- [x] Global `clientCache map[string]Client` with `sync.Mutex`
 - [ ] `cacheKey(cfg)`: JSON-marshals `{Transport, Target, Username, Password, EnablePassword}` → SHA256 → hex
 - [ ] `Get(cfg)`: check cache → create via `newClient` → store → return
 - [ ] `newClient(cfg)`: SSH if `cfg.Transport == "ssh"`, otherwise Telnet

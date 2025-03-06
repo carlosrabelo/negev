@@ -30,10 +30,18 @@ func (sc *SSHClient) Connect() error {
 		HostKeyCallback: ssh.InsecureIgnoreHostKey(), //nolint:gosec
 		Timeout:         DefaultTimeout,
 	}
-	client, err := ssh.Dial("tcp", addr, sshConfig)
+	dialer := &net.Dialer{Timeout: DefaultTimeout}
+	rawConn, err := dialer.Dial("tcp", addr)
 	if err != nil {
 		return fmt.Errorf("failed to connect to %s via SSH: %v", sc.config.Target, err)
 	}
+	clientConn, chans, reqs, err := ssh.NewClientConn(rawConn, addr, sshConfig)
+	if err != nil {
+		rawConn.Close()
+		return fmt.Errorf("failed to establish SSH client connection to %s: %v", sc.config.Target, err)
+	}
+	client := ssh.NewClient(clientConn, chans, reqs)
 	sc.client = client
+	sc.netConn = rawConn
 	return nil
 }

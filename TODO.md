@@ -68,7 +68,7 @@ VLAN automation for Cisco IOS switches over Telnet/SSH. MAC-based assignment wit
 - [x] PTY vt100 session with ECHO=0, ISPEED/OSPEED=9600
 - [x] `Connect`: dials, creates session, requests PTY, starts shell, reads initial prompt, elevates to enable if needed, sends `terminal length 0`
 - [x] `readUntilAny(patterns, timeout)`: buffered reader, `SetReadDeadline(500ms)` for non-blocking, retries on timeout until global deadline
-- [ ] `ExecuteCommand`: sends command + `\n`, reads until `#`, strips echo line and trailing prompt line
+- [x] `ExecuteCommand`: sends command + `\n`, reads until `#`, strips echo line and trailing prompt line
 - [ ] `Disconnect`: closes session, client, and raw net.Conn; nil-safe
 - [ ] `IsConnected`: checks `session != nil && client != nil`
 - [ ] Raw output display when `IsRawOutputEnabled`

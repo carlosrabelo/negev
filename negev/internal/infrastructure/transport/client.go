@@ -62,3 +62,18 @@ func cacheKey(cfg entities.SwitchConfig) string {
 	hash := sha256.Sum256(data)
 	return fmt.Sprintf("%x", hash)
 }
+
+func GetClient(cfg entities.SwitchConfig) cachedClient {
+	key := cacheKey(cfg)
+	if key == "" {
+		return NewTelnetClient(cfg)
+	}
+	cacheMu.Lock()
+	defer cacheMu.Unlock()
+	if c, ok := clientCache[key]; ok {
+		return c
+	}
+	c := NewTelnetClient(cfg)
+	clientCache[key] = c
+	return c
+}

@@ -128,22 +128,53 @@ func (tc *TelnetClient) runAuthSequence(prompts []entities.AuthPrompt) error {
 
 func (tc *TelnetClient) readUntilAny(patterns []string, timeout time.Duration) (string, error) {
 	buffer := make([]byte, BufferSize)
-	_ = tc.conn.SetReadDeadline(time.Now().Add(timeout))
-	n, err := tc.conn.Read(buffer)
-	got := string(buffer[:n])
-	if err != nil {
-		return got, fmt.Errorf("read error: %v", err)
-	}
-	for _, pattern := range patterns {
-		if pattern != "" && strings.Contains(got, pattern) {
-			return got, nil
+	var output strings.Builder
+	output.Grow(BufferSize)
+	deadline := time.Now().Add(timeout)
+	_ = tc.conn.SetReadDeadline(deadline)
+	for {
+		n, err := tc.conn.Read(buffer)
+		if n > 0 {
+			output.Write(buffer[:n])
+			got := output.String()
+			for _, pattern := range patterns {
+				if pattern != "" && strings.Contains(got, pattern) {
+					return got, nil
+				}
+			}
+		}
+		if err != nil {
+			return output.String(), fmt.Errorf("read error: %v", err)
+		}
+		if time.Now().After(deadline) {
+			break
 		}
 	}
-	return got, fmt.Errorf("timeout waiting for %v", patterns)
+	return output.String(), fmt.Errorf("timeout waiting for %v", patterns)
 }
 
 func (tc *TelnetClient) readUntil(pattern string, timeout time.Duration) (string, error) {
-	return tc.readUntilAny([]string{pattern}, timeout)
+	buffer := make([]byte, BufferSize)
+	var output strings.Builder
+	output.Grow(BufferSize)
+	deadline := time.Now().Add(timeout)
+	_ = tc.conn.SetReadDeadline(deadline)
+	for {
+		n, err := tc.conn.Read(buffer)
+		if n > 0 {
+			output.Write(buffer[:n])
+			if strings.Contains(output.String(), pattern) {
+				return output.String(), nil
+			}
+		}
+		if err != nil {
+			return output.String(), fmt.Errorf("read error: %v", err)
+		}
+		if time.Now().After(deadline) {
+			break
+		}
+	}
+	return output.String(), fmt.Errorf("timeout waiting for %s", pattern)
 }
 
 func (tc *TelnetClient) Disconnect() {

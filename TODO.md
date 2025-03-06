@@ -63,7 +63,7 @@ VLAN automation for Cisco IOS switches over Telnet/SSH. MAC-based assignment wit
 ### SSH (`internal/infrastructure/transport/ssh.go`)
 
 - [x] SSH client on port 22 with `InsecureIgnoreHostKey()` (//nolint:gosec)
-- [ ] Security warning: "SSH host key verification is disabled"
+- [x] Security warning: "SSH host key verification is disabled"
 - [ ] `Dialer` with `DefaultTimeout` (120s)
 - [ ] PTY vt100 session with ECHO=0, ISPEED/OSPEED=9600
 - [ ] `Connect`: dials, creates session, requests PTY, starts shell, reads initial prompt, elevates to enable if needed, sends `terminal length 0`

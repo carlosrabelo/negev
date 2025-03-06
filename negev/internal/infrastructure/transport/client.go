@@ -66,14 +66,21 @@ func cacheKey(cfg entities.SwitchConfig) string {
 func GetClient(cfg entities.SwitchConfig) cachedClient {
 	key := cacheKey(cfg)
 	if key == "" {
-		return NewTelnetClient(cfg)
+		return newClient(cfg)
 	}
 	cacheMu.Lock()
 	defer cacheMu.Unlock()
 	if c, ok := clientCache[key]; ok {
 		return c
 	}
-	c := NewTelnetClient(cfg)
+	c := newClient(cfg)
 	clientCache[key] = c
 	return c
+}
+
+func newClient(cfg entities.SwitchConfig) cachedClient {
+	if cfg.Transport == "ssh" {
+		return NewSSHClient(cfg)
+	}
+	return NewTelnetClient(cfg)
 }

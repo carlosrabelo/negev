@@ -225,3 +225,7 @@ func (tc *TelnetClient) ExecuteCommand(cmd string) (string, error) {
 	}
 	return output, nil
 }
+
+func (tc *TelnetClient) IsConnected() bool {
+	return tc.conn != nil
+}

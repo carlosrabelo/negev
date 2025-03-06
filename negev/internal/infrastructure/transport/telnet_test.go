@@ -60,7 +60,7 @@ func TestTelnetAuthFailureClearsConnection(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected auth failure against a banner-only server")
 	}
-	if tc.conn != nil {
+	if tc.IsConnected() {
 		t.Fatal("auth failure must clear the Telnet connection")
 	}
 }
@@ -69,5 +69,25 @@ func TestTelnetExecuteCommandRequiresConnection(t *testing.T) {
 	tc := NewTelnetClient(entities.SwitchConfig{Target: "127.0.0.1"})
 	if _, err := tc.ExecuteCommand("show version"); err == nil {
 		t.Fatal("expected error when executing without a connection")
+	}
+}
+
+func TestTelnetClientBasicsAndConnectFailure(t *testing.T) {
+	cfg := entities.SwitchConfig{
+		Target: "127.0.0.1", Username: "admin", Password: "pass",
+		EnablePassword: "enable", VerbosityLevel: 3,
+	}
+	tc := NewTelnetClient(cfg)
+	tc.SetAuthSequence([]entities.AuthPrompt{{WaitFor: "Username:", SendCmd: "admin\n"}})
+	if tc.IsConnected() {
+		t.Fatal("expected not connected")
+	}
+	tc.Disconnect()
+	err := tc.Connect()
+	if err == nil {
+		t.Fatal("expected Telnet connect failure against localhost")
+	}
+	if tc.IsConnected() {
+		t.Fatal("failed dial must not leave the client connected")
 	}
 }

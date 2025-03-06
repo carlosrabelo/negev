@@ -56,7 +56,7 @@ VLAN automation for Cisco IOS switches over Telnet/SSH. MAC-based assignment wit
 - [x] `Connect`: dials TCP, reads prompts and sends auth commands
 - [x] `readUntil(pattern, timeout)`: reads chunks, sleeps 100ms between reads, checks for pattern match
 - [x] `ExecuteCommand`: sends command + `\n`, reads until `#`, strips echo line and trailing prompt line
-- [ ] `Disconnect`: closes connection, sets conn to nil
+- [x] `Disconnect`: closes connection, sets conn to nil
 - [ ] `IsConnected`: checks `conn != nil`
 - [ ] Raw output display when `IsRawOutputEnabled`
 

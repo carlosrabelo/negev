@@ -147,6 +147,9 @@ func (sc *SSHClient) readUntilAny(patterns []string, timeout time.Duration) (str
 		n, err := sc.reader.Read(buffer)
 		if n > 0 {
 			output.Write(buffer[:n])
+			if sc.config.IsRawOutputEnabled() {
+				fmt.Printf("Switch output: Read: %s\n", string(buffer[:n]))
+			}
 			text := output.String()
 			for _, pattern := range patterns {
 				if strings.Contains(text, pattern) {
@@ -202,6 +205,9 @@ func (sc *SSHClient) ExecuteCommand(cmd string) (string, error) {
 		output = strings.Join(lines[1:len(lines)-1], "\n")
 	} else {
 		output = ""
+	}
+	if sc.config.IsRawOutputEnabled() {
+		fmt.Printf("Switch output for '%s':\n%s\n", cmd, output)
 	}
 	return output, nil
 }

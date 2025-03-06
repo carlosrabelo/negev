@@ -1,6 +1,7 @@
 package transport
 
 import (
+	"net"
 	"testing"
 
 	"github.com/carlosrabelo/negev/negev/internal/domain/entities"
@@ -32,5 +33,34 @@ func TestDefaultIOSAuthSequence(t *testing.T) {
 	})
 	if len(seq) != 6 || seq[0].WaitFor != PromptUsername || seq[2].SendCmd != "enable\n" {
 		t.Fatalf("unexpected IOS sequence: %+v", seq)
+	}
+}
+
+func TestTelnetAuthFailureClearsConnection(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ln.Close()
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		conn, err := ln.Accept()
+		if err != nil {
+			return
+		}
+		_, _ = conn.Write([]byte("Welcome\r\n"))
+		conn.Close()
+	}()
+	tc := NewTelnetClient(entities.SwitchConfig{
+		Target: ln.Addr().String(), Username: "admin", Password: "pass", EnablePassword: "enable",
+	})
+	err = tc.Connect()
+	<-done
+	if err == nil {
+		t.Fatal("expected auth failure against a banner-only server")
+	}
+	if tc.conn != nil {
+		t.Fatal("auth failure must clear the Telnet connection")
 	}
 }

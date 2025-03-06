@@ -179,3 +179,26 @@ func (sc *SSHClient) Disconnect() {
 	sc.stdin = nil
 	sc.reader = nil
 }
+
+func (sc *SSHClient) ExecuteCommand(cmd string) (string, error) {
+	if sc.config.IsDebugEnabled() {
+		fmt.Printf("DEBUG: Executing: %s\n", cmd)
+	}
+	if sc.netConn != nil {
+		_ = sc.netConn.SetWriteDeadline(time.Now().Add(DefaultTimeout))
+	}
+	if err := sc.send(cmd + "\n"); err != nil {
+		return "", fmt.Errorf("failed to send command %s: %v", cmd, err)
+	}
+	output, err := sc.readUntil(PromptPrivileged, DefaultTimeout)
+	if err != nil {
+		return "", fmt.Errorf("error executing %s: %v", cmd, err)
+	}
+	lines := strings.Split(output, "\n")
+	if len(lines) > 1 {
+		output = strings.Join(lines[1:len(lines)-1], "\n")
+	} else {
+		output = ""
+	}
+	return output, nil
+}

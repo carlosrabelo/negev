@@ -121,6 +121,13 @@ func (tc *TelnetClient) runAuthSequence(prompts []entities.AuthPrompt) error {
 			if _, err := tc.conn.Write([]byte(cmd)); err != nil {
 				return fmt.Errorf("failed to send auth command for prompt %s: %v", p.WaitFor, err)
 			}
+			if tc.config.IsDebugEnabled() {
+				displayCmd := strings.TrimSpace(cmd)
+				if strings.Contains(strings.ToLower(p.WaitFor), "password") {
+					displayCmd = "********"
+				}
+				fmt.Printf("DEBUG: Sent %s for prompt %s\n", displayCmd, p.WaitFor)
+			}
 		}
 	}
 	return nil
@@ -136,6 +143,9 @@ func (tc *TelnetClient) readUntilAny(patterns []string, timeout time.Duration) (
 		n, err := tc.conn.Read(buffer)
 		if n > 0 {
 			output.Write(buffer[:n])
+			if tc.config.IsRawOutputEnabled() {
+				fmt.Printf("Switch output: Read: %s\n", string(buffer[:n]))
+			}
 			got := output.String()
 			for _, pattern := range patterns {
 				if pattern != "" && strings.Contains(got, pattern) {
@@ -163,6 +173,9 @@ func (tc *TelnetClient) readUntil(pattern string, timeout time.Duration) (string
 		n, err := tc.conn.Read(buffer)
 		if n > 0 {
 			output.Write(buffer[:n])
+			if tc.config.IsRawOutputEnabled() {
+				fmt.Printf("Switch output: Read: %s\n", string(buffer[:n]))
+			}
 			if strings.Contains(output.String(), pattern) {
 				return output.String(), nil
 			}
@@ -222,6 +235,9 @@ func (tc *TelnetClient) ExecuteCommand(cmd string) (string, error) {
 		output = strings.Join(lines[1:len(lines)-1], "\n")
 	} else {
 		output = ""
+	}
+	if tc.config.IsRawOutputEnabled() {
+		fmt.Printf("Switch output for '%s':\n%s\n", cmd, output)
 	}
 	return output, nil
 }

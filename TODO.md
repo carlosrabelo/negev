@@ -58,7 +58,7 @@ VLAN automation for Cisco IOS switches over Telnet/SSH. MAC-based assignment wit
 - [x] `ExecuteCommand`: sends command + `\n`, reads until `#`, strips echo line and trailing prompt line
 - [x] `Disconnect`: closes connection, sets conn to nil
 - [x] `IsConnected`: checks `conn != nil`
-- [ ] Raw output display when `IsRawOutputEnabled`
+- [x] Raw output display when `IsRawOutputEnabled`
 
 ### SSH (`internal/infrastructure/transport/ssh.go`)
 

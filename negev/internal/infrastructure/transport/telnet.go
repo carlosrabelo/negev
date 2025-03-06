@@ -198,3 +198,27 @@ func defaultIOSAuthSequence(cfg entities.SwitchConfig) []entities.AuthPrompt {
 		{WaitFor: PromptPrivileged, SendCmd: ""},
 	}
 }
+
+func (tc *TelnetClient) ExecuteCommand(cmd string) (string, error) {
+	if tc.conn == nil {
+		return "", fmt.Errorf("not connected")
+	}
+	if tc.config.IsDebugEnabled() {
+		fmt.Printf("DEBUG: Executing: %s\n", cmd)
+	}
+	_ = tc.conn.SetWriteDeadline(time.Now().Add(DefaultTimeout))
+	if _, err := tc.conn.Write([]byte(cmd + "\n")); err != nil {
+		return "", fmt.Errorf("failed to send command %s: %v", cmd, err)
+	}
+	output, err := tc.readUntil(PromptPrivileged, DefaultTimeout)
+	if err != nil {
+		return "", fmt.Errorf("error executing %s: %v", cmd, err)
+	}
+	lines := strings.Split(output, "\n")
+	if len(lines) > 1 {
+		output = strings.Join(lines[1:len(lines)-1], "\n")
+	} else {
+		output = ""
+	}
+	return output, nil
+}

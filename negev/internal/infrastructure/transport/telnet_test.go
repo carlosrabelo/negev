@@ -64,3 +64,10 @@ func TestTelnetAuthFailureClearsConnection(t *testing.T) {
 		t.Fatal("auth failure must clear the Telnet connection")
 	}
 }
+
+func TestTelnetExecuteCommandRequiresConnection(t *testing.T) {
+	tc := NewTelnetClient(entities.SwitchConfig{Target: "127.0.0.1"})
+	if _, err := tc.ExecuteCommand("show version"); err == nil {
+		t.Fatal("expected error when executing without a connection")
+	}
+}

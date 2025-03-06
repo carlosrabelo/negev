@@ -10,12 +10,15 @@ import (
 	"github.com/carlosrabelo/negev/negev/internal/domain/entities"
 )
 
-type cachedClient interface {
+type Client interface {
+	Connect() error
 	Disconnect()
+	ExecuteCommand(cmd string) (string, error)
+	IsConnected() bool
 }
 
 var (
-	clientCache = make(map[string]cachedClient)
+	clientCache = make(map[string]Client)
 	cacheMu     sync.Mutex
 )
 
@@ -25,13 +28,13 @@ func cacheSize() int {
 	return len(clientCache)
 }
 
-func putCached(key string, c cachedClient) {
+func putCached(key string, c Client) {
 	cacheMu.Lock()
 	defer cacheMu.Unlock()
 	clientCache[key] = c
 }
 
-func getCached(key string) cachedClient {
+func getCached(key string) Client {
 	cacheMu.Lock()
 	defer cacheMu.Unlock()
 	return clientCache[key]
@@ -63,7 +66,7 @@ func cacheKey(cfg entities.SwitchConfig) string {
 	return fmt.Sprintf("%x", hash)
 }
 
-func GetClient(cfg entities.SwitchConfig) cachedClient {
+func GetClient(cfg entities.SwitchConfig) Client {
 	key := cacheKey(cfg)
 	if key == "" {
 		return newClient(cfg)
@@ -78,7 +81,7 @@ func GetClient(cfg entities.SwitchConfig) cachedClient {
 	return c
 }
 
-func newClient(cfg entities.SwitchConfig) cachedClient {
+func newClient(cfg entities.SwitchConfig) Client {
 	if cfg.Transport == "ssh" {
 		return NewSSHClient(cfg)
 	}

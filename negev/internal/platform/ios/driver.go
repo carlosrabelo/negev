@@ -66,7 +66,35 @@ func parseVLANs(output string) []string {
 	}
 	return vlans
 }
-func (d *Driver) GetTrunkInterfaces(repo ports.SwitchRepository) ([]string, error) { return nil, nil }
+func (d *Driver) GetTrunkInterfaces(repo ports.SwitchRepository) ([]string, error) {
+	out, err := repo.ExecuteCommand("show interfaces trunk")
+	if err != nil {
+		return nil, err
+	}
+	return parseTrunkInterfaces(out), nil
+}
+
+var interfaceRegex = regexp.MustCompile(`^[A-Za-z]+\d+(?:/\d+){0,2}$`)
+
+func parseTrunkInterfaces(output string) []string {
+	lines := strings.Split(output, "\n")
+	seen := make(map[string]bool)
+	var ifaces []string
+	for _, line := range lines {
+		fields := strings.Fields(line)
+		if len(fields) == 0 {
+			continue
+		}
+		if interfaceRegex.MatchString(fields[0]) {
+			name := fields[0]
+			if !seen[name] {
+				seen[name] = true
+				ifaces = append(ifaces, name)
+			}
+		}
+	}
+	return ifaces
+}
 func (d *Driver) GetActivePorts(repo ports.SwitchRepository) ([]entities.Port, error) { return nil, nil }
 func (d *Driver) GetMacTable(repo ports.SwitchRepository) ([]entities.Device, error) { return nil, nil }
 func (d *Driver) ConfigureAccessCommands(port entities.Port, vlan string) []string { return nil }

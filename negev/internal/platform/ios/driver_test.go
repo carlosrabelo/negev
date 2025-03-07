@@ -50,3 +50,20 @@ Gi1/0/24    1-4094
 		t.Errorf("parseTrunkInterfaces() = %v; expected %v", got, expected)
 	}
 }
+
+func TestParseActivePortsWithMonitor(t *testing.T) {
+	output := `
+Port      Name               Status       Vlan       Duplex  Speed Type
+Gi1/0/1                      connected    10         a-full  a-1000 10/100/1000BaseTX
+Gi1/0/4                      notconnect   1            auto   auto 10/100/1000BaseTX
+Gi1/0/5   SPAN dest          monitor      10         a-full  a-1000 10/100/1000BaseTX
+`
+	got := parseActivePorts(output)
+	expected := []entities.Port{
+		{Interface: "Gi1/0/1", Vlan: "10"},
+		{Interface: "Gi1/0/5", Vlan: "10"},
+	}
+	if !reflect.DeepEqual(got, expected) {
+		t.Errorf("parseActivePorts() = %+v; expected %+v", got, expected)
+	}
+}

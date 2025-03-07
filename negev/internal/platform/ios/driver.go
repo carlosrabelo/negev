@@ -149,7 +149,25 @@ func isStatusKeyword(s string) bool {
 	}
 	return s == "notconnect"
 }
-func (d *Driver) GetMacTable(repo ports.SwitchRepository) ([]entities.Device, error) { return nil, nil }
+func (d *Driver) GetMacTable(repo ports.SwitchRepository) ([]entities.Device, error) {
+	trunks, err := d.GetTrunkInterfaces(repo)
+	if err != nil {
+		return nil, err
+	}
+	trunkSet := make(map[string]bool, len(trunks))
+	for _, t := range trunks {
+		trunkSet[t] = true
+	}
+	out, err := repo.ExecuteCommand("show mac address-table dynamic")
+	if err != nil {
+		return nil, err
+	}
+	return parseMacTable(out, trunkSet), nil
+}
+
+func parseMacTable(output string, trunkSet map[string]bool) []entities.Device {
+	return nil
+}
 func (d *Driver) ConfigureAccessCommands(port entities.Port, vlan string) []string { return nil }
 func (d *Driver) CreateVLANCommands(vlan string) []string { return nil }
 func (d *Driver) DeleteVLANCommands(vlan string) []string { return nil }

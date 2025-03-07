@@ -1,12 +1,15 @@
 package ios
 
 import (
+	"regexp"
 	"strings"
 
 	"github.com/carlosrabelo/negev/negev/internal/domain/entities"
 	"github.com/carlosrabelo/negev/negev/internal/domain/ports"
 	"github.com/carlosrabelo/negev/negev/internal/platform"
 )
+
+var vlanLineRegex = regexp.MustCompile(`^\s*(?:vlan\s+)?(\d{1,4})\b`)
 
 type Driver struct{}
 
@@ -47,7 +50,21 @@ func (d *Driver) GetVLANList(repo ports.SwitchRepository) ([]string, error) {
 }
 
 func parseVLANs(output string) []string {
-	return nil
+	lines := strings.Split(output, "\n")
+	seen := make(map[string]bool)
+	var vlans []string
+	for _, line := range lines {
+		m := vlanLineRegex.FindStringSubmatch(line)
+		if m == nil {
+			continue
+		}
+		v := m[1]
+		if !seen[v] {
+			seen[v] = true
+			vlans = append(vlans, v)
+		}
+	}
+	return vlans
 }
 func (d *Driver) GetTrunkInterfaces(repo ports.SwitchRepository) ([]string, error) { return nil, nil }
 func (d *Driver) GetActivePorts(repo ports.SwitchRepository) ([]entities.Port, error) { return nil, nil }

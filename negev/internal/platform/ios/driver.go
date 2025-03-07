@@ -229,6 +229,8 @@ func (d *Driver) DeleteVLANCommands(vlan string) []string {
 		"end",
 	}
 }
-func (d *Driver) SaveCommands() []string { return nil }
+func (d *Driver) SaveCommands() []string {
+	return []string{"write memory"}
+}
 func (d *Driver) ClearCache() {}
 func (d *Driver) IsCommandError(output string) bool { return false }

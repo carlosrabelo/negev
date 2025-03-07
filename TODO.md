@@ -96,7 +96,7 @@ VLAN automation for Cisco IOS switches over Telnet/SSH. MAC-based assignment wit
 
 - [x] Driver name: `"ios"`
 - [x] Auth sequence: `Username:` → username, `Password:` → password, `>` → `enable`, `Password:` → enable password, `#` → `terminal length 0`, `#` → `""`
-- [ ] Detection: `show version` output contains `"cisco ios"` (case-insensitive)
+- [x] Detection: `show version` output contains `"cisco ios"` (case-insensitive)
 - [ ] VLAN list: `show vlan brief` with fallback to `show vlan`
 - [ ] VLAN list parser: `vlanLineRegex = ^\s*(?:vlan\s+)?(\d{1,4})\b`, skips separator lines and blanks
 - [ ] Trunk interfaces: `show interfaces trunk`, first field matched against `interfaceRegex = ^[A-Za-z]+\d+(?:/\d+){0,2}$`

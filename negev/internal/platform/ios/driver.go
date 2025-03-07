@@ -1,6 +1,8 @@
 package ios
 
 import (
+	"strings"
+
 	"github.com/carlosrabelo/negev/negev/internal/domain/entities"
 	"github.com/carlosrabelo/negev/negev/internal/domain/ports"
 	"github.com/carlosrabelo/negev/negev/internal/platform"
@@ -16,7 +18,13 @@ func (d *Driver) Name() string {
 	return "ios"
 }
 
-func (d *Driver) Detect(repo ports.SwitchRepository) (bool, error) { return false, nil }
+func (d *Driver) Detect(repo ports.SwitchRepository) (bool, error) {
+	out, err := repo.ExecuteCommand("show version")
+	if err != nil {
+		return false, err
+	}
+	return strings.Contains(strings.ToLower(out), "cisco ios"), nil
+}
 func (d *Driver) GetAuthenticationSequence() []entities.AuthPrompt {
 	return []entities.AuthPrompt{
 		{WaitFor: "Username:", SendCmd: "USERNAME_PLACEHOLDER\n"},

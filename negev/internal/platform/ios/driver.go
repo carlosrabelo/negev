@@ -2,6 +2,7 @@ package ios
 
 import (
 	"regexp"
+	"sort"
 	"strings"
 
 	"github.com/carlosrabelo/negev/negev/internal/domain/entities"
@@ -95,7 +96,59 @@ func parseTrunkInterfaces(output string) []string {
 	}
 	return ifaces
 }
-func (d *Driver) GetActivePorts(repo ports.SwitchRepository) ([]entities.Port, error) { return nil, nil }
+func (d *Driver) GetActivePorts(repo ports.SwitchRepository) ([]entities.Port, error) {
+	out, err := repo.ExecuteCommand("show interfaces status")
+	if err != nil {
+		return nil, err
+	}
+	return parseActivePorts(out), nil
+}
+
+var statusKeywords = []string{"connected", "up", "forward", "monitor", "active", "link-up"}
+
+func parseActivePorts(output string) []entities.Port {
+	lines := strings.Split(output, "\n")
+	var ports []entities.Port
+	for _, line := range lines {
+		fields := strings.Fields(line)
+		if len(fields) < 3 {
+			continue
+		}
+		if !interfaceRegex.MatchString(fields[0]) {
+			continue
+		}
+		status := ""
+		vlan := ""
+		for i, f := range fields {
+			if isStatusKeyword(f) {
+				if i+1 < len(fields) {
+					status = f
+					vlan = fields[i+1]
+					break
+				}
+			}
+		}
+		if status == "notconnect" {
+			continue
+		}
+		if status != "" && vlan != "" {
+			ports = append(ports, entities.Port{Interface: fields[0], Vlan: vlan})
+		}
+	}
+	sort.Slice(ports, func(i, j int) bool {
+		return ports[i].Interface < ports[j].Interface
+	})
+	return ports
+}
+
+func isStatusKeyword(s string) bool {
+	for _, kw := range statusKeywords {
+		if s == kw {
+			return true
+		}
+	}
+	return s == "notconnect"
+}
 func (d *Driver) GetMacTable(repo ports.SwitchRepository) ([]entities.Device, error) { return nil, nil }
 func (d *Driver) ConfigureAccessCommands(port entities.Port, vlan string) []string { return nil }
 func (d *Driver) CreateVLANCommands(vlan string) []string { return nil }

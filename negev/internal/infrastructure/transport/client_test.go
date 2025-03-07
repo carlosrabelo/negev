@@ -23,3 +23,12 @@ func TestCacheKeyStable(t *testing.T) {
 		t.Fatal("different credentials must not share a cache key")
 	}
 }
+
+func TestNewClientChoosesTransport(t *testing.T) {
+	if _, ok := newClient(entities.SwitchConfig{Transport: "ssh"}).(*SSHClient); !ok {
+		t.Fatal("ssh transport should build SSHClient")
+	}
+	if _, ok := newClient(entities.SwitchConfig{Transport: "telnet"}).(*TelnetClient); !ok {
+		t.Fatal("telnet transport should build TelnetClient")
+	}
+}

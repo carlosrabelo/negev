@@ -85,7 +85,7 @@ VLAN automation for Cisco IOS switches over Telnet/SSH. MAC-based assignment wit
 
 - [x] `Client` interface: `Connect()`, `Disconnect()`, `ExecuteCommand()`, `IsConnected()`
 - [x] `AuthConfigurable` interface: `SetAuthSequence([]entities.AuthPrompt)`
-- [ ] `SwitchAdapter` wraps `Client` and implements `SwitchRepository`
+- [x] `SwitchAdapter` wraps `Client` and implements `SwitchRepository`
 
 ## Platform driver interface
 

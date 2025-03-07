@@ -1,6 +1,8 @@
 package platform
 
 import (
+	"fmt"
+
 	"github.com/carlosrabelo/negev/negev/internal/domain/entities"
 	"github.com/carlosrabelo/negev/negev/internal/domain/ports"
 )
@@ -19,4 +21,40 @@ type SwitchDriver interface {
 	SaveCommands() []string
 	ClearCache()
 	IsCommandError(output string) bool
+}
+
+var drivers []SwitchDriver
+
+func Register(d SwitchDriver) {
+	drivers = append(drivers, d)
+}
+
+func Get(name string) SwitchDriver {
+	for _, d := range drivers {
+		if d.Name() == name {
+			return d
+		}
+	}
+	return nil
+}
+
+func Available() []string {
+	names := make([]string, 0, len(drivers))
+	for _, d := range drivers {
+		names = append(names, d.Name())
+	}
+	return names
+}
+
+func Detect(repo ports.SwitchRepository) (SwitchDriver, error) {
+	for _, d := range drivers {
+		match, err := d.Detect(repo)
+		if err != nil {
+			return nil, fmt.Errorf("detection failed for driver %s: %v", d.Name(), err)
+		}
+		if match {
+			return d, nil
+		}
+	}
+	return nil, fmt.Errorf("no matching driver found")
 }

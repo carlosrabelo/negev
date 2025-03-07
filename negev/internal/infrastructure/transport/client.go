@@ -84,3 +84,12 @@ func newClient(cfg entities.SwitchConfig) cachedClient {
 	}
 	return NewTelnetClient(cfg)
 }
+
+func CloseAll() {
+	cacheMu.Lock()
+	defer cacheMu.Unlock()
+	for key, c := range clientCache {
+		c.Disconnect()
+		delete(clientCache, key)
+	}
+}

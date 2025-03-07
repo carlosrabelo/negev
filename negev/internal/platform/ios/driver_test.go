@@ -35,3 +35,18 @@ VLAN Name                             Status    Ports
 		t.Errorf("parseVLANs() = %v; expected %v", got, expected)
 	}
 }
+
+func TestParseTrunkInterfaces(t *testing.T) {
+	output := `
+Port        Mode             Encapsulation  Status        Native vlan
+Gi1/0/24    on               802.1q         trunking      1
+
+Port        Vlans allowed on trunk
+Gi1/0/24    1-4094
+`
+	got := parseTrunkInterfaces(output)
+	expected := []string{"Gi1/0/24"}
+	if !reflect.DeepEqual(got, expected) {
+		t.Errorf("parseTrunkInterfaces() = %v; expected %v", got, expected)
+	}
+}

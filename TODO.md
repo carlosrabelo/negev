@@ -90,7 +90,7 @@ VLAN automation for Cisco IOS switches over Telnet/SSH. MAC-based assignment wit
 ## Platform driver interface
 
 - [x] `SwitchDriver` contract: `Name()`, `Detect()`, `GetAuthenticationSequence()`, `GetVLANList()`, `GetTrunkInterfaces()`, `GetActivePorts()`, `GetMacTable()`, `ConfigureAccessCommands()`, `CreateVLANCommands()`, `DeleteVLANCommands()`, `SaveCommands()`
-- [ ] Global registry: `[]SwitchDriver` with `Get(name)`, `Available()`, `Detect(repo)`
+- [x] Global registry: `[]SwitchDriver` with `Get(name)`, `Available()`, `Detect(repo)`
 
 ## Cisco IOS (`internal/platform/ios/`)
 

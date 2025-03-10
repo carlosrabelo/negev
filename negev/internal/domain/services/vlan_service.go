@@ -2,6 +2,7 @@ package services
 
 import (
 	"fmt"
+	"strings"
 	"log/slog"
 
 	"github.com/carlosrabelo/negev/negev/internal/domain/entities"
@@ -58,6 +59,9 @@ func (s *VLANServiceImpl) ProcessPorts() error {
 		}
 		mac := macs[0]
 		if len(mac.Mac) < 6 {
+			continue
+		}
+		if s.isExcluded(mac.Mac) {
 			continue
 		}
 		prefix := mac.Mac[:6]
@@ -126,3 +130,12 @@ func (s *VLANServiceImpl) ConfigureVlan(iface, vlan string) error { return nil }
 func (s *VLANServiceImpl) CreateVLAN(vlan string) error { return nil }
 
 func (s *VLANServiceImpl) DeleteVLAN(vlan string) error { return nil }
+
+func (s *VLANServiceImpl) isExcluded(mac string) bool {
+	for _, e := range s.config.ExcludeMacs {
+		if strings.EqualFold(mac, e) {
+			return true
+		}
+	}
+	return false
+}

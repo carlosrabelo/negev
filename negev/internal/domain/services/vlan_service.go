@@ -2,6 +2,7 @@ package services
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"log/slog"
 
@@ -146,6 +147,19 @@ func (s *VLANServiceImpl) isExcluded(mac string) bool {
 func (s *VLANServiceImpl) isExcludedPort(iface string) bool {
 	for _, e := range s.config.ExcludePorts {
 		if strings.EqualFold(iface, e) {
+			return true
+		}
+	}
+	return false
+}
+
+func (s *VLANServiceImpl) isProtected(vlan string) bool {
+	n, _ := strconv.Atoi(strings.TrimSpace(vlan))
+	if n >= 1000 && n <= 4094 {
+		return true
+	}
+	for _, p := range s.config.ProtectedVlans {
+		if vlan == p {
 			return true
 		}
 	}

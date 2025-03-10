@@ -49,6 +49,9 @@ func (s *VLANServiceImpl) ProcessPorts() error {
 		return fmt.Errorf("failed to get MAC table: %v", err)
 	}
 	for _, port := range ports {
+		if s.isExcludedPort(port.Interface) {
+			continue
+		}
 		macs := s.filterDevices(devices, port.Interface)
 		if len(macs) == 0 {
 			continue
@@ -134,6 +137,15 @@ func (s *VLANServiceImpl) DeleteVLAN(vlan string) error { return nil }
 func (s *VLANServiceImpl) isExcluded(mac string) bool {
 	for _, e := range s.config.ExcludeMacs {
 		if strings.EqualFold(mac, e) {
+			return true
+		}
+	}
+	return false
+}
+
+func (s *VLANServiceImpl) isExcludedPort(iface string) bool {
+	for _, e := range s.config.ExcludePorts {
+		if strings.EqualFold(iface, e) {
 			return true
 		}
 	}

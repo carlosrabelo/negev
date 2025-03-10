@@ -57,6 +57,9 @@ func (s *VLANServiceImpl) ProcessPorts() error {
 			continue
 		}
 		mac := macs[0]
+		if len(mac.Mac) < 6 {
+			continue
+		}
 		targetVlan := s.config.DefaultVlan
 		if targetVlan != "" && targetVlan != port.Vlan {
 			if err := s.ConfigureVlan(port.Interface, targetVlan); err != nil {

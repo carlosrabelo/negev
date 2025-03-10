@@ -18,7 +18,17 @@ func RunTarget(target, configPath string, write bool, verbose int, createVLANs b
 		}},
 	}
 	_ = configPath
-	sw := cfg.Switches[0]
+	var switchCfg *entities.SwitchConfig
+	for i, sc := range cfg.Switches {
+		if sc.Target == target {
+			switchCfg = &cfg.Switches[i]
+			break
+		}
+	}
+	if switchCfg == nil {
+		return fmt.Errorf("target %s not found in configuration", target)
+	}
+	sw := *switchCfg
 	sw.Sandbox = !write
 	sw.VerbosityLevel = verbose
 	sw.CreateVLANs = createVLANs

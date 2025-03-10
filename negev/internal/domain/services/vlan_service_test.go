@@ -163,3 +163,10 @@ func TestGetAllowedVLANs(t *testing.T) {
 		t.Fatalf("getAllowedVLANs = %v", got)
 	}
 }
+
+func TestIsExcluded(t *testing.T) {
+	svc := NewVLANService(&mockRepository{}, entities.SwitchConfig{ExcludeMacs: []string{"aabbccddeeff"}}, baseDriver())
+	if !svc.isExcluded("AABBCCDDEEFF") || svc.isExcluded("001122334455") {
+		t.Fatal("isExcluded")
+	}
+}

@@ -52,6 +52,10 @@ func RunTarget(target, configPath string, write bool, verbose int, createVLANs b
 		return fmt.Errorf("unknown platform %q (available: %v)", platformID, platform.Available())
 	}
 	_ = driver.Name()
+	if authCfg, ok := interface{}(adapter).(transport.AuthConfigurable); ok {
+		authCfg.SetAuthSequence(driver.GetAuthenticationSequence())
+	}
+	driver.ClearCache()
 	svc := domainServices.NewVLANService(adapter, sw, driver)
 	return svc.ProcessPorts()
 }

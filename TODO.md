@@ -120,7 +120,7 @@ VLAN automation for Cisco IOS switches over Telnet/SSH. MAC-based assignment wit
 - [x] Target VLAN fallback: `MacToVlan[macPrefix]` → if empty/`"0"`/`"00"` → `DefaultVlan`
 - [x] Non-existent target VLAN on switch → error and skip port
 - [x] Excluded MACs (exact match against normalized 12-char list) → skip port
-- [ ] Excluded ports (case-insensitive match) → skip port
+- [x] Excluded ports (case-insensitive match) → skip port
 - [ ] Protected VLANs: user-defined `ProtectedVlans` list + extended range (1000–4094) auto-protected
 - [ ] Trunk interface skip: detected via driver, case-insensitive match
 - [ ] Sandbox mode: prints simulated commands, no execution

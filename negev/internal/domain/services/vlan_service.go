@@ -1,6 +1,8 @@
 package services
 
 import (
+	"fmt"
+
 	"github.com/carlosrabelo/negev/negev/internal/domain/entities"
 	"github.com/carlosrabelo/negev/negev/internal/domain/ports"
 	"github.com/carlosrabelo/negev/negev/internal/platform"
@@ -18,15 +20,90 @@ func NewVLANService(repo ports.SwitchRepository, config entities.SwitchConfig, d
 
 var _ ports.VLANService = (*VLANServiceImpl)(nil)
 
-func (s *VLANServiceImpl) ProcessPorts() error { return nil }
+func (s *VLANServiceImpl) ProcessPorts() error {
+	if err := s.repo.Connect(); err != nil {
+		return fmt.Errorf("failed to connect: %v", err)
+	}
+	defer s.repo.Disconnect()
 
-func (s *VLANServiceImpl) GetVlanList() (map[string]bool, error) { return nil, nil }
+	vlans, err := s.GetVlanList()
+	if err != nil {
+		return fmt.Errorf("failed to get VLAN list: %v", err)
+	}
+	if s.config.CreateVLANs {
+		_ = vlans
+	}
+	trunks, err := s.GetTrunkInterfaces()
+	if err != nil {
+		return fmt.Errorf("failed to get trunks: %v", err)
+	}
+	_ = trunks
+	ports, err := s.GetActivePorts()
+	if err != nil {
+		return fmt.Errorf("failed to get active ports: %v", err)
+	}
+	devices, err := s.GetMacTable()
+	if err != nil {
+		return fmt.Errorf("failed to get MAC table: %v", err)
+	}
+	for _, port := range ports {
+		macs := s.filterDevices(devices, port.Interface)
+		if len(macs) == 0 {
+			continue
+		}
+		mac := macs[0]
+		targetVlan := s.config.DefaultVlan
+		if targetVlan != "" && targetVlan != port.Vlan {
+			if err := s.ConfigureVlan(port.Interface, targetVlan); err != nil {
+				return err
+			}
+		}
+		_ = mac
+	}
+	return nil
+}
 
-func (s *VLANServiceImpl) GetTrunkInterfaces() (map[string]bool, error) { return nil, nil }
+func (s *VLANServiceImpl) filterDevices(devices []entities.Device, iface string) []entities.Device {
+	var result []entities.Device
+	for _, d := range devices {
+		if d.Interface == iface {
+			result = append(result, d)
+		}
+	}
+	return result
+}
 
-func (s *VLANServiceImpl) GetActivePorts() ([]entities.Port, error) { return nil, nil }
+func (s *VLANServiceImpl) GetVlanList() (map[string]bool, error) {
+	vlans, err := s.driver.GetVLANList(s.repo)
+	if err != nil {
+		return nil, err
+	}
+	result := make(map[string]bool, len(vlans))
+	for _, v := range vlans {
+		result[v] = true
+	}
+	return result, nil
+}
 
-func (s *VLANServiceImpl) GetMacTable() ([]entities.Device, error) { return nil, nil }
+func (s *VLANServiceImpl) GetTrunkInterfaces() (map[string]bool, error) {
+	trunks, err := s.driver.GetTrunkInterfaces(s.repo)
+	if err != nil {
+		return nil, err
+	}
+	result := make(map[string]bool, len(trunks))
+	for _, t := range trunks {
+		result[t] = true
+	}
+	return result, nil
+}
+
+func (s *VLANServiceImpl) GetActivePorts() ([]entities.Port, error) {
+	return s.driver.GetActivePorts(s.repo)
+}
+
+func (s *VLANServiceImpl) GetMacTable() ([]entities.Device, error) {
+	return s.driver.GetMacTable(s.repo)
+}
 
 func (s *VLANServiceImpl) ConfigureVlan(iface, vlan string) error { return nil }
 

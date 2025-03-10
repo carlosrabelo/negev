@@ -2,6 +2,7 @@ package services
 
 import (
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 	"log/slog"
@@ -35,7 +36,7 @@ func (s *VLANServiceImpl) ProcessPorts() error {
 	}
 	if s.config.CreateVLANs {
 		allowed := s.getAllowedVLANs()
-		for v := range allowed {
+		for _, v := range sortedKeys(allowed) {
 			if !vlans[v] {
 				if err := s.CreateVLAN(v); err != nil {
 					return fmt.Errorf("failed to create VLAN %s: %v", v, err)
@@ -43,7 +44,7 @@ func (s *VLANServiceImpl) ProcessPorts() error {
 				vlans[v] = true
 			}
 		}
-		for v := range vlans {
+		for _, v := range sortedKeys(vlans) {
 			if s.isProtected(v) || allowed[v] {
 				continue
 			}
@@ -210,4 +211,13 @@ func (s *VLANServiceImpl) isProtected(vlan string) bool {
 		}
 	}
 	return false
+}
+
+func sortedKeys(m map[string]bool) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
 }

@@ -50,6 +50,9 @@ func (s *VLANServiceImpl) ProcessPorts() error {
 		return fmt.Errorf("failed to get MAC table: %v", err)
 	}
 	for _, port := range ports {
+		if trunks[port.Interface] {
+			continue
+		}
 		if s.isExcludedPort(port.Interface) {
 			continue
 		}

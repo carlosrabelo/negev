@@ -123,7 +123,7 @@ VLAN automation for Cisco IOS switches over Telnet/SSH. MAC-based assignment wit
 - [x] Excluded ports (case-insensitive match) → skip port
 - [x] Protected VLANs: user-defined `ProtectedVlans` list + extended range (1000–4094) auto-protected
 - [x] Trunk interface skip: detected via driver, case-insensitive match
-- [ ] Sandbox mode: prints simulated commands, no execution
+- [x] Sandbox mode: prints simulated commands, no execution
 - [ ] VLAN sync (`--create-vlans`): create missing from `AllowedVlans`, delete extras (skip protected)
 - [ ] VLAN iteration uses `sortedKeys` (deterministic alphabetical order)
 - [ ] `ConfigureVlan`: delegates to `driver.ConfigureAccessCommands`, sandbox or execute

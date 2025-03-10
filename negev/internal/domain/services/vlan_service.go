@@ -132,7 +132,25 @@ func (s *VLANServiceImpl) GetMacTable() ([]entities.Device, error) {
 	return s.driver.GetMacTable(s.repo)
 }
 
-func (s *VLANServiceImpl) ConfigureVlan(iface, vlan string) error { return nil }
+func (s *VLANServiceImpl) ConfigureVlan(iface, vlan string) error {
+	cmds := s.driver.ConfigureAccessCommands(entities.Port{Interface: iface}, vlan)
+	if s.config.Sandbox {
+		for _, cmd := range cmds {
+			fmt.Printf("SIMULATE: %s\n", cmd)
+		}
+		return nil
+	}
+	for _, cmd := range cmds {
+		out, err := s.repo.ExecuteCommand(cmd)
+		if err != nil {
+			return fmt.Errorf("command %q failed: %v", cmd, err)
+		}
+		if s.driver.IsCommandError(out) {
+			return fmt.Errorf("command %q returned error: %s", cmd, out)
+		}
+	}
+	return nil
+}
 
 func (s *VLANServiceImpl) CreateVLAN(vlan string) error { return nil }
 

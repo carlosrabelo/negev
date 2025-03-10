@@ -144,3 +144,14 @@ func TestProcessPortsConnectFailure(t *testing.T) {
 		t.Fatal("expected connect failure")
 	}
 }
+
+func TestConfigureVlanSandboxPrints(t *testing.T) {
+	repo := &mockRepository{}
+	svc := NewVLANService(repo, entities.SwitchConfig{Sandbox: true}, baseDriver())
+	if err := svc.ConfigureVlan("Gi1/0/1", "10"); err != nil {
+		t.Fatal(err)
+	}
+	if len(repo.executed) != 0 {
+		t.Fatal("sandbox must not execute")
+	}
+}

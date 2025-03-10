@@ -65,6 +65,10 @@ func (s *VLANServiceImpl) ProcessPorts() error {
 		if targetVlan == "" || targetVlan == "0" || targetVlan == "00" {
 			targetVlan = s.config.DefaultVlan
 		}
+		if !vlans[targetVlan] {
+			slog.Error("Target VLAN does not exist on switch — skipping port", "vlan", targetVlan, "port", port.Interface, "target", s.config.Target)
+			continue
+		}
 		if targetVlan != "" && targetVlan != port.Vlan {
 			if err := s.ConfigureVlan(port.Interface, targetVlan); err != nil {
 				return err

@@ -133,7 +133,7 @@ VLAN automation for Cisco IOS switches over Telnet/SSH. MAC-based assignment wit
 - [x] `filterDevices`: case-insensitive port match
 - [x] `deviceMacs`: extract MAC list from devices
 - [x] `isExcluded`: exact MAC match against list
-- [ ] Summary messages: "No changes required", "Changes simulated (sandbox mode, use -w to apply)"
+- [x] Summary messages: "No changes required", "Changes simulated (sandbox mode, use -w to apply)"
 
 ## Application orchestration
 

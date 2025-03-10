@@ -67,6 +67,7 @@ func (s *VLANServiceImpl) ProcessPorts() error {
 	if err != nil {
 		return fmt.Errorf("failed to get MAC table: %v", err)
 	}
+	changes := 0
 	for _, port := range ports {
 		if trunks[port.Interface] {
 			continue
@@ -103,8 +104,14 @@ func (s *VLANServiceImpl) ProcessPorts() error {
 			if err := s.ConfigureVlan(port.Interface, targetVlan); err != nil {
 				return err
 			}
+			changes++
 		}
 		_ = mac
+	}
+	if changes == 0 {
+		fmt.Println("No changes required")
+	} else if s.config.Sandbox {
+		fmt.Printf("Changes simulated (sandbox mode, use -w to apply)\n")
 	}
 	return nil
 }

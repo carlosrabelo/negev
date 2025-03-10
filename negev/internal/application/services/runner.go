@@ -2,6 +2,7 @@ package services
 
 import (
 	"fmt"
+	"log/slog"
 
 	"github.com/carlosrabelo/negev/negev/internal/domain/entities"
 	domainServices "github.com/carlosrabelo/negev/negev/internal/domain/services"
@@ -36,7 +37,15 @@ func RunTarget(target, configPath string, write bool, verbose int, createVLANs b
 	var driver platform.SwitchDriver
 	platformID := sw.PlatformID()
 	if platformID == "auto" {
-		return fmt.Errorf("auto-detect not wired yet")
+		if err := adapter.Connect(); err != nil {
+			return fmt.Errorf("failed to connect for auto-detection: %v", err)
+		}
+		var err error
+		driver, err = platform.Detect(adapter)
+		if err != nil {
+			return fmt.Errorf("platform detection failed: %v", err)
+		}
+		slog.Info("Detected platform", "platform", driver.Name(), "target", sw.Target)
 	}
 	driver = platform.Get(platformID)
 	if driver == nil {

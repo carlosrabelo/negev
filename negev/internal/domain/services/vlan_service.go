@@ -82,6 +82,7 @@ func (s *VLANServiceImpl) ProcessPorts() error {
 			slog.Warn("Multiple MACs on port — skipping for safety", "port", port.Interface, "target", s.config.Target)
 			continue
 		}
+		_ = deviceMacs(macs)
 		mac := macs[0]
 		if len(mac.Mac) < 6 {
 			continue
@@ -273,4 +274,12 @@ func (s *VLANServiceImpl) saveConfiguration() error {
 		}
 	}
 	return lastErr
+}
+
+func deviceMacs(devices []entities.Device) []string {
+	out := make([]string, 0, len(devices))
+	for _, d := range devices {
+		out = append(out, d.Mac)
+	}
+	return out
 }

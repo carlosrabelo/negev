@@ -257,3 +257,20 @@ func sortedKeys(m map[string]bool) []string {
 	sort.Strings(keys)
 	return keys
 }
+
+func (s *VLANServiceImpl) saveConfiguration() error {
+	cmds := s.driver.SaveCommands()
+	var lastErr error
+	for _, cmd := range cmds {
+		out, err := s.repo.ExecuteCommand(cmd)
+		if err != nil {
+			lastErr = fmt.Errorf("command %q failed: %v", cmd, err)
+			continue
+		}
+		if s.driver.IsCommandError(out) {
+			lastErr = fmt.Errorf("command %q returned error: %s", cmd, out)
+			continue
+		}
+	}
+	return lastErr
+}

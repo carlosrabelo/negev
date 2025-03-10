@@ -170,9 +170,45 @@ func (s *VLANServiceImpl) ConfigureVlan(iface, vlan string) error {
 	return nil
 }
 
-func (s *VLANServiceImpl) CreateVLAN(vlan string) error { return nil }
+func (s *VLANServiceImpl) CreateVLAN(vlan string) error {
+	cmds := s.driver.CreateVLANCommands(vlan)
+	if s.config.Sandbox {
+		for _, cmd := range cmds {
+			fmt.Printf("SIMULATE: %s\n", cmd)
+		}
+		return nil
+	}
+	for _, cmd := range cmds {
+		out, err := s.repo.ExecuteCommand(cmd)
+		if err != nil {
+			return fmt.Errorf("command %q failed: %v", cmd, err)
+		}
+		if s.driver.IsCommandError(out) {
+			return fmt.Errorf("command %q returned error: %s", cmd, out)
+		}
+	}
+	return nil
+}
 
-func (s *VLANServiceImpl) DeleteVLAN(vlan string) error { return nil }
+func (s *VLANServiceImpl) DeleteVLAN(vlan string) error {
+	cmds := s.driver.DeleteVLANCommands(vlan)
+	if s.config.Sandbox {
+		for _, cmd := range cmds {
+			fmt.Printf("SIMULATE: %s\n", cmd)
+		}
+		return nil
+	}
+	for _, cmd := range cmds {
+		out, err := s.repo.ExecuteCommand(cmd)
+		if err != nil {
+			return fmt.Errorf("command %q failed: %v", cmd, err)
+		}
+		if s.driver.IsCommandError(out) {
+			return fmt.Errorf("command %q returned error: %s", cmd, out)
+		}
+	}
+	return nil
+}
 
 func (s *VLANServiceImpl) getAllowedVLANs() map[string]bool {
 	result := make(map[string]bool, len(s.config.AllowedVlans))

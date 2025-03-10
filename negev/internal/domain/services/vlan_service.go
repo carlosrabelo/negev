@@ -34,7 +34,24 @@ func (s *VLANServiceImpl) ProcessPorts() error {
 		return fmt.Errorf("failed to get VLAN list: %v", err)
 	}
 	if s.config.CreateVLANs {
-		_ = vlans
+		allowed := s.getAllowedVLANs()
+		for v := range allowed {
+			if !vlans[v] {
+				if err := s.CreateVLAN(v); err != nil {
+					return fmt.Errorf("failed to create VLAN %s: %v", v, err)
+				}
+				vlans[v] = true
+			}
+		}
+		for v := range vlans {
+			if s.isProtected(v) || allowed[v] {
+				continue
+			}
+			if err := s.DeleteVLAN(v); err != nil {
+				return fmt.Errorf("failed to delete VLAN %s: %v", v, err)
+			}
+			delete(vlans, v)
+		}
 	}
 	trunks, err := s.GetTrunkInterfaces()
 	if err != nil {
@@ -155,6 +172,14 @@ func (s *VLANServiceImpl) ConfigureVlan(iface, vlan string) error {
 func (s *VLANServiceImpl) CreateVLAN(vlan string) error { return nil }
 
 func (s *VLANServiceImpl) DeleteVLAN(vlan string) error { return nil }
+
+func (s *VLANServiceImpl) getAllowedVLANs() map[string]bool {
+	result := make(map[string]bool, len(s.config.AllowedVlans))
+	for _, v := range s.config.AllowedVlans {
+		result[v] = true
+	}
+	return result
+}
 
 func (s *VLANServiceImpl) isExcluded(mac string) bool {
 	for _, e := range s.config.ExcludeMacs {

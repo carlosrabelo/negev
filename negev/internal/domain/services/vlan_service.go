@@ -111,7 +111,7 @@ func (s *VLANServiceImpl) ProcessPorts() error {
 func (s *VLANServiceImpl) filterDevices(devices []entities.Device, iface string) []entities.Device {
 	var result []entities.Device
 	for _, d := range devices {
-		if d.Interface == iface {
+		if strings.EqualFold(d.Interface, iface) {
 			result = append(result, d)
 		}
 	}

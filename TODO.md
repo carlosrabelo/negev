@@ -129,7 +129,7 @@ VLAN automation for Cisco IOS switches over Telnet/SSH. MAC-based assignment wit
 - [x] `ConfigureVlan`: delegates to `driver.ConfigureAccessCommands`, sandbox or execute
 - [x] `CreateVLAN` / `DeleteVLAN`: delegates to driver, sandbox or execute
 - [x] `saveConfiguration`: tries each `driver.SaveCommands()`, returns last error if all fail
-- [ ] `getAllowedVLANs`: builds `map[string]bool` from `AllowedVlans`
+- [x] `getAllowedVLANs`: builds `map[string]bool` from `AllowedVlans`
 - [ ] `filterDevices`: case-insensitive port match
 - [ ] `deviceMacs`: extract MAC list from devices
 - [ ] `isExcluded`: exact MAC match against list

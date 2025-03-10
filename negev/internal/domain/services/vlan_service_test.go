@@ -155,3 +155,11 @@ func TestConfigureVlanSandboxPrints(t *testing.T) {
 		t.Fatal("sandbox must not execute")
 	}
 }
+
+func TestGetAllowedVLANs(t *testing.T) {
+	svc := NewVLANService(&mockRepository{}, entities.SwitchConfig{AllowedVlans: []string{"10", "20"}}, baseDriver())
+	got := svc.getAllowedVLANs()
+	if !got["10"] || !got["20"] || len(got) != 2 {
+		t.Fatalf("getAllowedVLANs = %v", got)
+	}
+}

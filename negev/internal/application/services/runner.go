@@ -33,9 +33,14 @@ func RunTarget(target, configPath string, write bool, verbose int, createVLANs b
 	sw.VerbosityLevel = verbose
 	sw.CreateVLANs = createVLANs
 	adapter := transport.NewSwitchAdapter(sw)
-	driver := platform.Get("ios")
+	var driver platform.SwitchDriver
+	platformID := sw.PlatformID()
+	if platformID == "auto" {
+		return fmt.Errorf("auto-detect not wired yet")
+	}
+	driver = platform.Get(platformID)
 	if driver == nil {
-		return fmt.Errorf("ios driver not registered")
+		return fmt.Errorf("unknown platform %q (available: %v)", platformID, platform.Available())
 	}
 	svc := domainServices.NewVLANService(adapter, sw, driver)
 	return svc.ProcessPorts()

@@ -2,6 +2,7 @@ package services
 
 import (
 	"fmt"
+	"log/slog"
 
 	"github.com/carlosrabelo/negev/negev/internal/domain/entities"
 	"github.com/carlosrabelo/negev/negev/internal/domain/ports"
@@ -49,6 +50,10 @@ func (s *VLANServiceImpl) ProcessPorts() error {
 	for _, port := range ports {
 		macs := s.filterDevices(devices, port.Interface)
 		if len(macs) == 0 {
+			continue
+		}
+		if len(macs) > 1 {
+			slog.Warn("Multiple MACs on port — skipping for safety", "port", port.Interface, "target", s.config.Target)
 			continue
 		}
 		mac := macs[0]

@@ -2,7 +2,6 @@ package services
 
 import (
 	"errors"
-	"fmt"
 	"testing"
 
 	"github.com/carlosrabelo/negev/negev/internal/domain/entities"

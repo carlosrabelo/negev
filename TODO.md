@@ -112,7 +112,7 @@ VLAN automation for Cisco IOS switches over Telnet/SSH. MAC-based assignment wit
 
 ## VLAN service
 
-- [ ] `VLANServiceImpl` with compile-time interface check: `var _ ports.VLANService = (*VLANServiceImpl)(nil)`
+- [x] `VLANServiceImpl` with compile-time interface check: `var _ ports.VLANService = (*VLANServiceImpl)(nil)`
 - [ ] Constructor: `NewVLANService(switchRepo, config, driver)`
 - [ ] `ProcessPorts` flow: connect → get VLAN list → sync VLANs (if `--create-vlans`) → get trunks → get active ports → get MAC table → iterate ports → map MAC → configure → save
 - [ ] Multiple MACs on same port → `log.Printf` warning and skip (safety)

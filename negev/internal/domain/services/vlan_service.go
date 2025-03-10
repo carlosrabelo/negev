@@ -60,7 +60,11 @@ func (s *VLANServiceImpl) ProcessPorts() error {
 		if len(mac.Mac) < 6 {
 			continue
 		}
-		targetVlan := s.config.DefaultVlan
+		prefix := mac.Mac[:6]
+		targetVlan := s.config.MacToVlan[prefix]
+		if targetVlan == "" || targetVlan == "0" || targetVlan == "00" {
+			targetVlan = s.config.DefaultVlan
+		}
 		if targetVlan != "" && targetVlan != port.Vlan {
 			if err := s.ConfigureVlan(port.Interface, targetVlan); err != nil {
 				return err

@@ -147,7 +147,7 @@ VLAN automation for Cisco IOS switches over Telnet/SSH. MAC-based assignment wit
 
 ## CLI
 
-- [ ] `negev` entry point in `cmd/negev/main.go`
+- [x] `negev` entry point in `cmd/negev/main.go`
 - [ ] Global version/build output: `fmt.Printf("Negev %s (built %s)\n", version, buildTime)`
 - [ ] Flags: `--target <ip>` (required, validated against YAML), `--config <path>` (default `config.yaml`), `--write` (disables sandbox), `--verbose <0-3>` (0=none, 1=debug, 2=raw, 3=both), `--create-vlans` (sync VLANs)
 - [ ] `flag.Usage = printUsage` with flag descriptions

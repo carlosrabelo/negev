@@ -30,13 +30,21 @@ func RunTarget(target, configPath string, write bool, verbose int, createVLANs b
 	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: level})))
 
 	defer transport.CloseAll()
+	cfgPath := configPath
+	if cfgPath == "" {
+		var err error
+		cfgPath, err = config.FindPath("config.yaml", verbose)
+		if err != nil {
+			return err
+		}
+	}
 	cfg := &config.Config{
 		Switches: []entities.SwitchConfig{{
 			Target: target, Platform: "ios", Transport: "telnet",
 			DefaultVlan: "1", NoDataVlan: "999",
 		}},
 	}
-	_ = configPath
+	_ = cfgPath
 	var switchCfg *entities.SwitchConfig
 	for i, sc := range cfg.Switches {
 		if sc.Target == target {

@@ -165,7 +165,7 @@ VLAN automation for Cisco IOS switches over Telnet/SSH. MAC-based assignment wit
 ## Documentation
 
 - [x] User Guide in English (`docs/GUIDE.md`)
-- [ ] User Guide in Portuguese (`docs/GUIDE-PT.md`)
+- [x] User Guide in Portuguese (`docs/GUIDE-PT.md`)
 
 ---
 

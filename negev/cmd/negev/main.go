@@ -6,6 +6,8 @@ import (
 	"os"
 
 	"github.com/carlosrabelo/negev/negev/internal/application/services"
+
+	_ "github.com/carlosrabelo/negev/negev/internal/platform/ios"
 )
 
 var (

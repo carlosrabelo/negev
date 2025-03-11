@@ -3,6 +3,25 @@
 Automatiza atribuições de VLAN em switches de acesso a partir de prefixos de endereços MAC.
 
 
+## Uso
+
+```bash
+negev --target 192.168.1.10                   # sandbox (simular)
+negev --target 192.168.1.10 --write           # aplicar alterações
+negev --target 192.168.1.10 --create-vlans --write # sincronizar VLANs e aplicar
+```
+
+### Flags
+
+| Flag | Descrição |
+|------|-----------|
+| `--target <ip>` | Endereço IP do switch (obrigatório, deve existir na configuração) |
+| `--config <path>` | Caminho do arquivo YAML de configuração (padrão: config.yaml) |
+| `--write` | Aplica alterações (sandbox/dry-run por padrão) |
+| `--verbose <0-3>` | Nível de verbosidade: 0=nenhum, 1=debug, 2=saída raw, 3=ambos |
+| `--create-vlans` | Criar/excluir VLANs para igualar à lista permitida |
+| `--version` | Exibe a versão |
+
 ## Configuração
 
 Crie `config.yaml` no diretório atual. O Negev também procura em `~/.config/negev/` e `/etc/negev/` (Linux), ou `%APPDATA%\negev\` e `%ProgramData%\negev\` (Windows).

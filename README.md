@@ -3,6 +3,25 @@
 Automates VLAN assignments on access switches from MAC address prefixes.
 
 
+## Usage
+
+```bash
+negev --target 192.168.1.10                   # sandbox (simulate)
+negev --target 192.168.1.10 --write           # apply changes
+negev --target 192.168.1.10 --create-vlans --write # sync VLANs and apply
+```
+
+### Flags
+
+| Flag | Description |
+|------|-------------|
+| `--target <ip>` | Switch IP address (required, must exist in config) |
+| `--config <path>` | Path to YAML config file (default: config.yaml) |
+| `--write` | Apply changes (sandbox/dry-run by default) |
+| `--verbose <0-3>` | Output level: 0=none, 1=debug, 2=raw output, 3=both |
+| `--create-vlans` | Create/delete VLANs to match allowed list |
+| `--version` | Show version |
+
 ## Configuration
 
 Create `config.yaml` in the current directory. Negev also searches `~/.config/negev/` and `/etc/negev/` (Linux), or `%APPDATA%\negev\` and `%ProgramData%\negev\` (Windows).

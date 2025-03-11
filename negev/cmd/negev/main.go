@@ -20,6 +20,10 @@ func main() {
 	verbose := flag.Int("verbose", 0, "Verbosity level: 0=none, 1=debug, 2=raw, 3=both")
 	createVLANs := flag.Bool("create-vlans", false, "Synchronize VLANs (create missing, delete extras)")
 	showVersion := flag.Bool("version", false, "Show version and exit")
+	flag.Usage = func() {
+		fmt.Fprintf(os.Stderr, "Usage: %s [options]\n\nVLAN automation tool for network switches.\n\nOptions:\n", os.Args[0])
+		flag.PrintDefaults()
+	}
 	flag.Parse()
 	if *showVersion {
 		fmt.Printf("Negev %s (built %s)\n", version, buildTime)

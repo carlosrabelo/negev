@@ -29,6 +29,11 @@ func main() {
 		fmt.Printf("Negev %s (built %s)\n", version, buildTime)
 		return
 	}
+	if *target == "" {
+		fmt.Fprintf(os.Stderr, "ERROR: --target is required\n\n")
+		flag.Usage()
+		os.Exit(1)
+	}
 	if err := services.RunTarget(*target, *configPath, *write, *verbose, *createVLANs); err != nil {
 		fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
 		os.Exit(1)

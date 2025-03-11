@@ -3,6 +3,7 @@ package services
 import (
 	"fmt"
 	"log/slog"
+	"os"
 
 	"github.com/carlosrabelo/negev/negev/internal/domain/entities"
 	domainServices "github.com/carlosrabelo/negev/negev/internal/domain/services"
@@ -18,6 +19,17 @@ func RunTarget(target, configPath string, write bool, verbose int, createVLANs b
 	if target == "" {
 		return fmt.Errorf("target is required")
 	}
+
+	var level slog.Level
+	switch verbose {
+	case 1, 3:
+		level = slog.LevelDebug
+	default:
+		level = slog.LevelInfo
+	}
+	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: level})))
+
+	defer transport.CloseAll()
 	cfg := &config.Config{
 		Switches: []entities.SwitchConfig{{
 			Target: target, Platform: "ios", Transport: "telnet",

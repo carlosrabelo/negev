@@ -38,13 +38,10 @@ func RunTarget(target, configPath string, write bool, verbose int, createVLANs b
 			return err
 		}
 	}
-	cfg := &config.Config{
-		Switches: []entities.SwitchConfig{{
-			Target: target, Platform: "ios", Transport: "telnet",
-			DefaultVlan: "1", NoDataVlan: "999",
-		}},
+	cfg, err := config.Load(cfgPath, target, verbose)
+	if err != nil {
+		return fmt.Errorf("failed to load config: %w", err)
 	}
-	_ = cfgPath
 	var switchCfg *entities.SwitchConfig
 	for i, sc := range cfg.Switches {
 		if sc.Target == target {

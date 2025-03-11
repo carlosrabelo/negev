@@ -55,3 +55,21 @@ func RunTarget(target, configPath string, write bool, verbose int, createVLANs b
 	svc := domainServices.NewVLANService(adapter, sw, driver)
 	return svc.ProcessPorts()
 }
+
+type VLANApplicationService struct {
+	cfg        *config.Config
+	target     string
+	newAdapter func(entities.SwitchConfig) *transport.SwitchAdapter
+}
+
+func NewVLANApplicationService(cfg *config.Config, target string) *VLANApplicationService {
+	return &VLANApplicationService{
+		cfg:        cfg,
+		target:     target,
+		newAdapter: transport.NewSwitchAdapter,
+	}
+}
+
+func (s *VLANApplicationService) Run(sandbox bool, verbosity int, createVLANs bool) error {
+	return RunTarget(s.target, "", !sandbox, verbosity, createVLANs)
+}

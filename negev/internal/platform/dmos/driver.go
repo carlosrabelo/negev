@@ -11,6 +11,8 @@ import (
 
 var vlanTableRegex = regexp.MustCompile(`^VLAN\s+(\d+)\s*(?:\[.*?\])?:\s*`)
 
+var dmosPortRegex = regexp.MustCompile(`^Ethernet\d+/\d+$`)
+
 type Driver struct{}
 
 func init() {
@@ -69,7 +71,26 @@ func (d *Driver) GetTrunkInterfaces(repo ports.SwitchRepository) ([]string, erro
 	if err != nil {
 		return nil, err
 	}
-	return parseDmOSTrunksFromSwitchport(out), nil
+	trunks := parseDmOSTrunksFromSwitchport(out)
+	if len(trunks) == 0 {
+		trunks = parseDmOSTrunks(out)
+	}
+	return trunks, nil
+}
+
+func parseDmOSTrunks(output string) []string {
+	lines := strings.Split(output, "\n")
+	var trunks []string
+	for _, line := range lines {
+		fields := strings.Fields(line)
+		if len(fields) < 2 {
+			continue
+		}
+		if dmosPortRegex.MatchString(fields[0]) {
+			trunks = append(trunks, fields[0])
+		}
+	}
+	return trunks
 }
 
 func parseDmOSTrunksFromSwitchport(output string) []string {

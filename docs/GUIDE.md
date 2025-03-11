@@ -13,4 +13,4 @@ negev --target 192.168.1.10 --write
 
 ## Configuration
 
-See `demos/config.yaml`. Platforms: `ios` and `auto`.
+See `demos/config.yaml`. Platforms: `ios`, `dmos`, and `auto`.

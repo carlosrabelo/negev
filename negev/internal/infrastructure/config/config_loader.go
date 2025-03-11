@@ -76,10 +76,10 @@ func normalizeVLAN(vlan, context string) (string, error) {
 
 func validatePlatform(platform string) error {
 	switch platform {
-	case "ios", "auto":
+	case "ios", "dmos", "auto":
 		return nil
 	default:
-		return fmt.Errorf("platform %s is invalid, must be 'ios' or 'auto'", platform)
+		return fmt.Errorf("platform %s is invalid, must be 'ios', 'dmos', or 'auto'", platform)
 	}
 }
 

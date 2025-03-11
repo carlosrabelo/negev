@@ -123,14 +123,14 @@ default_vlan: "1"
 no_data_vlan: "999"
 switches:
   - target: 192.168.1.10
-    platform: dmos
+    platform: junos
 `
-	tmpFile := filepath.Join(t.TempDir(), "dmos.yaml")
+	tmpFile := filepath.Join(t.TempDir(), "junos.yaml")
 	if err := os.WriteFile(tmpFile, []byte(yamlData), 0644); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := Load(tmpFile, "", 0); err == nil {
-		t.Fatal("expected dmos to be rejected before the DmOS driver exists")
+		t.Fatal("expected unknown platform to be rejected")
 	}
 }
 

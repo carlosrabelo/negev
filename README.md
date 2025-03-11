@@ -2,6 +2,43 @@
 
 Automates VLAN assignments on access switches from MAC address prefixes.
 
+## Highlights
+
+- Connect to switches via Telnet or SSH with automatic platform detection
+- Read MAC address tables and map prefixes to VLANs from a YAML config
+- Assign access VLANs to switch ports based on connected device MACs
+- Sandbox mode shows changes without applying — use `--write` to execute
+- Create and delete VLANs to match an allowed list with protected VLAN safety
+- Support Cisco IOS and Datacom DmOS through a pluggable driver system
+
+## Prerequisites
+
+- **Go 1.22.3+** — required to build from source; [download](https://go.dev/dl/)
+
+## Installation
+
+### Build from Source
+
+```bash
+git clone https://github.com/carlosrabelo/negev.git
+cd negev
+make build
+```
+
+Install to `~/.local/bin` (default), or system-wide to `/usr/local/bin` (sudo only for the copy):
+
+```bash
+make install
+make install-system
+make uninstall
+make uninstall-system
+```
+
+### Using Go Install
+
+```bash
+go install github.com/carlosrabelo/negev/negev/cmd/negev@latest
+```
 
 ## Usage
 
@@ -37,9 +74,36 @@ no_data_vlan: "999"
 allowed_vlans:
   - "10"
   - "20"
+  - "30"
+protected_vlans:
+  - "100"
+exclude_macs:
+  - "00:11:22:33:44:55"
+mac_to_vlan:
+  "aabbcc": "10"
+  "001122": "20"
+
 switches:
   - target: 192.168.1.10
     platform: ios
+  - target: 192.168.1.20
+    platform: dmos
+    transport: ssh
+    exclude_ports:
+      - "ethernet 1/1"
+```
+
+## Project Layout
+
+```
+negev/cmd/negev/                 # CLI entry point
+negev/internal/domain/           # Core entities, interfaces, and business logic
+negev/internal/application/      # Service orchestration (runner)
+negev/internal/infrastructure/   # Config loading, transport (Telnet/SSH), client cache
+negev/internal/platform/         # Platform drivers (ios, dmos) and registries
+bin/                             # Compiled binaries (git-ignored)
+.make/                           # Build and install scripts
+demos/                           # Sample configuration files
 ```
 
 ## Development

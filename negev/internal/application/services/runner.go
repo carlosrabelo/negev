@@ -51,6 +51,7 @@ func RunTarget(target, configPath string, write bool, verbose int, createVLANs b
 	if driver == nil {
 		return fmt.Errorf("unknown platform %q (available: %v)", platformID, platform.Available())
 	}
+	_ = driver.Name()
 	svc := domainServices.NewVLANService(adapter, sw, driver)
 	return svc.ProcessPorts()
 }

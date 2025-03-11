@@ -1,12 +1,15 @@
 package dmos
 
 import (
+	"regexp"
 	"strings"
 
 	"github.com/carlosrabelo/negev/negev/internal/domain/entities"
 	"github.com/carlosrabelo/negev/negev/internal/domain/ports"
 	"github.com/carlosrabelo/negev/negev/internal/platform"
 )
+
+var vlanTableRegex = regexp.MustCompile(`^VLAN\s+(\d+)\s*(?:\[.*?\])?:\s*`)
 
 type Driver struct{}
 
@@ -45,7 +48,22 @@ func (d *Driver) GetVLANList(repo ports.SwitchRepository) ([]string, error) {
 	return parseVLANs(out), nil
 }
 
-func parseVLANs(output string) []string { return nil }
+func parseVLANs(output string) []string {
+	lines := strings.Split(output, "\n")
+	seen := make(map[string]bool)
+	var vlans []string
+	for _, line := range lines {
+		m := vlanTableRegex.FindStringSubmatch(line)
+		if m == nil {
+			continue
+		}
+		if !seen[m[1]] {
+			seen[m[1]] = true
+			vlans = append(vlans, m[1])
+		}
+	}
+	return vlans
+}
 func (d *Driver) GetTrunkInterfaces(repo ports.SwitchRepository) ([]string, error) { return nil, nil }
 func (d *Driver) GetActivePorts(repo ports.SwitchRepository) ([]entities.Port, error) { return nil, nil }
 func (d *Driver) GetMacTable(repo ports.SwitchRepository) ([]entities.Device, error) { return nil, nil }

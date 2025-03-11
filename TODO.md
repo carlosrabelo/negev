@@ -155,7 +155,7 @@ VLAN automation for Cisco IOS switches over Telnet/SSH. MAC-based assignment wit
 - [x] `defer transport.CloseAll()` on exit
 - [x] Invalid arguments exit with usage text and os.Exit(1)
 - [x] `FindPath` resolves config file location
-- [ ] `config.Load` validates and returns parsed `*Config`
+- [x] `config.Load` validates and returns parsed `*Config`
 - [ ] `services.RunTarget` orchestrates the target switch processing
 
 ## Project artifacts

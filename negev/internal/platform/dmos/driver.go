@@ -34,7 +34,18 @@ func (d *Driver) GetAuthenticationSequence() []entities.AuthPrompt {
 		{WaitFor: "#", SendCmd: ""},
 	}
 }
-func (d *Driver) GetVLANList(repo ports.SwitchRepository) ([]string, error) { return nil, nil }
+func (d *Driver) GetVLANList(repo ports.SwitchRepository) ([]string, error) {
+	out, err := repo.ExecuteCommand("show vlan table")
+	if err != nil || out == "" {
+		out, err = repo.ExecuteCommand("show vlan")
+		if err != nil {
+			return nil, err
+		}
+	}
+	return parseVLANs(out), nil
+}
+
+func parseVLANs(output string) []string { return nil }
 func (d *Driver) GetTrunkInterfaces(repo ports.SwitchRepository) ([]string, error) { return nil, nil }
 func (d *Driver) GetActivePorts(repo ports.SwitchRepository) ([]entities.Port, error) { return nil, nil }
 func (d *Driver) GetMacTable(repo ports.SwitchRepository) ([]entities.Device, error) { return nil, nil }

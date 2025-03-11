@@ -12,6 +12,12 @@ import (
 )
 
 func RunTarget(target, configPath string, write bool, verbose int, createVLANs bool) error {
+	if verbose < 0 || verbose > 3 {
+		return fmt.Errorf("--verbose must be 0-3")
+	}
+	if target == "" {
+		return fmt.Errorf("target is required")
+	}
 	cfg := &config.Config{
 		Switches: []entities.SwitchConfig{{
 			Target: target, Platform: "ios", Transport: "telnet",

@@ -274,7 +274,12 @@ func (d *Driver) DeleteVLANCommands(vlan string) []string {
 		"end",
 	}
 }
-func (d *Driver) SaveCommands() []string { return nil }
+func (d *Driver) SaveCommands() []string {
+	return []string{
+		"copy running-config startup-config",
+		"save",
+	}
+}
 func (d *Driver) ClearCache() {
 	clearSwitchportCache()
 }

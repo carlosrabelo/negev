@@ -126,3 +126,12 @@ func TestParseMacTable(t *testing.T) {
 		t.Errorf("parseMacTable() = %+v; expected %+v", got, expected)
 	}
 }
+
+func TestIsDmOSCommandError(t *testing.T) {
+	if !isDmOSCommandError("% Error: unknown command") {
+		t.Fatal("expected unknown command to be an error")
+	}
+	if !isDmOSCommandError("invalid input detected") {
+		t.Fatal("expected invalid input to be an error")
+	}
+}

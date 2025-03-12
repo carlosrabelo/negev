@@ -1,7 +1,9 @@
 package dmos
 
 import (
+	"sort"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/carlosrabelo/negev/negev/internal/domain/entities"
@@ -145,7 +147,28 @@ func parseActivePorts(statusOutput string, switchportVLANs map[string]string) []
 			currentIface = ""
 		}
 	}
+	sort.Slice(ports, func(i, j int) bool {
+		return compareInterfaceNames(ports[i].Interface, ports[j].Interface)
+	})
 	return ports
+}
+
+func compareInterfaceNames(a, b string) bool {
+	extract := func(s string) (int, int) {
+		parts := strings.Split(s, "/")
+		if len(parts) < 2 {
+			return 0, 0
+		}
+		unit, _ := strconv.Atoi(strings.TrimLeft(parts[0], "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"))
+		port, _ := strconv.Atoi(parts[1])
+		return unit, port
+	}
+	u1, p1 := extract(a)
+	u2, p2 := extract(b)
+	if u1 != u2 {
+		return u1 < u2
+	}
+	return p1 < p2
 }
 
 func parseDmOSSwitchportVLANs(output string) map[string]string {

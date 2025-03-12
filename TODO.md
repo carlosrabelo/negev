@@ -189,7 +189,7 @@ Add support for Datacom DmOS switches.
 - [x] MAC parser: `macLineRegex = ^\s*\d+\s+\w*\s+(Eth\s+\d+/\d+)\s+([0-9A-F:]+)\s+(\d+)\s+.*Learned`; normalizes port to `"ethernet X/Y"`; skips trunks
 - [x] `normalizeMac`: strips `.` and `:`, lowercases
 - [x] `normalizePort`: prepends `"ethernet "` prefix if missing
-- [ ] Config commands: `configure`, `interface vlan <vlan>`, `set-member untagged <port>`, `exit`, `interface <port>`, `switchport native vlan <vlan>`, `switchport acceptable-frame-type all`, `exit`, `end`
+- [x] Config commands: `configure`, `interface vlan <vlan>`, `set-member untagged <port>`, `exit`, `interface <port>`, `switchport native vlan <vlan>`, `switchport acceptable-frame-type all`, `exit`, `end`
 - [ ] VLAN create: `configure`, `interface vlan <id>`, `exit`, `end` (DmOS creates VLAN implicitly)
 - [ ] VLAN delete: `configure`, `no interface vlan <id>`, `end`
 - [ ] Save: `copy running-config startup-config` with fallback to `save`

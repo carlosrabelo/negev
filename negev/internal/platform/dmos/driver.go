@@ -71,7 +71,7 @@ func parseVLANs(output string) []string {
 	return vlans
 }
 func (d *Driver) GetTrunkInterfaces(repo ports.SwitchRepository) ([]string, error) {
-	out, err := repo.ExecuteCommand("show interfaces switchport")
+	out, err := getSwitchportOutput(repo)
 	if err != nil {
 		return nil, err
 	}
@@ -121,7 +121,7 @@ func (d *Driver) GetActivePorts(repo ports.SwitchRepository) ([]entities.Port, e
 	if err != nil {
 		return nil, err
 	}
-	swOut, err := repo.ExecuteCommand("show interfaces switchport")
+	swOut, err := getSwitchportOutput(repo)
 	if err != nil {
 		return nil, err
 	}
@@ -196,5 +196,7 @@ func (d *Driver) ConfigureAccessCommands(port entities.Port, vlan string) []stri
 func (d *Driver) CreateVLANCommands(vlan string) []string { return nil }
 func (d *Driver) DeleteVLANCommands(vlan string) []string { return nil }
 func (d *Driver) SaveCommands() []string { return nil }
-func (d *Driver) ClearCache() {}
+func (d *Driver) ClearCache() {
+	clearSwitchportCache()
+}
 func (d *Driver) IsCommandError(output string) bool { return false }

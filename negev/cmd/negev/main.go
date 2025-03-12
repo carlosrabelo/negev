@@ -7,6 +7,7 @@ import (
 
 	"github.com/carlosrabelo/negev/negev/internal/application/services"
 
+	_ "github.com/carlosrabelo/negev/negev/internal/platform/dmos"
 	_ "github.com/carlosrabelo/negev/negev/internal/platform/ios"
 )
 

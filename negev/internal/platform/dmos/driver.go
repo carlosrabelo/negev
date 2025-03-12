@@ -246,7 +246,19 @@ func parseMacTable(output string, trunkSet map[string]bool) []entities.Device {
 	}
 	return devices
 }
-func (d *Driver) ConfigureAccessCommands(port entities.Port, vlan string) []string { return nil }
+func (d *Driver) ConfigureAccessCommands(port entities.Port, vlan string) []string {
+	return []string{
+		"configure",
+		"interface vlan " + vlan,
+		"set-member untagged " + port.Interface,
+		"exit",
+		"interface " + port.Interface,
+		"switchport native vlan " + vlan,
+		"switchport acceptable-frame-type all",
+		"exit",
+		"end",
+	}
+}
 func (d *Driver) CreateVLANCommands(vlan string) []string { return nil }
 func (d *Driver) DeleteVLANCommands(vlan string) []string { return nil }
 func (d *Driver) SaveCommands() []string { return nil }

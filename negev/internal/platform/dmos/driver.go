@@ -209,6 +209,12 @@ func (d *Driver) GetMacTable(repo ports.SwitchRepository) ([]entities.Device, er
 	return parseMacTable(out, trunkSet), nil
 }
 
+func normalizeMAC(mac string) string {
+	mac = strings.ToLower(mac)
+	mac = strings.NewReplacer(":", "", ".", "").Replace(mac)
+	return mac
+}
+
 func parseMacTable(output string, trunkSet map[string]bool) []entities.Device {
 	lines := strings.Split(output, "\n")
 	var devices []entities.Device
@@ -224,7 +230,7 @@ func parseMacTable(output string, trunkSet map[string]bool) []entities.Device {
 		if trunkSet[port] {
 			continue
 		}
-		macRaw := strings.ToLower(strings.NewReplacer(":", "", ".", "").Replace(m[2]))
+		macRaw := normalizeMAC(m[2])
 		macFull := macRaw
 		if len(macRaw) == 12 {
 			macFull = macRaw[0:2] + ":" + macRaw[2:4] + ":" + macRaw[4:6] + ":" + macRaw[6:8] + ":" + macRaw[8:10] + ":" + macRaw[10:12]

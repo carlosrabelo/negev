@@ -23,3 +23,21 @@ VLAN 20:
 		t.Errorf("parseVLANs() = %v; expected %v", got, expected)
 	}
 }
+
+func TestParseDmOSTrunksFromSwitchport(t *testing.T) {
+	output := `
+interface ethernet 1/1
+  Description: Link to Core
+  Allowed VLANs: 1-4094 (t)
+interface ethernet 1/2
+  Description: Access Port
+  Allowed VLANs: 10 (t)
+interface ethernet 1/3
+  Allowed VLANs: 20
+`
+	got := parseDmOSTrunksFromSwitchport(output)
+	expected := []string{"ethernet1/1", "ethernet1/2"}
+	if !reflect.DeepEqual(got, expected) {
+		t.Errorf("parseDmOSTrunksFromSwitchport() = %v; expected %v", got, expected)
+	}
+}

@@ -17,6 +17,8 @@ var dmosPortRegex = regexp.MustCompile(`^Ethernet\d+/\d+$`)
 
 var infoPortRegex = regexp.MustCompile(`^Information of Eth\s+(\d+/\d+)`)
 
+var macLineRegex = regexp.MustCompile(`^\s*\d+\s+\w*\s+(Eth\s+\d+/\d+)\s+([0-9A-F:]+)\s+(\d+)\s+.*Learned`)
+
 type Driver struct{}
 
 func init() {
@@ -207,7 +209,32 @@ func (d *Driver) GetMacTable(repo ports.SwitchRepository) ([]entities.Device, er
 	return parseMacTable(out, trunkSet), nil
 }
 
-func parseMacTable(output string, trunkSet map[string]bool) []entities.Device { return nil }
+func parseMacTable(output string, trunkSet map[string]bool) []entities.Device {
+	lines := strings.Split(output, "\n")
+	var devices []entities.Device
+	for _, line := range lines {
+		m := macLineRegex.FindStringSubmatch(line)
+		if m == nil {
+			continue
+		}
+		port := strings.ToLower(strings.ReplaceAll(m[1], " ", ""))
+		if !strings.HasPrefix(port, "ethernet") {
+			port = "ethernet" + strings.TrimPrefix(port, "eth")
+		}
+		if trunkSet[port] {
+			continue
+		}
+		macRaw := strings.ToLower(strings.NewReplacer(":", "", ".", "").Replace(m[2]))
+		macFull := macRaw
+		if len(macRaw) == 12 {
+			macFull = macRaw[0:2] + ":" + macRaw[2:4] + ":" + macRaw[4:6] + ":" + macRaw[6:8] + ":" + macRaw[8:10] + ":" + macRaw[10:12]
+		}
+		devices = append(devices, entities.Device{
+			Vlan: m[3], Mac: macRaw, MacFull: macFull, Interface: port,
+		})
+	}
+	return devices
+}
 func (d *Driver) ConfigureAccessCommands(port entities.Port, vlan string) []string { return nil }
 func (d *Driver) CreateVLANCommands(vlan string) []string { return nil }
 func (d *Driver) DeleteVLANCommands(vlan string) []string { return nil }

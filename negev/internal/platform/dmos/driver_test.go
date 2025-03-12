@@ -109,3 +109,20 @@ func TestCompareInterfaceNames(t *testing.T) {
 		}
 	}
 }
+
+func TestParseMacTable(t *testing.T) {
+	output := `
+      1   Dynamic   Eth 1/1            00:11:22:33:44:55       10     Learned
+      2   Dynamic   Eth 1/2            AA:BB:CC:DD:EE:FF       20     Learned
+      3   Dynamic   Eth 1/3            00:00:00:00:11:11       30     Learned
+`
+	trunkSet := map[string]bool{"ethernet1/3": true}
+	got := parseMacTable(output, trunkSet)
+	expected := []entities.Device{
+		{Vlan: "10", Mac: "001122334455", MacFull: "00:11:22:33:44:55", Interface: "ethernet1/1"},
+		{Vlan: "20", Mac: "aabbccddeeff", MacFull: "aa:bb:cc:dd:ee:ff", Interface: "ethernet1/2"},
+	}
+	if !reflect.DeepEqual(got, expected) {
+		t.Errorf("parseMacTable() = %+v; expected %+v", got, expected)
+	}
+}

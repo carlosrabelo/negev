@@ -197,11 +197,15 @@ func Load(yamlFile, target string, verbosityLevel int) (*Config, error) {
 			}
 			sw.NoDataVlan = normalized
 		}
-		sw.AllowedVlans, err = mergeStringSlices(cfg.AllowedVlans, sw.AllowedVlans, nil)
+		sw.AllowedVlans, err = mergeStringSlices(cfg.AllowedVlans, sw.AllowedVlans, func(v string) (string, error) {
+			return normalizeVLAN(v, fmt.Sprintf("switch %s allowed_vlans", sw.Target))
+		})
 		if err != nil {
 			return nil, err
 		}
-		sw.ProtectedVlans, err = mergeStringSlices(cfg.ProtectedVlans, sw.ProtectedVlans, nil)
+		sw.ProtectedVlans, err = mergeStringSlices(cfg.ProtectedVlans, sw.ProtectedVlans, func(v string) (string, error) {
+			return normalizeVLAN(v, fmt.Sprintf("switch %s protected_vlans", sw.Target))
+		})
 		if err != nil {
 			return nil, err
 		}

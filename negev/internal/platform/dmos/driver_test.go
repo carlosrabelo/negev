@@ -41,3 +41,16 @@ interface ethernet 1/3
 		t.Errorf("parseDmOSTrunksFromSwitchport() = %v; expected %v", got, expected)
 	}
 }
+
+func TestParseDmOSTrunks(t *testing.T) {
+	output := `
+Ethernet1/1   trunk
+Ethernet1/2   access
+Gi1/0/1       trunk
+`
+	got := parseDmOSTrunks(output)
+	expected := []string{"Ethernet1/1", "Ethernet1/2"}
+	if !reflect.DeepEqual(got, expected) {
+		t.Errorf("parseDmOSTrunks() = %v; expected %v", got, expected)
+	}
+}

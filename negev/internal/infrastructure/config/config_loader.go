@@ -211,18 +211,47 @@ func Load(yamlFile, target string, verbosityLevel int) (*Config, error) {
 		}
 		normalizedExclude := make(map[string]bool)
 		for _, mac := range append(append([]string{}, cfg.ExcludeMacs...), sw.ExcludeMacs...) {
-			normalizedExclude[NormalizeMAC(mac)] = true
+			norm := NormalizeMAC(mac)
+			if !isHexMAC(norm) {
+				return nil, fmt.Errorf("invalid MAC %q for switch %s", mac, sw.Target)
+			}
+			normalizedExclude[norm] = true
 		}
 		sw.ExcludeMacs = make([]string, 0, len(normalizedExclude))
 		for mac := range normalizedExclude {
 			sw.ExcludeMacs = append(sw.ExcludeMacs, mac)
 		}
 		mergedMacToVlan := make(map[string]string)
+		addMacMapping := func(prefix, vlan, context string, removeZero bool) error {
+			norm := NormalizeMAC(prefix)
+			if !isHexMAC(norm) {
+				return fmt.Errorf("invalid MAC prefix %q in %s", prefix, context)
+			}
+			if len(norm) > 6 {
+				norm = norm[:6]
+			}
+			if vlan == "0" || vlan == "00" || vlan == "" {
+				if removeZero {
+					delete(mergedMacToVlan, norm)
+				}
+				return nil
+			}
+			canon, err := normalizeVLAN(vlan, context)
+			if err != nil {
+				return err
+			}
+			mergedMacToVlan[norm] = canon
+			return nil
+		}
 		for prefix, vlan := range cfg.MacToVlan {
-			mergedMacToVlan[macPrefix(prefix)] = vlan
+			if err := addMacMapping(prefix, vlan, fmt.Sprintf("global mac_to_vlan prefix %s", prefix), false); err != nil {
+				return nil, err
+			}
 		}
 		for prefix, vlan := range sw.MacToVlan {
-			mergedMacToVlan[macPrefix(prefix)] = vlan
+			if err := addMacMapping(prefix, vlan, fmt.Sprintf("switch %s mac_to_vlan prefix %s", sw.Target, prefix), true); err != nil {
+				return nil, err
+			}
 		}
 		sw.MacToVlan = mergedMacToVlan
 		debugf(swVerbose, "DEBUG: Merged exclude_macs for %s: %v\n", sw.Target, sw.ExcludeMacs)
@@ -235,6 +264,18 @@ func Load(yamlFile, target string, verbosityLevel int) (*Config, error) {
 		return nil, fmt.Errorf("no switches defined in the YAML configuration")
 	}
 	return &cfg, nil
+}
+
+func isHexMAC(s string) bool {
+	if len(s) < 6 {
+		return false
+	}
+	for _, c := range s {
+		if (c < '0' || c > '9') && (c < 'a' || c > 'f') {
+			return false
+		}
+	}
+	return true
 }
 
 func NormalizeMAC(mac string) string {

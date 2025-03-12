@@ -2,6 +2,7 @@ package config
 
 import (
 	"os"
+	"reflect"
 	"path/filepath"
 	"testing"
 
@@ -176,4 +177,64 @@ func TestApplySandboxInvertsWrite(t *testing.T) {
 	if cfg.Switches[0].Sandbox {
 		t.Fatal("expected sandbox disabled when write is true")
 	}
+}
+
+func TestConfigLoadRejectsInvalidGlobalAllowedVlan(t *testing.T) {
+	yamlData := `
+platform: auto
+transport: telnet
+username: admin
+password: cisco123
+enable_password: cisco123
+default_vlan: "1"
+no_data_vlan: "999"
+allowed_vlans:
+  - "5000"
+switches:
+  - target: 192.168.1.10
+    platform: ios
+`
+	tmpFile := filepath.Join(t.TempDir(), "bad.yaml")
+	if err := os.WriteFile(tmpFile, []byte(yamlData), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Load(tmpFile, "", 0); err == nil {
+		t.Fatal("expected invalid global allowed_vlans to fail")
+	}
+}
+
+func TestConfigLoadCanonicalizesVLANIDs(t *testing.T) {
+	yamlData := `
+platform: auto
+transport: telnet
+username: admin
+password: cisco123
+enable_password: cisco123
+default_vlan: "010"
+no_data_vlan: "0999"
+allowed_vlans:
+  - "010"
+switches:
+  - target: 192.168.1.10
+    platform: ios
+    default_vlan: "0100"
+`
+	tmpFile := filepath.Join(t.TempDir(), "canon.yaml")
+	if err := os.WriteFile(tmpFile, []byte(yamlData), 0644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(tmpFile, "", 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.DefaultVlan != "10" || cfg.NoDataVlan != "999" {
+		t.Fatalf("global vlans = %q / %q", cfg.DefaultVlan, cfg.NoDataVlan)
+	}
+	if cfg.Switches[0].DefaultVlan != "100" {
+		t.Fatalf("switch default = %q", cfg.Switches[0].DefaultVlan)
+	}
+	if len(cfg.Switches[0].AllowedVlans) != 1 || cfg.Switches[0].AllowedVlans[0] != "10" {
+		t.Fatalf("allowed = %v", cfg.Switches[0].AllowedVlans)
+	}
+	_ = reflect.DeepEqual
 }

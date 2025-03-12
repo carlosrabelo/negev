@@ -108,7 +108,7 @@ func parseDmOSTrunksFromSwitchport(output string) []string {
 		if strings.HasPrefix(strings.ToLower(trimmed), "interface ethernet") {
 			parts := strings.Fields(trimmed)
 			if len(parts) >= 3 {
-				currentIface = strings.ToLower(parts[1] + parts[2])
+				currentIface = normalizePort(parts[1] + parts[2])
 			}
 		} else if strings.HasPrefix(trimmed, "Allowed VLANs:") && strings.Contains(trimmed, "(t)") {
 			if currentIface != "" {
@@ -138,7 +138,7 @@ func parseActivePorts(statusOutput string, switchportVLANs map[string]string) []
 		trimmed := strings.TrimSpace(line)
 		m := infoPortRegex.FindStringSubmatch(trimmed)
 		if m != nil {
-			currentIface = "ethernet" + m[1]
+			currentIface = normalizePort("Ethernet" + m[1])
 			continue
 		}
 		if strings.HasPrefix(trimmed, "Link status:") {
@@ -182,7 +182,7 @@ func parseDmOSSwitchportVLANs(output string) map[string]string {
 		if strings.HasPrefix(strings.ToLower(trimmed), "interface ethernet") {
 			parts := strings.Fields(trimmed)
 			if len(parts) >= 3 {
-				currentIface = strings.ToLower(parts[1] + parts[2])
+				currentIface = normalizePort(parts[1] + parts[2])
 			}
 		} else if strings.HasPrefix(trimmed, "Native VLAN:") {
 			vlan := strings.TrimSpace(strings.TrimPrefix(trimmed, "Native VLAN:"))
@@ -209,6 +209,14 @@ func (d *Driver) GetMacTable(repo ports.SwitchRepository) ([]entities.Device, er
 	return parseMacTable(out, trunkSet), nil
 }
 
+func normalizePort(port string) string {
+	port = strings.ToLower(port)
+	if !strings.HasPrefix(port, "ethernet") {
+		port = "ethernet" + strings.TrimPrefix(port, "eth")
+	}
+	return strings.ReplaceAll(port, " ", "")
+}
+
 func normalizeMAC(mac string) string {
 	mac = strings.ToLower(mac)
 	mac = strings.NewReplacer(":", "", ".", "").Replace(mac)
@@ -223,10 +231,7 @@ func parseMacTable(output string, trunkSet map[string]bool) []entities.Device {
 		if m == nil {
 			continue
 		}
-		port := strings.ToLower(strings.ReplaceAll(m[1], " ", ""))
-		if !strings.HasPrefix(port, "ethernet") {
-			port = "ethernet" + strings.TrimPrefix(port, "eth")
-		}
+		port := normalizePort(m[1])
 		if trunkSet[port] {
 			continue
 		}

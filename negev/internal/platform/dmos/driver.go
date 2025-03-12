@@ -13,6 +13,8 @@ var vlanTableRegex = regexp.MustCompile(`^VLAN\s+(\d+)\s*(?:\[.*?\])?:\s*`)
 
 var dmosPortRegex = regexp.MustCompile(`^Ethernet\d+/\d+$`)
 
+var infoPortRegex = regexp.MustCompile(`^Information of Eth\s+(\d+/\d+)`)
+
 type Driver struct{}
 
 func init() {
@@ -112,7 +114,60 @@ func parseDmOSTrunksFromSwitchport(output string) []string {
 	}
 	return trunks
 }
-func (d *Driver) GetActivePorts(repo ports.SwitchRepository) ([]entities.Port, error) { return nil, nil }
+func (d *Driver) GetActivePorts(repo ports.SwitchRepository) ([]entities.Port, error) {
+	statusOut, err := repo.ExecuteCommand("show interfaces status")
+	if err != nil {
+		return nil, err
+	}
+	swOut, err := repo.ExecuteCommand("show interfaces switchport")
+	if err != nil {
+		return nil, err
+	}
+	return parseActivePorts(statusOut, parseDmOSSwitchportVLANs(swOut)), nil
+}
+
+func parseActivePorts(statusOutput string, switchportVLANs map[string]string) []entities.Port {
+	lines := strings.Split(statusOutput, "\n")
+	var ports []entities.Port
+	var currentIface string
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		m := infoPortRegex.FindStringSubmatch(trimmed)
+		if m != nil {
+			currentIface = "ethernet" + m[1]
+			continue
+		}
+		if strings.HasPrefix(trimmed, "Link status:") {
+			status := strings.TrimSpace(strings.TrimPrefix(trimmed, "Link status:"))
+			if strings.EqualFold(status, "Up") && currentIface != "" {
+				ports = append(ports, entities.Port{Interface: currentIface, Vlan: switchportVLANs[currentIface]})
+			}
+			currentIface = ""
+		}
+	}
+	return ports
+}
+
+func parseDmOSSwitchportVLANs(output string) map[string]string {
+	result := make(map[string]string)
+	lines := strings.Split(output, "\n")
+	var currentIface string
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(strings.ToLower(trimmed), "interface ethernet") {
+			parts := strings.Fields(trimmed)
+			if len(parts) >= 3 {
+				currentIface = strings.ToLower(parts[1] + parts[2])
+			}
+		} else if strings.HasPrefix(trimmed, "Native VLAN:") {
+			vlan := strings.TrimSpace(strings.TrimPrefix(trimmed, "Native VLAN:"))
+			if currentIface != "" {
+				result[currentIface] = vlan
+			}
+		}
+	}
+	return result
+}
 func (d *Driver) GetMacTable(repo ports.SwitchRepository) ([]entities.Device, error) { return nil, nil }
 func (d *Driver) ConfigureAccessCommands(port entities.Port, vlan string) []string { return nil }
 func (d *Driver) CreateVLANCommands(vlan string) []string { return nil }

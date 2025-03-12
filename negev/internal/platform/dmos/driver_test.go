@@ -90,3 +90,22 @@ Information of Eth 1/3:
 		t.Errorf("parseActivePorts() = %+v; expected %+v", got, expected)
 	}
 }
+
+func TestCompareInterfaceNames(t *testing.T) {
+	tests := []struct {
+		a, b     string
+		expected bool
+	}{
+		{"Ethernet1/1", "Ethernet1/2", true},
+		{"Ethernet1/2", "Ethernet1/1", false},
+		{"Ethernet1/10", "Ethernet1/2", false},
+		{"Ethernet2/1", "Ethernet1/2", false},
+		{"Ethernet1/2", "Ethernet2/1", true},
+	}
+	for _, tc := range tests {
+		got := compareInterfaceNames(tc.a, tc.b)
+		if got != tc.expected {
+			t.Errorf("compareInterfaceNames(%q, %q) = %t; expected %t", tc.a, tc.b, got, tc.expected)
+		}
+	}
+}

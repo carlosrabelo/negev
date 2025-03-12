@@ -64,7 +64,33 @@ func parseVLANs(output string) []string {
 	}
 	return vlans
 }
-func (d *Driver) GetTrunkInterfaces(repo ports.SwitchRepository) ([]string, error) { return nil, nil }
+func (d *Driver) GetTrunkInterfaces(repo ports.SwitchRepository) ([]string, error) {
+	out, err := repo.ExecuteCommand("show interfaces switchport")
+	if err != nil {
+		return nil, err
+	}
+	return parseDmOSTrunksFromSwitchport(out), nil
+}
+
+func parseDmOSTrunksFromSwitchport(output string) []string {
+	lines := strings.Split(output, "\n")
+	var trunks []string
+	var currentIface string
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(strings.ToLower(trimmed), "interface ethernet") {
+			parts := strings.Fields(trimmed)
+			if len(parts) >= 3 {
+				currentIface = strings.ToLower(parts[1] + parts[2])
+			}
+		} else if strings.HasPrefix(trimmed, "Allowed VLANs:") && strings.Contains(trimmed, "(t)") {
+			if currentIface != "" {
+				trunks = append(trunks, currentIface)
+			}
+		}
+	}
+	return trunks
+}
 func (d *Driver) GetActivePorts(repo ports.SwitchRepository) ([]entities.Port, error) { return nil, nil }
 func (d *Driver) GetMacTable(repo ports.SwitchRepository) ([]entities.Device, error) { return nil, nil }
 func (d *Driver) ConfigureAccessCommands(port entities.Port, vlan string) []string { return nil }

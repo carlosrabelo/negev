@@ -11,21 +11,26 @@ import (
 )
 
 type Config struct {
-	Platform       string            `yaml:"platform"`
-	LegacyVendor   string            `yaml:"vendor"`
-	Transport      string            `yaml:"transport"`
-	Username       string            `yaml:"username"`
-	Password       string            `yaml:"password"`
-	EnablePassword string            `yaml:"enable_password"`
-	DefaultVlan    string            `yaml:"default_vlan"`
-	NoDataVlan     string            `yaml:"no_data_vlan"`
-	ExcludeMacs    []string          `yaml:"exclude_macs"`
-	MacToVlan      map[string]string `yaml:"mac_to_vlan"`
-	AllowedVlans   []string          `yaml:"allowed_vlans"`
-	ProtectedVlans []string          `yaml:"protected_vlans"`
+	Platform       string                  `yaml:"platform"`
+	LegacyVendor   string                  `yaml:"vendor"`
+	Transport      string                  `yaml:"transport"`
+	Username       string                  `yaml:"username"`
+	Password       string                  `yaml:"password"`
+	EnablePassword string                  `yaml:"enable_password"`
+	DefaultVlan    string                  `yaml:"default_vlan"`
+	NoDataVlan     string                  `yaml:"no_data_vlan"`
+	ExcludeMacs    []string                `yaml:"exclude_macs"`
+	MacToVlan      map[string]string       `yaml:"mac_to_vlan"`
+	AllowedVlans   []string                `yaml:"allowed_vlans"`
+	ProtectedVlans []string                `yaml:"protected_vlans"`
 	Switches       []entities.SwitchConfig `yaml:"switches"`
 }
 
+func debugf(verbose bool, format string, args ...any) {
+	if verbose {
+		fmt.Printf(format, args...)
+	}
+}
 
 func mergeStringSlices(global, local []string, normalize func(string) (string, error)) ([]string, error) {
 	seen := make(map[string]bool)
@@ -57,10 +62,20 @@ func mergeStringSlices(global, local []string, normalize func(string) (string, e
 	return result, nil
 }
 
-func debugf(verbose bool, format string, args ...any) {
-	if verbose {
-		fmt.Printf(format, args...)
+func NormalizeMAC(mac string) string {
+	return strings.ToLower(strings.ReplaceAll(strings.ReplaceAll(mac, ":", ""), ".", ""))
+}
+
+func isHexMAC(s string) bool {
+	if len(s) < 6 {
+		return false
 	}
+	for _, c := range s {
+		if (c < '0' || c > '9') && (c < 'a' || c > 'f') {
+			return false
+		}
+	}
+	return true
 }
 
 func normalizeVLAN(vlan, context string) (string, error) {
@@ -94,6 +109,7 @@ func Load(yamlFile, target string, verbosityLevel int) (*Config, error) {
 	}
 
 	verbose := verbosityLevel == 1 || verbosityLevel == 3
+
 	primaryPlatform := cfg.Platform
 	if primaryPlatform == "" {
 		primaryPlatform = cfg.LegacyVendor
@@ -139,7 +155,6 @@ func Load(yamlFile, target string, verbosityLevel int) (*Config, error) {
 
 	for i := range cfg.Switches {
 		sw := &cfg.Switches[i]
-		var err error
 		swVerbose := verbose
 		if target != "" && sw.Target != target {
 			swVerbose = false
@@ -179,6 +194,7 @@ func Load(yamlFile, target string, verbosityLevel int) (*Config, error) {
 		if sw.EnablePassword == "" {
 			sw.EnablePassword = cfg.EnablePassword
 		}
+
 		if sw.DefaultVlan == "" {
 			sw.DefaultVlan = cfg.DefaultVlan
 		} else {
@@ -188,6 +204,7 @@ func Load(yamlFile, target string, verbosityLevel int) (*Config, error) {
 			}
 			sw.DefaultVlan = normalized
 		}
+
 		if sw.NoDataVlan == "" {
 			sw.NoDataVlan = cfg.NoDataVlan
 		} else {
@@ -197,18 +214,22 @@ func Load(yamlFile, target string, verbosityLevel int) (*Config, error) {
 			}
 			sw.NoDataVlan = normalized
 		}
+
+		var err error
 		sw.AllowedVlans, err = mergeStringSlices(cfg.AllowedVlans, sw.AllowedVlans, func(v string) (string, error) {
 			return normalizeVLAN(v, fmt.Sprintf("switch %s allowed_vlans", sw.Target))
 		})
 		if err != nil {
 			return nil, err
 		}
+
 		sw.ProtectedVlans, err = mergeStringSlices(cfg.ProtectedVlans, sw.ProtectedVlans, func(v string) (string, error) {
 			return normalizeVLAN(v, fmt.Sprintf("switch %s protected_vlans", sw.Target))
 		})
 		if err != nil {
 			return nil, err
 		}
+
 		normalizedExclude := make(map[string]bool)
 		for _, mac := range append(append([]string{}, cfg.ExcludeMacs...), sw.ExcludeMacs...) {
 			norm := NormalizeMAC(mac)
@@ -221,6 +242,20 @@ func Load(yamlFile, target string, verbosityLevel int) (*Config, error) {
 		for mac := range normalizedExclude {
 			sw.ExcludeMacs = append(sw.ExcludeMacs, mac)
 		}
+
+		// Normalizar ExcludePorts: trim, lowercase, dedup
+		seenPorts := make(map[string]bool)
+		var normalizedPorts []string
+		for _, p := range sw.ExcludePorts {
+			pNorm := strings.ToLower(strings.TrimSpace(p))
+			if pNorm != "" && !seenPorts[pNorm] {
+				seenPorts[pNorm] = true
+				normalizedPorts = append(normalizedPorts, pNorm)
+			}
+		}
+		sw.ExcludePorts = normalizedPorts
+
+		// Mesclar MacToVlan: chaves do switch sobrescrevem globais, chaves e valores normalizados e validados
 		mergedMacToVlan := make(map[string]string)
 		addMacMapping := func(prefix, vlan, context string, removeZero bool) error {
 			norm := NormalizeMAC(prefix)
@@ -256,6 +291,7 @@ func Load(yamlFile, target string, verbosityLevel int) (*Config, error) {
 		sw.MacToVlan = mergedMacToVlan
 		debugf(swVerbose, "DEBUG: Merged exclude_macs for %s: %v\n", sw.Target, sw.ExcludeMacs)
 		debugf(swVerbose, "DEBUG: Merged mac_to_vlan for %s: %v\n", sw.Target, sw.MacToVlan)
+		debugf(swVerbose, "DEBUG: Normalized exclude_ports for %s: %v\n", sw.Target, sw.ExcludePorts)
 		debugf(swVerbose, "DEBUG: Switch %s: Platform=%s, Transport=%s, DefaultVlan=%s\n",
 			sw.Target, sw.Platform, sw.Transport, sw.DefaultVlan)
 	}
@@ -263,36 +299,6 @@ func Load(yamlFile, target string, verbosityLevel int) (*Config, error) {
 	if len(cfg.Switches) == 0 {
 		return nil, fmt.Errorf("no switches defined in the YAML configuration")
 	}
+
 	return &cfg, nil
-}
-
-func isHexMAC(s string) bool {
-	if len(s) < 6 {
-		return false
-	}
-	for _, c := range s {
-		if (c < '0' || c > '9') && (c < 'a' || c > 'f') {
-			return false
-		}
-	}
-	return true
-}
-
-func NormalizeMAC(mac string) string {
-	return strings.ToLower(strings.ReplaceAll(strings.ReplaceAll(mac, ":", ""), ".", ""))
-}
-
-func macPrefix(mac string) string {
-	n := NormalizeMAC(mac)
-	if len(n) > 6 {
-		return n[:6]
-	}
-	return n
-}
-
-// ApplySandbox sets Sandbox to the inverse of write on every switch.
-func ApplySandbox(cfg *Config, write bool) {
-	for i := range cfg.Switches {
-		cfg.Switches[i].Sandbox = !write
-	}
 }

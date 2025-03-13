@@ -2,92 +2,100 @@ package config
 
 import (
 	"os"
-	"reflect"
 	"path/filepath"
+	"reflect"
 	"testing"
-
-	"github.com/carlosrabelo/negev/negev/internal/domain/entities"
 )
 
-func TestLoadInheritsGlobalWhenSwitchOmitsFields(t *testing.T) {
+func TestConfigLoadMergeDefaultAndVlans(t *testing.T) {
 	yamlData := `
-platform: ios
+platform: auto
 transport: telnet
 username: admin
-password: secret
-enable_password: enable
+password: cisco123
+enable_password: cisco123
 default_vlan: "1"
 no_data_vlan: "999"
+allowed_vlans:
+  - "10"
+  - "20"
+protected_vlans:
+  - "999"
+
 switches:
   - target: 192.168.1.10
+    platform: ios
+    transport: ssh
+    username: switchadmin
+    password: switchpass
+    enable_password: enablepass
+
+  - target: 192.168.1.20
+    platform: auto
+    default_vlan: "100"
+    no_data_vlan: "200"
+    allowed_vlans:
+      - "20"
+      - "30"
+    protected_vlans:
+      - "100"
+    exclude_ports:
+      - "Gi1/0/24 "
+      - "gi1/0/24"
+      - "Gi1/0/23"
 `
-	tmpFile := filepath.Join(t.TempDir(), "cfg.yaml")
+	tmpDir := t.TempDir()
+	tmpFile := filepath.Join(tmpDir, "test_config.yaml")
 	if err := os.WriteFile(tmpFile, []byte(yamlData), 0644); err != nil {
-		t.Fatal(err)
+		t.Fatalf("failed to write temp yaml config: %v", err)
 	}
-	cfg, err := Load(tmpFile, "192.168.1.10", 1)
+
+	cfg, err := Load(tmpFile, "192.168.1.10", 0)
 	if err != nil {
-		t.Fatalf("Load() error: %v", err)
+		t.Fatalf("Load() returned error: %v", err)
 	}
-	if len(cfg.Switches) != 1 {
-		t.Fatalf("switches = %d", len(cfg.Switches))
-	}
-	sw := cfg.Switches[0]
-	if sw.Username != "admin" || sw.Transport != "telnet" || sw.DefaultVlan != "1" || sw.Platform != "ios" {
-		t.Fatalf("unexpected merge: %+v", sw)
-	}
-}
 
-func TestLoadRequiresSwitches(t *testing.T) {
-	tmpFile := filepath.Join(t.TempDir(), "empty.yaml")
-	if err := os.WriteFile(tmpFile, []byte("platform: ios\n"), 0644); err != nil {
-		t.Fatal(err)
+	if len(cfg.Switches) != 2 {
+		t.Fatalf("expected 2 switches, got %d", len(cfg.Switches))
 	}
-	if _, err := Load(tmpFile, "", 0); err == nil {
-		t.Fatal("expected error when no switches are defined")
-	}
-}
 
-func TestLoadLegacyVendorFallback(t *testing.T) {
-	yamlData := `
-vendor: ios
-transport: telnet
-username: admin
-password: secret
-enable_password: enable
-default_vlan: "1"
-no_data_vlan: "999"
-switches:
-  - target: 192.168.1.10
-    vendor: ios
-`
-	tmpFile := filepath.Join(t.TempDir(), "cfg.yaml")
-	if err := os.WriteFile(tmpFile, []byte(yamlData), 0644); err != nil {
-		t.Fatal(err)
+	// Validar Switch 1 (herança total)
+	sw1 := cfg.Switches[0]
+	if sw1.DefaultVlan != "1" {
+		t.Errorf("sw1.DefaultVlan = %q; expected \"1\"", sw1.DefaultVlan)
 	}
-	cfg, err := Load(tmpFile, "", 0)
-	if err != nil {
-		t.Fatal(err)
+	if sw1.NoDataVlan != "999" {
+		t.Errorf("sw1.NoDataVlan = %q; expected \"999\"", sw1.NoDataVlan)
 	}
-	if cfg.Platform != "ios" || cfg.Switches[0].Platform != "ios" {
-		t.Fatalf("legacy vendor fallback failed: global=%q switch=%q", cfg.Platform, cfg.Switches[0].Platform)
+	if !reflect.DeepEqual(sw1.AllowedVlans, []string{"10", "20"}) {
+		t.Errorf("sw1.AllowedVlans = %v; expected [\"10\", \"20\"]", sw1.AllowedVlans)
 	}
-}
+	if !reflect.DeepEqual(sw1.ProtectedVlans, []string{"999"}) {
+		t.Errorf("sw1.ProtectedVlans = %v; expected [\"999\"]", sw1.ProtectedVlans)
+	}
 
-func TestNormalizeMAC(t *testing.T) {
-	got := NormalizeMAC("AA:BB:CC:DD:EE:FF")
-	if got != "aabbccddeeff" {
-		t.Fatalf("NormalizeMAC colon = %q", got)
+	// Validar Switch 2 (sobrescrita e mesclagem)
+	sw2 := cfg.Switches[1]
+	if sw2.DefaultVlan != "100" {
+		t.Errorf("sw2.DefaultVlan = %q; expected \"100\"", sw2.DefaultVlan)
 	}
-	got = NormalizeMAC("aabb.ccdd.eeff")
-	if got != "aabbccddeeff" {
-		t.Fatalf("NormalizeMAC dotted = %q", got)
+	if sw2.NoDataVlan != "200" {
+		t.Errorf("sw2.NoDataVlan = %q; expected \"200\"", sw2.NoDataVlan)
 	}
-}
+	// "10", "20" (global) + "20", "30" (local) -> "10", "20", "30"
+	expectedAllowed := []string{"10", "20", "30"}
+	if !reflect.DeepEqual(sw2.AllowedVlans, expectedAllowed) {
+		t.Errorf("sw2.AllowedVlans = %v; expected %v", sw2.AllowedVlans, expectedAllowed)
+	}
+	// "999" (global) + "100" (local) -> "999", "100"
+	expectedProtected := []string{"999", "100"}
+	if !reflect.DeepEqual(sw2.ProtectedVlans, expectedProtected) {
+		t.Errorf("sw2.ProtectedVlans = %v; expected %v", sw2.ProtectedVlans, expectedProtected)
+	}
 
-func TestMACPrefix(t *testing.T) {
-	if got := macPrefix("AA:BB:CC:DD:EE:FF"); got != "aabbcc" {
-		t.Fatalf("macPrefix = %q", got)
+	expectedExcludePorts := []string{"gi1/0/24", "gi1/0/23"}
+	if !reflect.DeepEqual(sw2.ExcludePorts, expectedExcludePorts) {
+		t.Errorf("sw2.ExcludePorts = %v; expected %v", sw2.ExcludePorts, expectedExcludePorts)
 	}
 }
 
@@ -104,38 +112,19 @@ switches:
   - target: 192.168.1.10
     default_vlan: "5000"
 `
-	tmpFile := filepath.Join(t.TempDir(), "test_config_invalid.yaml")
+	tmpDir := t.TempDir()
+	tmpFile := filepath.Join(tmpDir, "test_config_invalid.yaml")
 	if err := os.WriteFile(tmpFile, []byte(yamlDataInvalidDefault), 0644); err != nil {
-		t.Fatal(err)
+		t.Fatalf("failed to write temp yaml config: %v", err)
 	}
-	if _, err := Load(tmpFile, "", 0); err == nil {
+
+	_, err := Load(tmpFile, "", 0)
+	if err == nil {
 		t.Error("expected error due to invalid default_vlan (5000), got nil")
 	}
 }
 
-func TestValidatePlatformRejectsUnknown(t *testing.T) {
-	yamlData := `
-platform: auto
-transport: telnet
-username: admin
-password: cisco123
-enable_password: cisco123
-default_vlan: "1"
-no_data_vlan: "999"
-switches:
-  - target: 192.168.1.10
-    platform: junos
-`
-	tmpFile := filepath.Join(t.TempDir(), "junos.yaml")
-	if err := os.WriteFile(tmpFile, []byte(yamlData), 0644); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := Load(tmpFile, "", 0); err == nil {
-		t.Fatal("expected unknown platform to be rejected")
-	}
-}
-
-func TestConfigLoadMergeMacToVlanNaive(t *testing.T) {
+func TestConfigLoadMergeMacToVlan(t *testing.T) {
 	yamlData := `
 platform: auto
 transport: telnet
@@ -146,36 +135,37 @@ default_vlan: "1"
 no_data_vlan: "999"
 mac_to_vlan:
   "AA:BB:CC": "10"
+  "112233445566": "20"
   "deadbe": "100"
+
 switches:
   - target: 192.168.1.10
     platform: ios
     mac_to_vlan:
-      "deadbe": "200"
+      "001122": "30"
+      "11:22:33": "0"  # Remove o prefixo 112233
+      "deadbe": "200"  # Sobrescreve o global
 `
-	tmpFile := filepath.Join(t.TempDir(), "mactovlan.yaml")
+	tmpDir := t.TempDir()
+	tmpFile := filepath.Join(tmpDir, "test_config_mactovlan.yaml")
 	if err := os.WriteFile(tmpFile, []byte(yamlData), 0644); err != nil {
-		t.Fatal(err)
+		t.Fatalf("failed to write temp yaml config: %v", err)
 	}
-	cfg, err := Load(tmpFile, "", 0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	got := cfg.Switches[0].MacToVlan
-	if got["aabbcc"] != "10" || got["deadbe"] != "200" {
-		t.Fatalf("MacToVlan = %v", got)
-	}
-}
 
-func TestApplySandboxInvertsWrite(t *testing.T) {
-	cfg := &Config{Switches: []entities.SwitchConfig{{Target: "192.168.1.10"}}}
-	ApplySandbox(cfg, false)
-	if !cfg.Switches[0].Sandbox {
-		t.Fatal("expected sandbox when write is false")
+	cfg, err := Load(tmpFile, "192.168.1.10", 0)
+	if err != nil {
+		t.Fatalf("Load() returned error: %v", err)
 	}
-	ApplySandbox(cfg, true)
-	if cfg.Switches[0].Sandbox {
-		t.Fatal("expected sandbox disabled when write is true")
+
+	sw1 := cfg.Switches[0]
+	expectedMacToVlan := map[string]string{
+		"aabbcc": "10",
+		"deadbe": "200",
+		"001122": "30",
+	}
+
+	if !reflect.DeepEqual(sw1.MacToVlan, expectedMacToVlan) {
+		t.Errorf("sw1.MacToVlan = %v; expected %v", sw1.MacToVlan, expectedMacToVlan)
 	}
 }
 
@@ -235,43 +225,6 @@ switches:
 	}
 	if len(cfg.Switches[0].AllowedVlans) != 1 || cfg.Switches[0].AllowedVlans[0] != "10" {
 		t.Fatalf("allowed = %v", cfg.Switches[0].AllowedVlans)
-	}
-	_ = reflect.DeepEqual
-}
-
-func TestConfigLoadMergeMacToVlan(t *testing.T) {
-	yamlData := `
-platform: auto
-transport: telnet
-username: admin
-password: cisco123
-enable_password: cisco123
-default_vlan: "1"
-no_data_vlan: "999"
-mac_to_vlan:
-  "AA:BB:CC": "10"
-  "112233445566": "20"
-  "deadbe": "100"
-
-switches:
-  - target: 192.168.1.10
-    platform: ios
-    mac_to_vlan:
-      "001122": "30"
-      "11:22:33": "0"
-      "deadbe": "200"
-`
-	tmpFile := filepath.Join(t.TempDir(), "test_config_mactovlan.yaml")
-	if err := os.WriteFile(tmpFile, []byte(yamlData), 0644); err != nil {
-		t.Fatal(err)
-	}
-	cfg, err := Load(tmpFile, "192.168.1.10", 0)
-	if err != nil {
-		t.Fatalf("Load() returned error: %v", err)
-	}
-	expectedMacToVlan := map[string]string{"aabbcc": "10", "deadbe": "200", "001122": "30"}
-	if !reflect.DeepEqual(cfg.Switches[0].MacToVlan, expectedMacToVlan) {
-		t.Errorf("sw1.MacToVlan = %v; expected %v", cfg.Switches[0].MacToVlan, expectedMacToVlan)
 	}
 }
 

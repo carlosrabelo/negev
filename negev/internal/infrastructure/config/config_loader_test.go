@@ -238,3 +238,63 @@ switches:
 	}
 	_ = reflect.DeepEqual
 }
+
+func TestConfigLoadMergeMacToVlan(t *testing.T) {
+	yamlData := `
+platform: auto
+transport: telnet
+username: admin
+password: cisco123
+enable_password: cisco123
+default_vlan: "1"
+no_data_vlan: "999"
+mac_to_vlan:
+  "AA:BB:CC": "10"
+  "112233445566": "20"
+  "deadbe": "100"
+
+switches:
+  - target: 192.168.1.10
+    platform: ios
+    mac_to_vlan:
+      "001122": "30"
+      "11:22:33": "0"
+      "deadbe": "200"
+`
+	tmpFile := filepath.Join(t.TempDir(), "test_config_mactovlan.yaml")
+	if err := os.WriteFile(tmpFile, []byte(yamlData), 0644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(tmpFile, "192.168.1.10", 0)
+	if err != nil {
+		t.Fatalf("Load() returned error: %v", err)
+	}
+	expectedMacToVlan := map[string]string{"aabbcc": "10", "deadbe": "200", "001122": "30"}
+	if !reflect.DeepEqual(cfg.Switches[0].MacToVlan, expectedMacToVlan) {
+		t.Errorf("sw1.MacToVlan = %v; expected %v", cfg.Switches[0].MacToVlan, expectedMacToVlan)
+	}
+}
+
+func TestConfigLoadRejectsInvalidMAC(t *testing.T) {
+	yamlData := `
+platform: auto
+transport: telnet
+username: admin
+password: cisco123
+enable_password: cisco123
+default_vlan: "1"
+no_data_vlan: "999"
+exclude_macs:
+  - "zz:zz:zz:zz:zz:zz"
+switches:
+  - target: 192.168.1.10
+    platform: ios
+`
+	tmpFile := filepath.Join(t.TempDir(), "badmac.yaml")
+	if err := os.WriteFile(tmpFile, []byte(yamlData), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Load(tmpFile, "", 0); err == nil {
+		t.Fatal("expected invalid exclude_macs to fail")
+	}
+}

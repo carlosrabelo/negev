@@ -112,6 +112,12 @@ func (s *VLANServiceImpl) ProcessPorts() error {
 		fmt.Println("No changes required")
 	} else if s.config.Sandbox {
 		fmt.Printf("Changes simulated (sandbox mode, use -w to apply)\n")
+	} else {
+		slog.Info("Saving changes to startup-config", "target", s.config.Target)
+		if err := s.saveConfiguration(); err != nil {
+			return fmt.Errorf("failed to save configuration: %v", err)
+		}
+		slog.Info("Configuration successfully saved", "target", s.config.Target)
 	}
 	return nil
 }
@@ -279,6 +285,7 @@ func (s *VLANServiceImpl) saveConfiguration() error {
 			lastErr = fmt.Errorf("command %q returned error: %s", cmd, out)
 			continue
 		}
+		return nil
 	}
 	return lastErr
 }

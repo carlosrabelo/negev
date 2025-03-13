@@ -116,6 +116,17 @@ func (sc *SSHClient) Connect() error {
 		sc.Disconnect()
 		return err
 	}
+	if len(sc.authSequence) > 0 {
+		var prompts []entities.AuthPrompt
+		for _, p := range sc.authSequence {
+			if strings.Contains(p.SendCmd, "USERNAME_PLACEHOLDER") || (strings.Contains(p.SendCmd, "PASSWORD_PLACEHOLDER") && !strings.Contains(p.SendCmd, "ENABLE_PASSWORD_PLACEHOLDER")) {
+				continue
+			}
+			prompts = append(prompts, p)
+		}
+		_ = prompts
+	}
+
 	if !strings.Contains(initial, PromptPrivileged) {
 		if err := sc.send("enable\n"); err != nil {
 			sc.Disconnect()

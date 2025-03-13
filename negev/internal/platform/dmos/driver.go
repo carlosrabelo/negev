@@ -283,4 +283,16 @@ func (d *Driver) SaveCommands() []string {
 func (d *Driver) ClearCache() {
 	clearSwitchportCache()
 }
-func (d *Driver) IsCommandError(output string) bool { return false }
+func (d *Driver) IsCommandError(output string) bool {
+	return isDmOSCommandError(output)
+}
+
+func isDmOSCommandError(output string) bool {
+	lower := strings.ToLower(output)
+	for _, pat := range []string{"unknown command", "invalid", "incomplete", "syntax error"} {
+		if strings.Contains(lower, pat) {
+			return true
+		}
+	}
+	return false
+}

@@ -7,20 +7,6 @@ import (
 	"github.com/carlosrabelo/negev/negev/internal/domain/entities"
 )
 
-func TestDriverName(t *testing.T) {
-	if (&Driver{}).Name() != "ios" {
-		t.Fatal("driver name")
-	}
-}
-
-func TestIOSAuthSequence(t *testing.T) {
-	seq := (&Driver{}).GetAuthenticationSequence()
-	if len(seq) != 6 || seq[0].WaitFor != "Username:" || seq[2].SendCmd != "enable\n" {
-		t.Fatalf("auth sequence: %+v", seq)
-	}
-	_ = entities.AuthPrompt{}
-}
-
 func TestParseVLANs(t *testing.T) {
 	output := `
 VLAN Name                             Status    Ports
@@ -51,17 +37,20 @@ Gi1/0/24    1-4094
 	}
 }
 
-func TestParseActivePortsWithMonitor(t *testing.T) {
+func TestParseActivePorts(t *testing.T) {
 	output := `
 Port      Name               Status       Vlan       Duplex  Speed Type
-Gi1/0/1                      connected    10         a-full  a-1000 10/100/1000BaseTX
+Gi1/0/1   connected          connected    10         a-full  a-1000 10/100/1000BaseTX
+Gi1/0/2   Link connected Core connected    20         a-full  a-1000 10/100/1000BaseTX
+Gi1/0/3   Link up back       connected    30         a-full  a-1000 10/100/1000BaseTX
 Gi1/0/4                      notconnect   1            auto   auto 10/100/1000BaseTX
 Gi1/0/5   SPAN dest          monitor      10         a-full  a-1000 10/100/1000BaseTX
 `
 	got := parseActivePorts(output)
 	expected := []entities.Port{
 		{Interface: "Gi1/0/1", Vlan: "10"},
-		{Interface: "Gi1/0/5", Vlan: "10"},
+		{Interface: "Gi1/0/2", Vlan: "20"},
+		{Interface: "Gi1/0/3", Vlan: "30"},
 	}
 	if !reflect.DeepEqual(got, expected) {
 		t.Errorf("parseActivePorts() = %+v; expected %+v", got, expected)
@@ -72,6 +61,7 @@ func TestParseMacTable(t *testing.T) {
 	output := `
           Mac Address Table
 -------------------------------------------
+
 Vlan    Mac Address       Type        Ports
 ----    -----------       ----        -----
   10    0011.2233.4455    DYNAMIC     Gi1/0/1

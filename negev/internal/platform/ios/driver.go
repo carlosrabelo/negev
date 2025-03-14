@@ -1,6 +1,7 @@
 package ios
 
 import (
+	"fmt"
 	"regexp"
 	"sort"
 	"strings"
@@ -11,7 +12,7 @@ import (
 )
 
 var vlanLineRegex = regexp.MustCompile(`^\s*(?:vlan\s+)?(\d{1,4})\b`)
-
+var interfaceRegex = regexp.MustCompile(`^[A-Za-z]+\d+(?:/\d+){0,2}$`)
 var macTableRegex = regexp.MustCompile(`^\s*(\d+)\s+([0-9A-Fa-f]{4}\.[0-9A-Fa-f]{4}\.[0-9A-Fa-f]{4})\s+DYNAMIC\s+(\S+)`)
 
 type Driver struct{}
@@ -31,6 +32,7 @@ func (d *Driver) Detect(repo ports.SwitchRepository) (bool, error) {
 	}
 	return strings.Contains(strings.ToLower(out), "cisco ios"), nil
 }
+
 func (d *Driver) GetAuthenticationSequence() []entities.AuthPrompt {
 	return []entities.AuthPrompt{
 		{WaitFor: "Username:", SendCmd: "USERNAME_PLACEHOLDER\n"},
@@ -41,6 +43,7 @@ func (d *Driver) GetAuthenticationSequence() []entities.AuthPrompt {
 		{WaitFor: "#", SendCmd: ""},
 	}
 }
+
 func (d *Driver) GetVLANList(repo ports.SwitchRepository) ([]string, error) {
 	out, err := repo.ExecuteCommand("show vlan brief")
 	if err != nil || out == "" {
@@ -69,6 +72,7 @@ func parseVLANs(output string) []string {
 	}
 	return vlans
 }
+
 func (d *Driver) GetTrunkInterfaces(repo ports.SwitchRepository) ([]string, error) {
 	out, err := repo.ExecuteCommand("show interfaces trunk")
 	if err != nil {
@@ -76,8 +80,6 @@ func (d *Driver) GetTrunkInterfaces(repo ports.SwitchRepository) ([]string, erro
 	}
 	return parseTrunkInterfaces(out), nil
 }
-
-var interfaceRegex = regexp.MustCompile(`^[A-Za-z]+\d+(?:/\d+){0,2}$`)
 
 func parseTrunkInterfaces(output string) []string {
 	lines := strings.Split(output, "\n")
@@ -98,6 +100,7 @@ func parseTrunkInterfaces(output string) []string {
 	}
 	return ifaces
 }
+
 func (d *Driver) GetActivePorts(repo ports.SwitchRepository) ([]entities.Port, error) {
 	out, err := repo.ExecuteCommand("show interfaces status")
 	if err != nil {
@@ -106,7 +109,7 @@ func (d *Driver) GetActivePorts(repo ports.SwitchRepository) ([]entities.Port, e
 	return parseActivePorts(out), nil
 }
 
-var statusKeywords = []string{"connected", "up", "forward", "monitor", "active", "link-up"}
+var statusKeywords = []string{"connected", "up", "forward", "active", "link-up"}
 
 func parseActivePorts(output string) []entities.Port {
 	lines := strings.Split(output, "\n")
@@ -123,7 +126,7 @@ func parseActivePorts(output string) []entities.Port {
 		vlan := ""
 		for i, f := range fields {
 			if isStatusKeyword(f) {
-				if i+1 < len(fields) {
+				if i+1 < len(fields) && isVlanOrMode(fields[i+1]) {
 					status = f
 					vlan = fields[i+1]
 					break
@@ -143,6 +146,16 @@ func parseActivePorts(output string) []entities.Port {
 	return ports
 }
 
+func isVlanOrMode(s string) bool {
+	s = strings.ToLower(s)
+	if s == "trunk" || s == "routed" || s == "routed-port" || s == "access" {
+		return true
+	}
+	var n int
+	_, err := fmt.Sscanf(s, "%d", &n)
+	return err == nil && n >= 1 && n <= 4094
+}
+
 func isStatusKeyword(s string) bool {
 	for _, kw := range statusKeywords {
 		if s == kw {
@@ -151,6 +164,7 @@ func isStatusKeyword(s string) bool {
 	}
 	return s == "notconnect"
 }
+
 func (d *Driver) GetMacTable(repo ports.SwitchRepository) ([]entities.Device, error) {
 	trunks, err := d.GetTrunkInterfaces(repo)
 	if err != nil {
@@ -160,6 +174,7 @@ func (d *Driver) GetMacTable(repo ports.SwitchRepository) ([]entities.Device, er
 	for _, t := range trunks {
 		trunkSet[t] = true
 	}
+
 	out, err := repo.ExecuteCommand("show mac address-table dynamic")
 	if err != nil {
 		return nil, err
@@ -186,7 +201,10 @@ func parseMacTable(output string, trunkSet map[string]bool) []entities.Device {
 		macPlain := strings.ReplaceAll(macDotted, ".", "")
 		macFull := formatMac(macPlain)
 		devices = append(devices, entities.Device{
-			Vlan: m[1], Mac: macPlain, MacFull: macFull, Interface: iface,
+			Vlan:      m[1],
+			Mac:       macPlain,
+			MacFull:   macFull,
+			Interface: iface,
 		})
 	}
 	return devices
@@ -198,6 +216,7 @@ func formatMac(mac string) string {
 	}
 	return mac[0:2] + ":" + mac[2:4] + ":" + mac[4:6] + ":" + mac[6:8] + ":" + mac[8:10] + ":" + mac[10:12]
 }
+
 func (d *Driver) ConfigureAccessCommands(port entities.Port, vlan string) []string {
 	return []string{
 		"configure terminal",
@@ -207,6 +226,7 @@ func (d *Driver) ConfigureAccessCommands(port entities.Port, vlan string) []stri
 		"end",
 	}
 }
+
 func (d *Driver) CreateVLANCommands(vlan string) []string {
 	return []string{
 		"configure terminal",
@@ -217,6 +237,7 @@ func (d *Driver) CreateVLANCommands(vlan string) []string {
 		"end",
 	}
 }
+
 func (d *Driver) DeleteVLANCommands(vlan string) []string {
 	return []string{
 		"configure terminal",
@@ -229,10 +250,13 @@ func (d *Driver) DeleteVLANCommands(vlan string) []string {
 		"end",
 	}
 }
+
 func (d *Driver) SaveCommands() []string {
 	return []string{"write memory"}
 }
+
 func (d *Driver) ClearCache() {}
+
 func (d *Driver) IsCommandError(output string) bool {
 	return isIOSCommandError(output)
 }

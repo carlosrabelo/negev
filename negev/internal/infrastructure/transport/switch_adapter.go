@@ -14,6 +14,8 @@ func NewSwitchAdapter(cfg entities.SwitchConfig) *SwitchAdapter {
 	return &SwitchAdapter{config: cfg}
 }
 
+// NewSwitchAdapterWithClient builds an adapter that uses the provided Client
+// instead of resolving one via GetClient. Intended for tests.
 func NewSwitchAdapterWithClient(cfg entities.SwitchConfig, client Client) *SwitchAdapter {
 	return &SwitchAdapter{config: cfg, client: client}
 }
@@ -42,8 +44,18 @@ func (sa *SwitchAdapter) IsConnected() bool {
 	return sa.client != nil && sa.client.IsConnected()
 }
 
+func (sa *SwitchAdapter) SetAuthSequence(prompts []entities.AuthPrompt) {
+	if sa.client == nil {
+		sa.client = GetClient(sa.config)
+	}
+	if authCfg, ok := sa.client.(AuthConfigurable); ok {
+		authCfg.SetAuthSequence(prompts)
+	}
+}
+
 func (sa *SwitchAdapter) GetTarget() string {
 	return sa.config.Target
 }
 
 var _ ports.SwitchRepository = (*SwitchAdapter)(nil)
+var _ AuthConfigurable = (*SwitchAdapter)(nil)

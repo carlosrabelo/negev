@@ -1,22 +1,21 @@
 package dmos
 
 import (
-	"sort"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 
 	"github.com/carlosrabelo/negev/negev/internal/domain/entities"
 	"github.com/carlosrabelo/negev/negev/internal/domain/ports"
 	"github.com/carlosrabelo/negev/negev/internal/platform"
+	"github.com/carlosrabelo/negev/negev/internal/platform/parseutil"
 )
 
 var vlanTableRegex = regexp.MustCompile(`^VLAN\s+(\d+)\s*(?:\[.*?\])?:\s*`)
-
+var vlanPrefixRegex = regexp.MustCompile(`^\s*(?:vlan\s+)?(\d{1,4})\b`)
 var dmosPortRegex = regexp.MustCompile(`^Ethernet\d+/\d+$`)
-
 var infoPortRegex = regexp.MustCompile(`^Information of Eth\s+(\d+/\d+)`)
-
 var macLineRegex = regexp.MustCompile(`^\s*\d+\s+\w*\s+(Eth\s+\d+/\d+)\s+([0-9A-F:]+)\s+(\d+)\s+.*Learned`)
 
 type Driver struct{}
@@ -37,6 +36,7 @@ func (d *Driver) Detect(repo ports.SwitchRepository) (bool, error) {
 	lower := strings.ToLower(out)
 	return strings.Contains(lower, "dmos") || strings.Contains(lower, "datacom"), nil
 }
+
 func (d *Driver) GetAuthenticationSequence() []entities.AuthPrompt {
 	return []entities.AuthPrompt{
 		{WaitFor: "login:", SendCmd: "USERNAME_PLACEHOLDER\n"},
@@ -45,6 +45,7 @@ func (d *Driver) GetAuthenticationSequence() []entities.AuthPrompt {
 		{WaitFor: "#", SendCmd: ""},
 	}
 }
+
 func (d *Driver) GetVLANList(repo ports.SwitchRepository) ([]string, error) {
 	out, err := repo.ExecuteCommand("show vlan table")
 	if err != nil || out == "" {
@@ -60,18 +61,27 @@ func parseVLANs(output string) []string {
 	lines := strings.Split(output, "\n")
 	seen := make(map[string]bool)
 	var vlans []string
+	add := func(id string) {
+		if !seen[id] {
+			seen[id] = true
+			vlans = append(vlans, id)
+		}
+	}
 	for _, line := range lines {
-		m := vlanTableRegex.FindStringSubmatch(line)
-		if m == nil {
+		if parseutil.IsSeparatorLine(line) {
 			continue
 		}
-		if !seen[m[1]] {
-			seen[m[1]] = true
-			vlans = append(vlans, m[1])
+		if m := vlanTableRegex.FindStringSubmatch(line); m != nil {
+			add(m[1])
+			continue
+		}
+		if m := vlanPrefixRegex.FindStringSubmatch(line); m != nil {
+			add(m[1])
 		}
 	}
 	return vlans
 }
+
 func (d *Driver) GetTrunkInterfaces(repo ports.SwitchRepository) ([]string, error) {
 	out, err := getSwitchportOutput(repo)
 	if err != nil {
@@ -82,21 +92,6 @@ func (d *Driver) GetTrunkInterfaces(repo ports.SwitchRepository) ([]string, erro
 		trunks = parseDmOSTrunks(out)
 	}
 	return trunks, nil
-}
-
-func parseDmOSTrunks(output string) []string {
-	lines := strings.Split(output, "\n")
-	var trunks []string
-	for _, line := range lines {
-		fields := strings.Fields(line)
-		if len(fields) < 2 {
-			continue
-		}
-		if dmosPortRegex.MatchString(fields[0]) {
-			trunks = append(trunks, fields[0])
-		}
-	}
-	return trunks
 }
 
 func parseDmOSTrunksFromSwitchport(output string) []string {
@@ -118,6 +113,22 @@ func parseDmOSTrunksFromSwitchport(output string) []string {
 	}
 	return trunks
 }
+
+func parseDmOSTrunks(output string) []string {
+	lines := strings.Split(output, "\n")
+	var trunks []string
+	for _, line := range lines {
+		fields := strings.Fields(line)
+		if len(fields) < 2 {
+			continue
+		}
+		if dmosPortRegex.MatchString(fields[0]) {
+			trunks = append(trunks, fields[0])
+		}
+	}
+	return trunks
+}
+
 func (d *Driver) GetActivePorts(repo ports.SwitchRepository) ([]entities.Port, error) {
 	statusOut, err := repo.ExecuteCommand("show interfaces status")
 	if err != nil {
@@ -127,7 +138,8 @@ func (d *Driver) GetActivePorts(repo ports.SwitchRepository) ([]entities.Port, e
 	if err != nil {
 		return nil, err
 	}
-	return parseActivePorts(statusOut, parseDmOSSwitchportVLANs(swOut)), nil
+	switchportVLANs := parseDmOSSwitchportVLANs(swOut)
+	return parseActivePorts(statusOut, switchportVLANs), nil
 }
 
 func parseActivePorts(statusOutput string, switchportVLANs map[string]string) []entities.Port {
@@ -142,9 +154,11 @@ func parseActivePorts(statusOutput string, switchportVLANs map[string]string) []
 			continue
 		}
 		if strings.HasPrefix(trimmed, "Link status:") {
-			status := strings.TrimSpace(strings.TrimPrefix(trimmed, "Link status:"))
+			status := strings.TrimPrefix(trimmed, "Link status:")
+			status = strings.TrimSpace(status)
 			if strings.EqualFold(status, "Up") && currentIface != "" {
-				ports = append(ports, entities.Port{Interface: currentIface, Vlan: switchportVLANs[currentIface]})
+				vlan := switchportVLANs[currentIface]
+				ports = append(ports, entities.Port{Interface: currentIface, Vlan: vlan})
 			}
 			currentIface = ""
 		}
@@ -153,24 +167,6 @@ func parseActivePorts(statusOutput string, switchportVLANs map[string]string) []
 		return compareInterfaceNames(ports[i].Interface, ports[j].Interface)
 	})
 	return ports
-}
-
-func compareInterfaceNames(a, b string) bool {
-	extract := func(s string) (int, int) {
-		parts := strings.Split(s, "/")
-		if len(parts) < 2 {
-			return 0, 0
-		}
-		unit, _ := strconv.Atoi(strings.TrimLeft(parts[0], "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"))
-		port, _ := strconv.Atoi(parts[1])
-		return unit, port
-	}
-	u1, p1 := extract(a)
-	u2, p2 := extract(b)
-	if u1 != u2 {
-		return u1 < u2
-	}
-	return p1 < p2
 }
 
 func parseDmOSSwitchportVLANs(output string) map[string]string {
@@ -193,6 +189,25 @@ func parseDmOSSwitchportVLANs(output string) map[string]string {
 	}
 	return result
 }
+
+func compareInterfaceNames(a, b string) bool {
+	extract := func(s string) (int, int) {
+		parts := strings.Split(s, "/")
+		if len(parts) < 2 {
+			return 0, 0
+		}
+		unit, _ := strconv.Atoi(strings.TrimLeft(parts[0], "Ethernet"))
+		port, _ := strconv.Atoi(parts[1])
+		return unit, port
+	}
+	u1, p1 := extract(a)
+	u2, p2 := extract(b)
+	if u1 != u2 {
+		return u1 < u2
+	}
+	return p1 < p2
+}
+
 func (d *Driver) GetMacTable(repo ports.SwitchRepository) ([]entities.Device, error) {
 	trunks, err := d.GetTrunkInterfaces(repo)
 	if err != nil {
@@ -202,6 +217,7 @@ func (d *Driver) GetMacTable(repo ports.SwitchRepository) ([]entities.Device, er
 	for _, t := range trunks {
 		trunkSet[strings.ToLower(t)] = true
 	}
+
 	out, err := repo.ExecuteCommand("show mac-address-table")
 	if err != nil {
 		return nil, err
@@ -209,18 +225,19 @@ func (d *Driver) GetMacTable(repo ports.SwitchRepository) ([]entities.Device, er
 	return parseMacTable(out, trunkSet), nil
 }
 
-func normalizePort(port string) string {
-	port = strings.ToLower(port)
-	if !strings.HasPrefix(port, "ethernet") {
-		port = "ethernet" + strings.TrimPrefix(port, "eth")
-	}
-	return strings.ReplaceAll(port, " ", "")
-}
-
 func normalizeMAC(mac string) string {
 	mac = strings.ToLower(mac)
 	mac = strings.NewReplacer(":", "", ".", "").Replace(mac)
 	return mac
+}
+
+func normalizePort(port string) string {
+	port = strings.ToLower(port)
+	if !strings.HasPrefix(port, "ethernet") {
+		port = "ethernet" + strings.TrimPrefix(port, "eth")
+		port = strings.ReplaceAll(port, " ", "")
+	}
+	return strings.ReplaceAll(port, " ", "")
 }
 
 func parseMacTable(output string, trunkSet map[string]bool) []entities.Device {
@@ -235,17 +252,26 @@ func parseMacTable(output string, trunkSet map[string]bool) []entities.Device {
 		if trunkSet[port] {
 			continue
 		}
-		macRaw := normalizeMAC(m[2])
-		macFull := macRaw
-		if len(macRaw) == 12 {
-			macFull = macRaw[0:2] + ":" + macRaw[2:4] + ":" + macRaw[4:6] + ":" + macRaw[6:8] + ":" + macRaw[8:10] + ":" + macRaw[10:12]
-		}
+		macRaw := m[2]
+		macPlain := normalizeMAC(macRaw)
+		macFull := formatMAC(macPlain)
 		devices = append(devices, entities.Device{
-			Vlan: m[3], Mac: macRaw, MacFull: macFull, Interface: port,
+			Vlan:      m[3],
+			Mac:       macPlain,
+			MacFull:   macFull,
+			Interface: port,
 		})
 	}
 	return devices
 }
+
+func formatMAC(mac string) string {
+	if len(mac) != 12 {
+		return mac
+	}
+	return mac[0:2] + ":" + mac[2:4] + ":" + mac[4:6] + ":" + mac[6:8] + ":" + mac[8:10] + ":" + mac[10:12]
+}
+
 func (d *Driver) ConfigureAccessCommands(port entities.Port, vlan string) []string {
 	return []string{
 		"configure",
@@ -259,6 +285,7 @@ func (d *Driver) ConfigureAccessCommands(port entities.Port, vlan string) []stri
 		"end",
 	}
 }
+
 func (d *Driver) CreateVLANCommands(vlan string) []string {
 	return []string{
 		"configure",
@@ -267,6 +294,7 @@ func (d *Driver) CreateVLANCommands(vlan string) []string {
 		"end",
 	}
 }
+
 func (d *Driver) DeleteVLANCommands(vlan string) []string {
 	return []string{
 		"configure",
@@ -274,25 +302,37 @@ func (d *Driver) DeleteVLANCommands(vlan string) []string {
 		"end",
 	}
 }
+
 func (d *Driver) SaveCommands() []string {
 	return []string{
 		"copy running-config startup-config",
 		"save",
 	}
 }
+
 func (d *Driver) ClearCache() {
 	clearSwitchportCache()
 }
-func (d *Driver) IsCommandError(output string) bool {
-	return isDmOSCommandError(output)
+
+var dmosErrorPatterns = []string{
+	"unknown command",
+	"invalid input",
+	"invalid command",
+	"incomplete command",
+	"% invalid",
+	"syntax error",
 }
 
 func isDmOSCommandError(output string) bool {
 	lower := strings.ToLower(output)
-	for _, pat := range []string{"unknown command", "invalid", "incomplete", "syntax error"} {
+	for _, pat := range dmosErrorPatterns {
 		if strings.Contains(lower, pat) {
 			return true
 		}
 	}
 	return false
+}
+
+func (d *Driver) IsCommandError(output string) bool {
+	return isDmOSCommandError(output)
 }

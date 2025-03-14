@@ -15,17 +15,36 @@ import (
 )
 
 type SSHClient struct {
-	config  entities.SwitchConfig
-	client  *ssh.Client
-	session *ssh.Session
-	stdin   io.WriteCloser
-	reader  *bufio.Reader
-	netConn net.Conn
+	config       entities.SwitchConfig
+	client       *ssh.Client
+	session      *ssh.Session
+	stdin        io.WriteCloser
+	reader       *bufio.Reader
+	netConn      net.Conn
+	authSequence []entities.AuthPrompt
 }
 
 func NewSSHClient(cfg entities.SwitchConfig) *SSHClient {
 	return &SSHClient{config: cfg}
 }
+
+func (sc *SSHClient) SetAuthSequence(prompts []entities.AuthPrompt) {
+	sc.authSequence = prompts
+}
+
+func shouldSkipSSHEnableStep(alreadyPrivileged bool, waitFor, sendCmd, enablePassword string) bool {
+	if !alreadyPrivileged {
+		return false
+	}
+	if waitFor == PromptEnable {
+		return true
+	}
+	if waitFor == PromptPassword && strings.TrimSpace(sendCmd) == strings.TrimSpace(enablePassword) {
+		return true
+	}
+	return false
+}
+
 
 func (sc *SSHClient) Connect() error {
 	addr := net.JoinHostPort(sc.config.Target, "22")

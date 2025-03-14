@@ -75,3 +75,20 @@ func TestSwitchAdapterDisconnectNilClient(t *testing.T) {
 	adapter := NewSwitchAdapter(entities.SwitchConfig{Target: "10.0.0.1"})
 	adapter.Disconnect()
 }
+
+func TestSwitchAdapterSetAuthSequenceCreatesClient(t *testing.T) {
+	t.Cleanup(CloseAll)
+	cfg := entities.SwitchConfig{Target: "203.0.113.10", Transport: "ssh", Username: "u", Password: "p"}
+	adapter := NewSwitchAdapter(cfg)
+	adapter.SetAuthSequence([]entities.AuthPrompt{{WaitFor: "#", SendCmd: ""}})
+	if adapter.client == nil {
+		t.Fatal("expected client to be created")
+	}
+	sshCli, ok := adapter.client.(*SSHClient)
+	if !ok {
+		t.Fatalf("expected *SSHClient, got %T", adapter.client)
+	}
+	if len(sshCli.authSequence) != 1 {
+		t.Fatalf("expected auth sequence on SSH client, got %+v", sshCli.authSequence)
+	}
+}

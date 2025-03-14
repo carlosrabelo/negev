@@ -32,6 +32,10 @@ func NewTelnetClient(cfg entities.SwitchConfig) *TelnetClient {
 	return &TelnetClient{config: cfg}
 }
 
+func (tc *TelnetClient) SetAuthSequence(prompts []entities.AuthPrompt) {
+	tc.authSequence = prompts
+}
+
 func telnetDialAddr(target string) string {
 	if _, _, err := net.SplitHostPort(target); err == nil {
 		return target
@@ -54,6 +58,7 @@ func (tc *TelnetClient) Connect() error {
 	if tc.config.IsDebugEnabled() {
 		fmt.Printf("DEBUG: Connected to %s\n", tc.config.Target)
 	}
+
 	if err := tc.authenticate(); err != nil {
 		tc.Disconnect()
 		return err
@@ -110,6 +115,10 @@ func (tc *TelnetClient) defaultAuthenticate() error {
 func (tc *TelnetClient) runAuthSequence(prompts []entities.AuthPrompt) error {
 	for _, p := range prompts {
 		cmd := p.SendCmd
+		cmd = strings.ReplaceAll(cmd, "USERNAME_PLACEHOLDER", tc.config.Username)
+		cmd = strings.ReplaceAll(cmd, "ENABLE_PASSWORD_PLACEHOLDER", tc.config.EnablePassword)
+		cmd = strings.ReplaceAll(cmd, "PASSWORD_PLACEHOLDER", tc.config.Password)
+
 		if p.WaitFor != "" {
 			output, err := tc.readUntil(p.WaitFor, DefaultTimeout)
 			if err != nil {
@@ -200,19 +209,8 @@ func (tc *TelnetClient) Disconnect() {
 	}
 }
 
-func (tc *TelnetClient) SetAuthSequence(prompts []entities.AuthPrompt) {
-	tc.authSequence = prompts
-}
-
-func defaultIOSAuthSequence(cfg entities.SwitchConfig) []entities.AuthPrompt {
-	return []entities.AuthPrompt{
-		{WaitFor: PromptUsername, SendCmd: cfg.Username + "\n"},
-		{WaitFor: PromptPassword, SendCmd: cfg.Password + "\n"},
-		{WaitFor: PromptEnable, SendCmd: "enable\n"},
-		{WaitFor: PromptPassword, SendCmd: cfg.EnablePassword + "\n"},
-		{WaitFor: PromptPrivileged, SendCmd: TerminalLengthCmd},
-		{WaitFor: PromptPrivileged, SendCmd: ""},
-	}
+func (tc *TelnetClient) IsConnected() bool {
+	return tc.conn != nil
 }
 
 func (tc *TelnetClient) ExecuteCommand(cmd string) (string, error) {
@@ -240,8 +238,4 @@ func (tc *TelnetClient) ExecuteCommand(cmd string) (string, error) {
 		fmt.Printf("Switch output for '%s':\n%s\n", cmd, output)
 	}
 	return output, nil
-}
-
-func (tc *TelnetClient) IsConnected() bool {
-	return tc.conn != nil
 }

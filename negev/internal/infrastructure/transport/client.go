@@ -26,25 +26,6 @@ var (
 	cacheMu     sync.Mutex
 )
 
-func cacheSize() int {
-	cacheMu.Lock()
-	defer cacheMu.Unlock()
-	return len(clientCache)
-}
-
-func putCached(key string, c Client) {
-	cacheMu.Lock()
-	defer cacheMu.Unlock()
-	clientCache[key] = c
-}
-
-func getCached(key string) Client {
-	cacheMu.Lock()
-	defer cacheMu.Unlock()
-	return clientCache[key]
-}
-
-
 type cacheEntry struct {
 	Transport      string `json:"transport"`
 	Target         string `json:"target"`
@@ -75,11 +56,14 @@ func GetClient(cfg entities.SwitchConfig) Client {
 	if key == "" {
 		return newClient(cfg)
 	}
+
 	cacheMu.Lock()
 	defer cacheMu.Unlock()
+
 	if c, ok := clientCache[key]; ok {
 		return c
 	}
+
 	c := newClient(cfg)
 	clientCache[key] = c
 	return c
@@ -95,6 +79,7 @@ func newClient(cfg entities.SwitchConfig) Client {
 func CloseAll() {
 	cacheMu.Lock()
 	defer cacheMu.Unlock()
+
 	for key, c := range clientCache {
 		c.Disconnect()
 		delete(clientCache, key)

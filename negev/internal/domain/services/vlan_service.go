@@ -35,7 +35,16 @@ func (s *VLANServiceImpl) ProcessPorts() error {
 		return fmt.Errorf("failed to get VLAN list: %v", err)
 	}
 	if s.config.CreateVLANs {
+		if len(s.config.AllowedVlans) == 0 {
+			return fmt.Errorf("--create-vlans requires a non-empty allowed_vlans list")
+		}
 		allowed := s.getAllowedVLANs()
+		if s.config.DefaultVlan != "" {
+			allowed[s.config.DefaultVlan] = true
+		}
+		if s.config.NoDataVlan != "" {
+			allowed[s.config.NoDataVlan] = true
+		}
 		for _, v := range sortedKeys(allowed) {
 			if !vlans[v] {
 				if err := s.CreateVLAN(v); err != nil {
@@ -266,6 +275,9 @@ func (s *VLANServiceImpl) isExcludedPort(iface string) bool {
 func (s *VLANServiceImpl) isProtected(vlan string) bool {
 	n, _ := strconv.Atoi(strings.TrimSpace(vlan))
 	if n >= 1000 && n <= 4094 {
+		return true
+	}
+	if vlan == s.config.DefaultVlan || vlan == s.config.NoDataVlan {
 		return true
 	}
 	for _, p := range s.config.ProtectedVlans {

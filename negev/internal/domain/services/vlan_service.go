@@ -77,6 +77,19 @@ func (s *VLANServiceImpl) ProcessPorts() error {
 		}
 		macs := s.filterDevices(devices, port.Interface)
 		if len(macs) == 0 {
+			if s.config.NoDataVlan == "" {
+				continue
+			}
+			if !vlans[s.config.NoDataVlan] {
+				slog.Error("Target VLAN does not exist on switch — skipping port", "vlan", s.config.NoDataVlan, "port", port.Interface, "target", s.config.Target)
+				continue
+			}
+			if s.config.NoDataVlan != port.Vlan {
+				if err := s.ConfigureVlan(port.Interface, s.config.NoDataVlan); err != nil {
+					return err
+				}
+				changes++
+			}
 			continue
 		}
 		if len(macs) > 1 {

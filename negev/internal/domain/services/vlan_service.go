@@ -2,10 +2,10 @@ package services
 
 import (
 	"fmt"
+	"log/slog"
 	"sort"
 	"strconv"
 	"strings"
-	"log/slog"
 
 	"github.com/carlosrabelo/negev/negev/internal/domain/entities"
 	"github.com/carlosrabelo/negev/negev/internal/domain/ports"
@@ -34,6 +34,10 @@ func (s *VLANServiceImpl) ProcessPorts() error {
 	if err != nil {
 		return fmt.Errorf("failed to get VLAN list: %v", err)
 	}
+
+	modified := false
+	simulated := false
+
 	if s.config.CreateVLANs {
 		if len(s.config.AllowedVlans) == 0 {
 			return fmt.Errorf("--create-vlans requires a non-empty allowed_vlans list")
@@ -51,6 +55,11 @@ func (s *VLANServiceImpl) ProcessPorts() error {
 					return fmt.Errorf("failed to create VLAN %s: %v", v, err)
 				}
 				vlans[v] = true
+				if s.config.Sandbox {
+					simulated = true
+				} else {
+					modified = true
+				}
 			}
 		}
 		for _, v := range sortedKeys(vlans) {
@@ -61,21 +70,29 @@ func (s *VLANServiceImpl) ProcessPorts() error {
 				return fmt.Errorf("failed to delete VLAN %s: %v", v, err)
 			}
 			delete(vlans, v)
+			if s.config.Sandbox {
+				simulated = true
+			} else {
+				modified = true
+			}
 		}
 	}
+
 	trunks, err := s.GetTrunkInterfaces()
 	if err != nil {
 		return fmt.Errorf("failed to get trunks: %v", err)
 	}
-	_ = trunks
+
 	ports, err := s.GetActivePorts()
 	if err != nil {
 		return fmt.Errorf("failed to get active ports: %v", err)
 	}
+
 	devices, err := s.GetMacTable()
 	if err != nil {
 		return fmt.Errorf("failed to get MAC table: %v", err)
 	}
+
 	changes := 0
 	for _, port := range ports {
 		if trunks[port.Interface] {
@@ -84,74 +101,74 @@ func (s *VLANServiceImpl) ProcessPorts() error {
 		if s.isExcludedPort(port.Interface) {
 			continue
 		}
+
 		macs := s.filterDevices(devices, port.Interface)
 		if len(macs) == 0 {
 			if s.config.NoDataVlan == "" {
 				continue
 			}
-			if !vlans[s.config.NoDataVlan] {
-				slog.Error("Target VLAN does not exist on switch — skipping port", "vlan", s.config.NoDataVlan, "port", port.Interface, "target", s.config.Target)
-				continue
+			changed, err := s.applyPortVlan(port, s.config.NoDataVlan, vlans)
+			if err != nil {
+				return err
 			}
-			if s.config.NoDataVlan != port.Vlan {
-				if err := s.ConfigureVlan(port.Interface, s.config.NoDataVlan); err != nil {
-					return err
-				}
+			if changed {
 				changes++
+				if s.config.Sandbox {
+					simulated = true
+				} else {
+					modified = true
+				}
 			}
 			continue
 		}
+
 		if len(macs) > 1 {
 			slog.Warn("Multiple MACs on port — skipping for safety", "port", port.Interface, "target", s.config.Target)
 			continue
 		}
-		_ = deviceMacs(macs)
+
 		mac := macs[0]
 		if len(mac.Mac) < 6 {
 			continue
 		}
+
 		if s.isExcluded(mac.Mac) {
 			continue
 		}
+
 		prefix := mac.Mac[:6]
 		targetVlan := s.config.MacToVlan[prefix]
 		if targetVlan == "" || targetVlan == "0" || targetVlan == "00" {
 			targetVlan = s.config.DefaultVlan
 		}
-		if !vlans[targetVlan] {
-			slog.Error("Target VLAN does not exist on switch — skipping port", "vlan", targetVlan, "port", port.Interface, "target", s.config.Target)
-			continue
+
+		changed, err := s.applyPortVlan(port, targetVlan, vlans)
+		if err != nil {
+			return err
 		}
-		if targetVlan != "" && targetVlan != port.Vlan {
-			if err := s.ConfigureVlan(port.Interface, targetVlan); err != nil {
-				return err
-			}
+		if changed {
 			changes++
+			if s.config.Sandbox {
+				simulated = true
+			} else {
+				modified = true
+			}
 		}
-		_ = mac
 	}
-	if changes == 0 {
+
+	if changes == 0 && !modified && !simulated {
 		fmt.Println("No changes required")
 	} else if s.config.Sandbox {
 		fmt.Printf("Changes simulated (sandbox mode, use -w to apply)\n")
-	} else {
+	} else if modified {
 		slog.Info("Saving changes to startup-config", "target", s.config.Target)
 		if err := s.saveConfiguration(); err != nil {
 			return fmt.Errorf("failed to save configuration: %v", err)
 		}
 		slog.Info("Configuration successfully saved", "target", s.config.Target)
 	}
-	return nil
-}
 
-func (s *VLANServiceImpl) filterDevices(devices []entities.Device, iface string) []entities.Device {
-	var result []entities.Device
-	for _, d := range devices {
-		if strings.EqualFold(d.Interface, iface) {
-			result = append(result, d)
-		}
-	}
-	return result
+	return nil
 }
 
 func (s *VLANServiceImpl) GetVlanList() (map[string]bool, error) {
@@ -246,10 +263,52 @@ func (s *VLANServiceImpl) DeleteVLAN(vlan string) error {
 	return nil
 }
 
+func (s *VLANServiceImpl) applyPortVlan(port entities.Port, targetVlan string, vlans map[string]bool) (bool, error) {
+	if !vlans[targetVlan] && !vlans[canonicalVLAN(targetVlan)] {
+		slog.Error("Target VLAN does not exist on switch — skipping port", "vlan", targetVlan, "port", port.Interface, "target", s.config.Target)
+		return false, nil
+	}
+	if targetVlan == port.Vlan || canonicalVLAN(targetVlan) == canonicalVLAN(port.Vlan) {
+		return false, nil
+	}
+	if err := s.ConfigureVlan(port.Interface, targetVlan); err != nil {
+		return false, fmt.Errorf("failed to configure VLAN on port %s: %v", port.Interface, err)
+	}
+	return true, nil
+}
+
+func (s *VLANServiceImpl) saveConfiguration() error {
+	cmds := s.driver.SaveCommands()
+	var lastErr error
+	for _, cmd := range cmds {
+		out, err := s.repo.ExecuteCommand(cmd)
+		if err != nil {
+			lastErr = fmt.Errorf("command %q failed: %v", cmd, err)
+			continue
+		}
+		if s.driver.IsCommandError(out) {
+			lastErr = fmt.Errorf("command %q returned error: %s", cmd, out)
+			continue
+		}
+		return nil
+	}
+	return lastErr
+}
+
 func (s *VLANServiceImpl) getAllowedVLANs() map[string]bool {
 	result := make(map[string]bool, len(s.config.AllowedVlans))
 	for _, v := range s.config.AllowedVlans {
 		result[v] = true
+	}
+	return result
+}
+
+func (s *VLANServiceImpl) filterDevices(devices []entities.Device, iface string) []entities.Device {
+	var result []entities.Device
+	for _, d := range devices {
+		if strings.EqualFold(d.Interface, iface) {
+			result = append(result, d)
+		}
 	}
 	return result
 }
@@ -272,16 +331,25 @@ func (s *VLANServiceImpl) isExcludedPort(iface string) bool {
 	return false
 }
 
+func canonicalVLAN(vlan string) string {
+	n, err := strconv.Atoi(strings.TrimSpace(vlan))
+	if err != nil {
+		return vlan
+	}
+	return strconv.Itoa(n)
+}
+
 func (s *VLANServiceImpl) isProtected(vlan string) bool {
 	n, _ := strconv.Atoi(strings.TrimSpace(vlan))
 	if n >= 1000 && n <= 4094 {
 		return true
 	}
-	if vlan == s.config.DefaultVlan || vlan == s.config.NoDataVlan {
+	canon := canonicalVLAN(vlan)
+	if canon == s.config.DefaultVlan || canon == s.config.NoDataVlan {
 		return true
 	}
 	for _, p := range s.config.ProtectedVlans {
-		if vlan == p {
+		if vlan == p || canon == canonicalVLAN(p) {
 			return true
 		}
 	}
@@ -295,30 +363,4 @@ func sortedKeys(m map[string]bool) []string {
 	}
 	sort.Strings(keys)
 	return keys
-}
-
-func (s *VLANServiceImpl) saveConfiguration() error {
-	cmds := s.driver.SaveCommands()
-	var lastErr error
-	for _, cmd := range cmds {
-		out, err := s.repo.ExecuteCommand(cmd)
-		if err != nil {
-			lastErr = fmt.Errorf("command %q failed: %v", cmd, err)
-			continue
-		}
-		if s.driver.IsCommandError(out) {
-			lastErr = fmt.Errorf("command %q returned error: %s", cmd, out)
-			continue
-		}
-		return nil
-	}
-	return lastErr
-}
-
-func deviceMacs(devices []entities.Device) []string {
-	out := make([]string, 0, len(devices))
-	for _, d := range devices {
-		out = append(out, d.Mac)
-	}
-	return out
 }

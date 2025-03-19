@@ -45,7 +45,8 @@ enable_password: cisco123
 # Default VLAN for active ports with unrecognized MAC addresses
 default_vlan: "1"
 
-# Quarantine VLAN for ports where no MAC address is detected
+# Optional quarantine VLAN for link-up access ports with no learned MAC.
+# Omit to leave those ports unchanged. Aging of quiet devices can isolate them.
 no_data_vlan: "999"
 
 # Global list of allowed VLANs that Negev is allowed to create or modify
@@ -138,7 +139,7 @@ negev --target <switch_ip> [flags]
    - The MAC address is normalized (removing `:` and `.`, lowercasing) and its 6-character prefix is checked against `mac_to_vlan`.
    - If a matching prefix is found, the target VLAN is assigned.
    - If no prefix matches, the port is assigned to `default_vlan`.
-   - If no MAC address is active on the port, the port is assigned to `no_data_vlan`.
+   - If no MAC address is active on the port and `no_data_vlan` is set, the port is assigned to that quarantine VLAN. Only link-up access ports are considered; `notconnect` ports are left unchanged. Omit `no_data_vlan` to leave empty ports as they are. A quiet device whose MAC has aged out of the table can be moved to this VLAN and isolated.
    - If the target VLAN does not exist on the switch, the assignment is skipped with an error.
 6. **VLAN Synchronization (`--create-vlans`)**:
    - Compares the active switch VLANs with the list of `allowed_vlans`.

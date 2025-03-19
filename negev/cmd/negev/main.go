@@ -28,11 +28,7 @@ func main() {
 		flag.PrintDefaults()
 	}
 	flag.Parse()
-	if flag.NArg() > 0 {
-		fmt.Fprintf(os.Stderr, "ERROR: unexpected arguments\n\n")
-		flag.Usage()
-		os.Exit(1)
-	}
+
 	if *showVersion {
 		fmt.Printf("Negev %s (built %s)\n", version, buildTime)
 		return

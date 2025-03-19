@@ -132,14 +132,16 @@ func Load(yamlFile, target string, verbosityLevel int) (*Config, error) {
 		return nil, err
 	}
 	cfg.DefaultVlan = normalized
-	if cfg.NoDataVlan == "" {
-		return nil, fmt.Errorf("global no_data_vlan is required")
+	if cfg.NoDataVlan != "" {
+		normalized, err = normalizeVLAN(cfg.NoDataVlan, "global no_data_vlan")
+		if err != nil {
+			return nil, err
+		}
+		cfg.NoDataVlan = normalized
+		if cfg.NoDataVlan == cfg.DefaultVlan {
+			debugf(verbose, "DEBUG: no_data_vlan equals default_vlan (%s); quarantine and fallback are the same VLAN\n", cfg.NoDataVlan)
+		}
 	}
-	normalized, err = normalizeVLAN(cfg.NoDataVlan, "global no_data_vlan")
-	if err != nil {
-		return nil, err
-	}
-	cfg.NoDataVlan = normalized
 	if cfg.Username == "" {
 		return nil, fmt.Errorf("global username is required")
 	}
@@ -213,6 +215,9 @@ func Load(yamlFile, target string, verbosityLevel int) (*Config, error) {
 				return nil, err
 			}
 			sw.NoDataVlan = normalized
+		}
+		if sw.NoDataVlan != "" && sw.NoDataVlan == sw.DefaultVlan {
+			debugf(swVerbose, "DEBUG: switch %s no_data_vlan equals default_vlan (%s); quarantine and fallback are the same VLAN\n", sw.Target, sw.NoDataVlan)
 		}
 
 		var err error

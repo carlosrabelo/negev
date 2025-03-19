@@ -159,7 +159,7 @@ func (s *VLANServiceImpl) ProcessPorts() error {
 	if changes == 0 && !modified && !simulated {
 		fmt.Println("No changes required")
 	} else if s.config.Sandbox {
-		fmt.Printf("Changes simulated (sandbox mode, use -w to apply)\n")
+		fmt.Printf("Changes simulated (sandbox mode, use --write to apply)\n")
 	} else if modified {
 		slog.Info("Saving changes to startup-config", "target", s.config.Target)
 		if err := s.saveConfiguration(); err != nil {
@@ -345,7 +345,10 @@ func (s *VLANServiceImpl) isProtected(vlan string) bool {
 		return true
 	}
 	canon := canonicalVLAN(vlan)
-	if canon == s.config.DefaultVlan || canon == s.config.NoDataVlan {
+	if canon == s.config.DefaultVlan {
+		return true
+	}
+	if s.config.NoDataVlan != "" && canon == s.config.NoDataVlan {
 		return true
 	}
 	for _, p := range s.config.ProtectedVlans {

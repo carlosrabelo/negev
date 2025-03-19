@@ -9,14 +9,35 @@ allowed_vlans:
   - "10"
   - "20"
   - "30"
-protected_vlans:
   - "100"
-exclude_macs:
-  - "00:11:22:33:44:55"
+  - "200"
+  - "300"
+protected_vlans:
+  - "999"
 mac_to_vlan:
   "aabbcc": "10"
-  "001122": "20"
+  "112233": "20"
+  "deadbe": "100"
+exclude_macs:
+  - "ffff.ffff.ffff"
+  - "0000.0000.0000"
 
 switches:
   - target: 192.168.1.10
     platform: ios
+    transport: ssh
+    username: switchadmin
+    password: switchpass
+    enable_password: enablepass
+    mac_to_vlan:
+      "001122": "30"
+      "00": ""
+    exclude_macs:
+      - "aaaa.bbbb.cccc"
+
+  - target: 192.168.1.20
+    platform: auto
+    default_vlan: "100"
+    exclude_ports:
+      - "Gi1/0/24"
+      - "Gi1/0/23"

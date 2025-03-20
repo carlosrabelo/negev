@@ -1,6 +1,8 @@
 package nxos
 
 import (
+	"strings"
+
 	"github.com/carlosrabelo/negev/negev/internal/domain/entities"
 	"github.com/carlosrabelo/negev/negev/internal/domain/ports"
 	"github.com/carlosrabelo/negev/negev/internal/platform"
@@ -19,11 +21,21 @@ func (d *Driver) Name() string {
 }
 
 func (d *Driver) Detect(repo ports.SwitchRepository) (bool, error) {
-	return false, nil
+	out, err := repo.ExecuteCommand("show version")
+	if err != nil {
+		return false, err
+	}
+	lower := strings.ToLower(out)
+	return strings.Contains(lower, "nx-os") || strings.Contains(lower, "nxos"), nil
 }
 
 func (d *Driver) GetAuthenticationSequence() []entities.AuthPrompt {
-	return nil
+	return []entities.AuthPrompt{
+		{WaitFor: "login:", SendCmd: "USERNAME_PLACEHOLDER\n"},
+		{WaitFor: "Password:", SendCmd: "PASSWORD_PLACEHOLDER\n"},
+		{WaitFor: "#", SendCmd: "terminal length 0\n"},
+		{WaitFor: "#", SendCmd: ""},
+	}
 }
 
 func (d *Driver) GetVLANList(repo ports.SwitchRepository) ([]string, error) {

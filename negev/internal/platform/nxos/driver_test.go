@@ -191,3 +191,66 @@ C 30       0050.56aa.bbcc   static   -         F      F    vPC Peer-Link
 		t.Fatalf("parseMacTable() = %+v; expected %+v", got, want)
 	}
 }
+
+func TestConfigureAccessCommands(t *testing.T) {
+	got := (&Driver{}).ConfigureAccessCommands(entities.Port{Interface: "Ethernet1/1"}, "10")
+	want := []string{
+		"configure terminal",
+		"interface Ethernet1/1",
+		"switchport",
+		"switchport mode access",
+		"switchport access vlan 10",
+		"end",
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("ConfigureAccessCommands() = %v; expected %v", got, want)
+	}
+}
+
+func TestCreateVLANCommands(t *testing.T) {
+	got := (&Driver{}).CreateVLANCommands("20")
+	want := []string{
+		"configure terminal",
+		"vlan 20",
+		"exit",
+		"end",
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("CreateVLANCommands() = %v; expected %v", got, want)
+	}
+	for _, cmd := range got {
+		if strings.Contains(cmd, "interface vlan") {
+			t.Fatalf("CreateVLANCommands must not create an SVI; got %q", cmd)
+		}
+	}
+}
+
+func TestDeleteVLANCommands(t *testing.T) {
+	got := (&Driver{}).DeleteVLANCommands("20")
+	want := []string{
+		"configure terminal",
+		"no vlan 20",
+		"end",
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("DeleteVLANCommands() = %v; expected %v", got, want)
+	}
+}
+
+func TestSaveCommands(t *testing.T) {
+	got := (&Driver{}).SaveCommands()
+	want := []string{"copy running-config startup-config"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("SaveCommands() = %v; expected %v", got, want)
+	}
+}
+
+func TestIsNXOSCommandError(t *testing.T) {
+	d := &Driver{}
+	if !d.IsCommandError("% Invalid command at '^' marker.") {
+		t.Fatal("expected invalid command to be an error")
+	}
+	if d.IsCommandError("Packets invalid: 0") {
+		t.Fatal("must not treat a counter line containing 'invalid' as a command error")
+	}
+}

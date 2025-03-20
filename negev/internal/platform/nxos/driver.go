@@ -314,23 +314,53 @@ func parseMacTable(output string, trunkSet map[string]bool) []entities.Device {
 }
 
 func (d *Driver) ConfigureAccessCommands(port entities.Port, vlan string) []string {
-	return nil
+	return []string{
+		"configure terminal",
+		"interface " + port.Interface,
+		"switchport",
+		"switchport mode access",
+		"switchport access vlan " + vlan,
+		"end",
+	}
 }
 
 func (d *Driver) CreateVLANCommands(vlan string) []string {
-	return nil
+	return []string{
+		"configure terminal",
+		"vlan " + vlan,
+		"exit",
+		"end",
+	}
 }
 
 func (d *Driver) DeleteVLANCommands(vlan string) []string {
-	return nil
+	return []string{
+		"configure terminal",
+		"no vlan " + vlan,
+		"end",
+	}
 }
 
 func (d *Driver) SaveCommands() []string {
-	return nil
+	return []string{"copy running-config startup-config"}
 }
 
 func (d *Driver) ClearCache() {}
 
+var nxosErrorPatterns = []string{
+	"invalid command",
+	"incomplete command",
+	"ambiguous command",
+	"invalid range",
+	"error:",
+}
+
 func (d *Driver) IsCommandError(output string) bool {
+	lower := strings.ToLower(output)
+	for _, pat := range nxosErrorPatterns {
+		if strings.Contains(lower, pat) {
+			return true
+		}
+	}
 	return false
 }

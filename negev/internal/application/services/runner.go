@@ -12,6 +12,7 @@ import (
 	"github.com/carlosrabelo/negev/negev/internal/platform"
 )
 
+// RunTarget loads configuration and runs VLAN automation for a switch.
 func RunTarget(target, configPath string, write bool, verbose int, createVLANs bool) error {
 	if verbose < 0 || verbose > 3 {
 		return fmt.Errorf("--verbose must be 0-3")
@@ -80,6 +81,8 @@ func (s *VLANApplicationService) Run(sandbox bool, verbosity int, createVLANs bo
 	var driver platform.SwitchDriver
 	platformID := switchCfg.PlatformID()
 	if platformID == "auto" {
+		// Leave the auth sequence empty so Telnet/SSH use an IOS-or-DmOS login probe
+		// before show version. The detected driver sequence is applied below.
 		if err := adapter.Connect(); err != nil {
 			return fmt.Errorf("failed to connect for auto-detection: %v", err)
 		}

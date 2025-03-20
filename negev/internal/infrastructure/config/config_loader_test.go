@@ -228,6 +228,56 @@ switches:
 	}
 }
 
+func TestConfigLoadOmitsNoDataVlan(t *testing.T) {
+	yamlData := `
+platform: auto
+transport: telnet
+username: admin
+password: cisco123
+enable_password: cisco123
+default_vlan: "1"
+switches:
+  - target: 192.168.1.10
+    platform: ios
+`
+	tmpFile := filepath.Join(t.TempDir(), "omit-nodata.yaml")
+	if err := os.WriteFile(tmpFile, []byte(yamlData), 0644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(tmpFile, "", 0)
+	if err != nil {
+		t.Fatalf("Load() without no_data_vlan: %v", err)
+	}
+	if cfg.NoDataVlan != "" {
+		t.Fatalf("global NoDataVlan = %q; expected empty", cfg.NoDataVlan)
+	}
+	if cfg.Switches[0].NoDataVlan != "" {
+		t.Fatalf("switch NoDataVlan = %q; expected empty", cfg.Switches[0].NoDataVlan)
+	}
+}
+
+func TestConfigLoadRejectsInvalidNoDataVlan(t *testing.T) {
+	yamlData := `
+platform: auto
+transport: telnet
+username: admin
+password: cisco123
+enable_password: cisco123
+default_vlan: "1"
+no_data_vlan: "5000"
+switches:
+  - target: 192.168.1.10
+    platform: ios
+`
+	tmpFile := filepath.Join(t.TempDir(), "bad-nodata.yaml")
+	if err := os.WriteFile(tmpFile, []byte(yamlData), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Load(tmpFile, "", 0); err == nil {
+		t.Fatal("expected invalid no_data_vlan to fail")
+	}
+}
+
 func TestConfigLoadRejectsInvalidMAC(t *testing.T) {
 	yamlData := `
 platform: auto

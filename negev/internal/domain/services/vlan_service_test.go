@@ -630,3 +630,56 @@ func TestProcessPortsCreateVLANsRequiresAllowed(t *testing.T) {
 		}
 	}
 }
+
+func TestProcessPortsSkipsEmptyPortWithoutNoDataVlan(t *testing.T) {
+	repo := &mockRepository{}
+	drv := baseDriver()
+	drv.devices = nil
+	drv.ports = []entities.Port{{Interface: "Gi1/0/1", Vlan: "10"}}
+	drv.vlans = []string{"1", "10", "999"}
+	cfg := entities.SwitchConfig{
+		Sandbox:     false,
+		DefaultVlan: "1",
+	}
+	if err := NewVLANService(repo, cfg, drv).ProcessPorts(); err != nil {
+		t.Fatalf("ProcessPorts failed: %v", err)
+	}
+	for _, cmd := range repo.executed {
+		if len(cmd) >= 22 && cmd[:22] == "switchport access vlan" {
+			t.Fatalf("empty port must stay unchanged without no_data_vlan, got %v", repo.executed)
+		}
+	}
+}
+
+func TestProcessPortsSyncDoesNotInventNoDataVlan(t *testing.T) {
+	repo := &mockRepository{}
+	drv := baseDriver()
+	drv.vlans = []string{"1", "20", "999"}
+	drv.ports = []entities.Port{{Interface: "Gi1/0/1", Vlan: "10"}}
+	cfg := entities.SwitchConfig{
+		Sandbox:      false,
+		CreateVLANs:  true,
+		AllowedVlans: []string{"10"},
+		DefaultVlan:  "1",
+		MacToVlan:    map[string]string{"aabbcc": "10"},
+	}
+	if err := NewVLANService(repo, cfg, drv).ProcessPorts(); err != nil {
+		t.Fatalf("ProcessPorts failed: %v", err)
+	}
+	created999 := false
+	deleted999 := false
+	for _, cmd := range repo.executed {
+		if cmd == "vlan 999" {
+			created999 = true
+		}
+		if cmd == "no vlan 999" {
+			deleted999 = true
+		}
+	}
+	if created999 {
+		t.Fatalf("must not create no_data_vlan when unset, got %v", repo.executed)
+	}
+	if !deleted999 {
+		t.Fatalf("must not protect 999 when no_data_vlan is unset, got %v", repo.executed)
+	}
+}

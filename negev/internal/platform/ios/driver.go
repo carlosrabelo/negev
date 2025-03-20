@@ -30,7 +30,11 @@ func (d *Driver) Detect(repo ports.SwitchRepository) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	return strings.Contains(strings.ToLower(out), "cisco ios"), nil
+	lower := strings.ToLower(out)
+	if strings.Contains(lower, "nx-os") || strings.Contains(lower, "nxos") {
+		return false, nil
+	}
+	return strings.Contains(lower, "cisco ios"), nil
 }
 
 func (d *Driver) GetAuthenticationSequence() []entities.AuthPrompt {

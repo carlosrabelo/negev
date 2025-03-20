@@ -2,6 +2,7 @@ package nxos
 
 import (
 	"errors"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -9,8 +10,10 @@ import (
 )
 
 type mockRepo struct {
-	version string
-	err     error
+	version   string
+	err       error
+	responses map[string]string
+	cmdErr    map[string]error
 }
 
 func (m *mockRepo) Connect() error    { return nil }
@@ -22,6 +25,16 @@ func (m *mockRepo) ExecuteCommand(cmd string) (string, error) {
 			return "", m.err
 		}
 		return m.version, nil
+	}
+	if m.cmdErr != nil {
+		if err, ok := m.cmdErr[cmd]; ok {
+			return "", err
+		}
+	}
+	if m.responses != nil {
+		if out, ok := m.responses[cmd]; ok {
+			return out, nil
+		}
 	}
 	return "", errors.New("unexpected command: " + cmd)
 }
@@ -80,5 +93,101 @@ func TestAuthenticationSequence(t *testing.T) {
 		if strings.Contains(p.SendCmd, "enable") {
 			t.Fatalf("auth sequence must not send enable; got %q", p.SendCmd)
 		}
+	}
+}
+
+func TestNormalizeInterface(t *testing.T) {
+	tests := []struct {
+		in, want string
+	}{
+		{"Eth1/1", "Ethernet1/1"},
+		{"Ethernet1/10", "Ethernet1/10"},
+		{"ethernet 1/1/1", "Ethernet1/1/1"},
+		{"Eth101/1/48", "Ethernet101/1/48"},
+		{"Po1", "port-channel1"},
+		{"port-channel10", "port-channel10"},
+		{"mgmt0", "mgmt0"},
+		{"Vlan10", "Vlan10"},
+	}
+	for _, tc := range tests {
+		if got := normalizeInterface(tc.in); got != tc.want {
+			t.Errorf("normalizeInterface(%q) = %q; expected %q", tc.in, got, tc.want)
+		}
+	}
+}
+
+func TestParseVLANs(t *testing.T) {
+	output := `
+VLAN Name                             Status    Ports
+---- -------------------------------- --------- -------------------------------
+1    default                          active    Eth1/1, Eth1/2
+10   USERS                            active    Eth1/3
+20   SERVERS                          active
+`
+	got := parseVLANs(output)
+	want := []string{"1", "10", "20"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("parseVLANs() = %v; expected %v", got, want)
+	}
+}
+
+func TestParseTrunkInterfaces(t *testing.T) {
+	output := `
+Port          Native  Status        Port
+              Vlan                  Channel
+Eth1/48       1       trunking      --
+Po1           1       trunking      --
+
+Port          Vlans Allowed on Trunk
+Eth1/48       1-4094
+Po1           1-4094
+`
+	got := parseTrunkInterfaces(output)
+	want := []string{"Ethernet1/48", "port-channel1"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("parseTrunkInterfaces() = %v; expected %v", got, want)
+	}
+}
+
+func TestParseActivePorts(t *testing.T) {
+	output := `
+Port          Name               Status    Vlan      Duplex  Speed   Type
+Eth1/1        --                 connected 10        full    1000    10g
+Eth1/2        server A           notconnec 1         auto    auto    --
+Eth1/3        uplink to core     connected trunk     full    10G     10g
+Eth1/4        --                 disabled  1         full    1000    --
+Eth1/5        --                 sfpAbsent 1         auto    auto    --
+Eth1/10       access             connected 20        full    1000    10g
+Po1           --                 connected trunk     full    10G     --
+mgmt0         --                 connected routed    full    1000    --
+`
+	got := parseActivePorts(output)
+	want := []entities.Port{
+		{Interface: "Ethernet1/1", Vlan: "10"},
+		{Interface: "Ethernet1/10", Vlan: "20"},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("parseActivePorts() = %+v; expected %+v", got, want)
+	}
+}
+
+func TestParseMacTable(t *testing.T) {
+	output := `
+   VLAN     MAC Address      Type      age     Secure NTFY Ports
+---------+-----------------+--------+---------+------+----+------------------
+* 10       0011.2233.4455   dynamic  10        F      F    Eth1/1
+  20       aabb.ccdd.eeff   dynamic  20        F      F    Eth1/10
+G 10       0000.0000.0001   static   -         F      F    sup-eth1(R)
+  10       0011.2233.4466   dynamic  5         F      F    Eth1/48
+C 30       0050.56aa.bbcc   static   -         F      F    vPC Peer-Link
+`
+	trunkSet := map[string]bool{"Ethernet1/48": true, "port-channel1": true}
+	got := parseMacTable(output, trunkSet)
+	want := []entities.Device{
+		{Vlan: "10", Mac: "001122334455", MacFull: "00:11:22:33:44:55", Interface: "Ethernet1/1"},
+		{Vlan: "20", Mac: "aabbccddeeff", MacFull: "aa:bb:cc:dd:ee:ff", Interface: "Ethernet1/10"},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("parseMacTable() = %+v; expected %+v", got, want)
 	}
 }

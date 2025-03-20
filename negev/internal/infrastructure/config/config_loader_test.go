@@ -301,3 +301,39 @@ switches:
 		t.Fatal("expected invalid exclude_macs to fail")
 	}
 }
+
+func TestLoadAcceptsNXOSPlatform(t *testing.T) {
+	yamlData := `
+platform: auto
+transport: telnet
+username: admin
+password: cisco123
+enable_password: cisco123
+default_vlan: "1"
+switches:
+  - target: 192.0.2.10
+    platform: nxos
+`
+	tmpFile := filepath.Join(t.TempDir(), "nxos.yaml")
+	if err := os.WriteFile(tmpFile, []byte(yamlData), 0644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(tmpFile, "192.0.2.10", 0)
+	if err != nil {
+		t.Fatalf("Load() with platform nxos returned error: %v", err)
+	}
+	if cfg.Switches[0].Platform != "nxos" {
+		t.Fatalf("Platform = %q; expected %q", cfg.Switches[0].Platform, "nxos")
+	}
+}
+
+func TestValidatePlatformErrorListsNXOS(t *testing.T) {
+	err := validatePlatform("bogus")
+	if err == nil {
+		t.Fatal("expected error for invalid platform")
+	}
+	want := "platform bogus is invalid, must be 'ios', 'dmos', 'nxos', or 'auto'"
+	if err.Error() != want {
+		t.Fatalf("error = %q; expected %q", err.Error(), want)
+	}
+}

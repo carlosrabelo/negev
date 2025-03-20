@@ -1,11 +1,43 @@
 package ios
 
 import (
+	"errors"
 	"reflect"
 	"testing"
 
 	"github.com/carlosrabelo/negev/negev/internal/domain/entities"
 )
+
+type mockRepo struct {
+	version string
+}
+
+func (m *mockRepo) Connect() error    { return nil }
+func (m *mockRepo) Disconnect()       {}
+func (m *mockRepo) IsConnected() bool { return true }
+func (m *mockRepo) ExecuteCommand(cmd string) (string, error) {
+	if cmd == "show version" {
+		return m.version, nil
+	}
+	return "", errors.New("unexpected command: " + cmd)
+}
+
+func TestDetectRejectsNXOS(t *testing.T) {
+	banner := `
+Cisco Nexus Operating System (NX-OS) Software
+Software
+  NXOS: version 9.3(8)
+Hardware
+  cisco Nexus9000 C93180YC-EX chassis
+`
+	match, err := (&Driver{}).Detect(&mockRepo{version: banner})
+	if err != nil {
+		t.Fatalf("Detect() error: %v", err)
+	}
+	if match {
+		t.Fatal("Detect(NX-OS banner) = true; expected false")
+	}
+}
 
 func TestParseVLANs(t *testing.T) {
 	output := `

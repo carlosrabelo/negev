@@ -332,8 +332,58 @@ func TestValidatePlatformErrorListsNXOS(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for invalid platform")
 	}
-	want := "platform bogus is invalid, must be 'ios', 'dmos', 'nxos', or 'auto'"
+	want := "platform bogus is invalid, must be 'ios', 'nxos', 'dmswitch', or 'auto'"
 	if err.Error() != want {
 		t.Fatalf("error = %q; expected %q", err.Error(), want)
+	}
+}
+
+func TestLoadAcceptsDmSwitchPlatform(t *testing.T) {
+	yamlData := `
+platform: auto
+transport: telnet
+username: admin
+password: cisco123
+enable_password: cisco123
+default_vlan: "1"
+switches:
+  - target: 192.0.2.20
+    platform: dmswitch
+`
+	tmpFile := filepath.Join(t.TempDir(), "dmswitch.yaml")
+	if err := os.WriteFile(tmpFile, []byte(yamlData), 0644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(tmpFile, "192.0.2.20", 0)
+	if err != nil {
+		t.Fatalf("Load() with platform dmswitch returned error: %v", err)
+	}
+	if cfg.Switches[0].Platform != "dmswitch" {
+		t.Fatalf("Platform = %q; expected %q", cfg.Switches[0].Platform, "dmswitch")
+	}
+}
+
+func TestLoadLegacyDmosAlias(t *testing.T) {
+	yamlData := `
+platform: auto
+transport: telnet
+username: admin
+password: cisco123
+enable_password: cisco123
+default_vlan: "1"
+switches:
+  - target: 192.0.2.21
+    platform: dmos
+`
+	tmpFile := filepath.Join(t.TempDir(), "dmos-alias.yaml")
+	if err := os.WriteFile(tmpFile, []byte(yamlData), 0644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(tmpFile, "192.0.2.21", 0)
+	if err != nil {
+		t.Fatalf("Load() with legacy platform dmos returned error: %v", err)
+	}
+	if cfg.Switches[0].Platform != "dmswitch" {
+		t.Fatalf("Platform = %q; expected legacy dmos to load as %q", cfg.Switches[0].Platform, "dmswitch")
 	}
 }

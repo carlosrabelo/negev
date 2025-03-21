@@ -89,12 +89,19 @@ func normalizeVLAN(vlan, context string) (string, error) {
 	return strconv.Itoa(n), nil
 }
 
+func canonicalizePlatform(platform string) string {
+	if platform == "dmos" {
+		return "dmswitch"
+	}
+	return platform
+}
+
 func validatePlatform(platform string) error {
 	switch platform {
-	case "ios", "dmos", "nxos", "auto":
+	case "ios", "nxos", "dmswitch", "auto":
 		return nil
 	default:
-		return fmt.Errorf("platform %s is invalid, must be 'ios', 'dmos', 'nxos', or 'auto'", platform)
+		return fmt.Errorf("platform %s is invalid, must be 'ios', 'nxos', 'dmswitch', or 'auto'", platform)
 	}
 }
 
@@ -114,7 +121,7 @@ func Load(yamlFile, target string, verbosityLevel int) (*Config, error) {
 	if primaryPlatform == "" {
 		primaryPlatform = cfg.LegacyVendor
 	}
-	cfg.Platform = strings.ToLower(strings.TrimSpace(primaryPlatform))
+	cfg.Platform = canonicalizePlatform(strings.ToLower(strings.TrimSpace(primaryPlatform)))
 
 	if cfg.Transport == "" {
 		cfg.Transport = "telnet"
@@ -176,7 +183,7 @@ func Load(yamlFile, target string, verbosityLevel int) (*Config, error) {
 		if rawPlatform == "" {
 			rawPlatform = sw.LegacyPlatform
 		}
-		sw.Platform = strings.ToLower(strings.TrimSpace(rawPlatform))
+		sw.Platform = canonicalizePlatform(strings.ToLower(strings.TrimSpace(rawPlatform)))
 		if sw.Platform == "" {
 			sw.Platform = cfg.Platform
 		}

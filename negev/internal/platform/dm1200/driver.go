@@ -1,6 +1,8 @@
 package dm1200
 
 import (
+	"strings"
+
 	"github.com/carlosrabelo/negev/negev/internal/domain/entities"
 	"github.com/carlosrabelo/negev/negev/internal/domain/ports"
 	"github.com/carlosrabelo/negev/negev/internal/platform"
@@ -19,11 +21,40 @@ func (d *Driver) Name() string {
 }
 
 func (d *Driver) Detect(repo ports.SwitchRepository) (bool, error) {
-	return false, nil
+	out, err := repo.ExecuteCommand("show version")
+	if err != nil {
+		if !isUnrecognizedCommand(err) {
+			return false, err
+		}
+		out, err = repo.ExecuteCommand("show sysinfo")
+		if err != nil {
+			return false, err
+		}
+	}
+	lower := strings.ToLower(out)
+	if strings.Contains(lower, "dmswitch") || strings.Contains(lower, "3324") || strings.Contains(lower, "3224") {
+		return false, nil
+	}
+	return strings.Contains(lower, "dm1200") || strings.Contains(lower, "1200e"), nil
+}
+
+func isUnrecognizedCommand(err error) bool {
+	if err == nil {
+		return false
+	}
+	lower := strings.ToLower(err.Error())
+	return strings.Contains(lower, "unrecognized") ||
+		strings.Contains(lower, "unknown command") ||
+		strings.Contains(lower, "invalid command")
 }
 
 func (d *Driver) GetAuthenticationSequence() []entities.AuthPrompt {
-	return nil
+	return []entities.AuthPrompt{
+		{WaitFor: "User:", SendCmd: "USERNAME_PLACEHOLDER\n"},
+		{WaitFor: "Password:", SendCmd: "PASSWORD_PLACEHOLDER\n"},
+		{WaitFor: "#", SendCmd: "terminal length 0\n"},
+		{WaitFor: "#", SendCmd: ""},
+	}
 }
 
 func (d *Driver) GetVLANList(repo ports.SwitchRepository) ([]string, error) {

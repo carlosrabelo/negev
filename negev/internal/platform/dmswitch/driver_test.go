@@ -187,3 +187,70 @@ Unit Interface MAC Address        VLAN Type
 		t.Fatalf("parseMacTable() = %+v; expected %+v", got, want)
 	}
 }
+
+func TestConfigureAccessCommands(t *testing.T) {
+	got := (&Driver{}).ConfigureAccessCommands(entities.Port{Interface: "ethernet1/3"}, "10")
+	want := []string{
+		"configure",
+		"interface vlan 10",
+		"set-member untagged ethernet 1/3",
+		"exit",
+		"interface ethernet 1/3",
+		"switchport native vlan 10",
+		"switchport acceptable-frame-type all",
+		"exit",
+		"end",
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("ConfigureAccessCommands() = %v; expected %v", got, want)
+	}
+}
+
+func TestCreateVLANCommands(t *testing.T) {
+	got := (&Driver{}).CreateVLANCommands("10")
+	want := []string{
+		"configure",
+		"interface vlan 10",
+		"exit",
+		"end",
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("CreateVLANCommands() = %v; expected %v", got, want)
+	}
+}
+
+func TestDeleteVLANCommands(t *testing.T) {
+	got := (&Driver{}).DeleteVLANCommands("10")
+	want := []string{
+		"configure",
+		"no interface vlan 10",
+		"end",
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("DeleteVLANCommands() = %v; expected %v", got, want)
+	}
+}
+
+func TestSaveCommands(t *testing.T) {
+	got := (&Driver{}).SaveCommands()
+	want := []string{
+		"copy running-config startup-config",
+		"write memory",
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("SaveCommands() = %v; expected %v", got, want)
+	}
+}
+
+func TestIsDmSwitchCommandError(t *testing.T) {
+	d := &Driver{}
+	if !d.IsCommandError("% Error: unknown command") {
+		t.Fatal("expected unknown command to be an error")
+	}
+	if !d.IsCommandError("invalid input detected") {
+		t.Fatal("expected invalid input to be an error")
+	}
+	if d.IsCommandError("Packets invalid: 0") {
+		t.Fatal("must not treat a counter line containing 'invalid' as a command error")
+	}
+}

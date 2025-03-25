@@ -194,3 +194,73 @@ VLAN  MAC Address        Port
 		t.Fatalf("parseMacTable() = %+v; expected %+v", got, want)
 	}
 }
+
+func TestConfigureAccessCommands(t *testing.T) {
+	got := (&Driver{}).ConfigureAccessCommands(entities.Port{Interface: "1/0/1"}, "10")
+	want := []string{
+		"configure",
+		"interface 1/0/1",
+		"switchport mode access",
+		"switchport access vlan 10",
+		"vlan participation exclude 1",
+		"exit",
+		"exit",
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("ConfigureAccessCommands() = %v; expected %v", got, want)
+	}
+}
+
+func TestCreateVLANCommands(t *testing.T) {
+	got := (&Driver{}).CreateVLANCommands("10")
+	want := []string{
+		"vlan database",
+		"vlan 10",
+		"exit",
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("CreateVLANCommands() = %v; expected %v", got, want)
+	}
+}
+
+func TestDeleteVLANCommands(t *testing.T) {
+	got := (&Driver{}).DeleteVLANCommands("10")
+	want := []string{
+		"vlan database",
+		"no vlan 10",
+		"exit",
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("DeleteVLANCommands() = %v; expected %v", got, want)
+	}
+	if got := (&Driver{}).DeleteVLANCommands("1"); got != nil {
+		t.Fatalf("DeleteVLANCommands(1) = %v; expected nil", got)
+	}
+}
+
+func TestSaveCommands(t *testing.T) {
+	got := (&Driver{}).SaveCommands()
+	want := []string{
+		"copy system:running-config nvram:startup-config",
+		"write memory",
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("SaveCommands() = %v; expected %v", got, want)
+	}
+}
+
+func TestIsDM1200CommandError(t *testing.T) {
+	d := &Driver{}
+	if !d.IsCommandError("Invalid input detected at '^' marker.") {
+		t.Fatal("expected invalid input to be an error")
+	}
+	if !d.IsCommandError("Unrecognized command") {
+		t.Fatal("expected unrecognized command to be an error")
+	}
+	if !d.IsCommandError("% Error: incomplete command") {
+		t.Fatal("expected error: to be an error")
+	}
+	if d.IsCommandError("Packets invalid: 0") {
+		t.Fatal("must not treat a counter line containing 'invalid' as a command error")
+	}
+}

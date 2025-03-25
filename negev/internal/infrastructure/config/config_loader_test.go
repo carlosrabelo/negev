@@ -332,9 +332,34 @@ func TestValidatePlatformErrorListsNXOS(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for invalid platform")
 	}
-	want := "platform bogus is invalid, must be 'ios', 'nxos', 'dmswitch', or 'auto'"
+	want := "platform bogus is invalid, must be 'ios', 'nxos', 'dmswitch', 'dm1200', or 'auto'"
 	if err.Error() != want {
 		t.Fatalf("error = %q; expected %q", err.Error(), want)
+	}
+}
+
+func TestLoadAcceptsDM1200Platform(t *testing.T) {
+	yamlData := `
+platform: auto
+transport: telnet
+username: admin
+password: cisco123
+enable_password: cisco123
+default_vlan: "1"
+switches:
+  - target: 192.0.2.30
+    platform: dm1200
+`
+	tmpFile := filepath.Join(t.TempDir(), "dm1200.yaml")
+	if err := os.WriteFile(tmpFile, []byte(yamlData), 0644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(tmpFile, "192.0.2.30", 0)
+	if err != nil {
+		t.Fatalf("Load() with platform dm1200 returned error: %v", err)
+	}
+	if cfg.Switches[0].Platform != "dm1200" {
+		t.Fatalf("Platform = %q; expected %q", cfg.Switches[0].Platform, "dm1200")
 	}
 }
 

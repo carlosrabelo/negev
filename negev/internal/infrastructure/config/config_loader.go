@@ -98,10 +98,10 @@ func canonicalizePlatform(platform string) string {
 
 func validatePlatform(platform string) error {
 	switch platform {
-	case "ios", "nxos", "dmswitch", "auto":
+	case "ios", "nxos", "dmswitch", "dm1200", "auto":
 		return nil
 	default:
-		return fmt.Errorf("platform %s is invalid, must be 'ios', 'nxos', 'dmswitch', or 'auto'", platform)
+		return fmt.Errorf("platform %s is invalid, must be 'ios', 'nxos', 'dmswitch', 'dm1200', or 'auto'", platform)
 	}
 }
 

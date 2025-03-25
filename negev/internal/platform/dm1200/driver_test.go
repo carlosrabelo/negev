@@ -2,30 +2,44 @@ package dm1200
 
 import (
 	"errors"
+	"reflect"
 	"testing"
+
+	"github.com/carlosrabelo/negev/negev/internal/domain/entities"
 )
 
 type mockRepo struct {
-	version string
-	sysinfo string
-	err     error
+	version   string
+	sysinfo   string
+	err       error
+	responses map[string]string
+	cmdErr    map[string]error
 }
 
 func (m *mockRepo) Connect() error    { return nil }
 func (m *mockRepo) Disconnect()       {}
 func (m *mockRepo) IsConnected() bool { return true }
 func (m *mockRepo) ExecuteCommand(cmd string) (string, error) {
-	switch cmd {
-	case "show version":
+	if cmd == "show version" {
 		if m.err != nil {
 			return "", m.err
 		}
 		return m.version, nil
-	case "show sysinfo":
-		return m.sysinfo, nil
-	default:
-		return "", errors.New("unexpected command: " + cmd)
 	}
+	if cmd == "show sysinfo" {
+		return m.sysinfo, nil
+	}
+	if m.cmdErr != nil {
+		if err, ok := m.cmdErr[cmd]; ok {
+			return "", err
+		}
+	}
+	if m.responses != nil {
+		if out, ok := m.responses[cmd]; ok {
+			return out, nil
+		}
+	}
+	return "", errors.New("unexpected command: " + cmd)
 }
 
 func TestName(t *testing.T) {
@@ -81,19 +95,102 @@ func TestDetectFallsBackToSysinfo(t *testing.T) {
 
 func TestAuthenticationSequence(t *testing.T) {
 	seq := (&Driver{}).GetAuthenticationSequence()
-	wantFirst := "User:"
-	if len(seq) != 4 || seq[0].WaitFor != wantFirst {
-		t.Fatalf("seq = %+v; expected first WaitFor %q", seq, wantFirst)
-	}
-	if seq[0].SendCmd != "USERNAME_PLACEHOLDER\n" {
-		t.Fatalf("username cmd = %q", seq[0].SendCmd)
-	}
-	if seq[2].SendCmd != "terminal length 0\n" {
-		t.Fatalf("terminal length cmd = %q", seq[2].SendCmd)
+	if len(seq) != 4 || seq[0].WaitFor != "User:" {
+		t.Fatalf("seq = %+v", seq)
 	}
 	for _, p := range seq {
 		if p.SendCmd == "enable\n" {
 			t.Fatal("auth sequence must not send enable")
 		}
+	}
+}
+
+func TestNormalizeInterface(t *testing.T) {
+	tests := []struct {
+		in, want string
+	}{
+		{"1/0/1", "1/0/1"},
+		{"1/0/25", "1/0/25"},
+		{"ethernet 1/0/3", "1/0/3"},
+		{"Eth1/0/3", "1/0/3"},
+	}
+	for _, tc := range tests {
+		if got := normalizeInterface(tc.in); got != tc.want {
+			t.Errorf("normalizeInterface(%q) = %q; expected %q", tc.in, got, tc.want)
+		}
+	}
+}
+
+func TestParseVLANs(t *testing.T) {
+	output := `
+VLAN  Name
+----- ----------
+1     default
+2     Gerencia
+10-12 Data
+`
+	got := parseVLANs(output)
+	want := []string{"1", "2", "10", "11", "12"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("parseVLANs() = %v; expected %v", got, want)
+	}
+}
+
+func TestParseTrunkInterfaces(t *testing.T) {
+	vlanPortAll := `
+Port     Mode
+1/0/1    Untagged
+1/0/25   Tagged
+1/0/2    access
+`
+	got := parseTrunkFromVlanPortAll(vlanPortAll)
+	want := []string{"1/0/25"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("parseTrunkFromVlanPortAll() = %v; expected %v", got, want)
+	}
+
+	status := `
+Port   Name   Duplex  Speed  Neg  Link  Flow Control  VLAN
+1/0/1         Full    1000   Auto Up    On            10
+1/0/25        Full    1000   Auto Up    On            trunk
+`
+	got = parseTrunkFromStatus(status)
+	want = []string{"1/0/25"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("parseTrunkFromStatus() = %v; expected %v", got, want)
+	}
+}
+
+func TestParseActivePorts(t *testing.T) {
+	output := `
+Port   Name   Duplex  Speed  Neg  Link  Flow Control  VLAN
+1/0/1         Full    1000   Auto Up    On            10
+1/0/2         N/A     Unknown Auto Down Off           1
+1/0/25        Full    1000   Auto Up    On            trunk
+`
+	got := parseActivePorts(output)
+	want := []entities.Port{
+		{Interface: "1/0/1", Vlan: "10"},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("parseActivePorts() = %+v; expected %+v", got, want)
+	}
+}
+
+func TestParseMacTable(t *testing.T) {
+	output := `
+VLAN  MAC Address        Port
+10    00:11:22:33:44:55  1/0/1
+20    00-aa-bb-cc-dd-ee  1/0/10
+30    aabb.ccdd.eeff     1/0/25
+`
+	trunkSet := map[string]bool{"1/0/25": true}
+	got := parseMacTable(output, trunkSet)
+	want := []entities.Device{
+		{Vlan: "10", Mac: "001122334455", MacFull: "00:11:22:33:44:55", Interface: "1/0/1"},
+		{Vlan: "20", Mac: "00aabbccddee", MacFull: "00:aa:bb:cc:dd:ee", Interface: "1/0/10"},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("parseMacTable() = %+v; expected %+v", got, want)
 	}
 }

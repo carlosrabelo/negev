@@ -1,11 +1,23 @@
 package dm1200
 
 import (
+	"fmt"
+	"regexp"
+	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/carlosrabelo/negev/negev/internal/domain/entities"
 	"github.com/carlosrabelo/negev/negev/internal/domain/ports"
 	"github.com/carlosrabelo/negev/negev/internal/platform"
+	"github.com/carlosrabelo/negev/negev/internal/platform/parseutil"
+)
+
+var (
+	portPathRe   = regexp.MustCompile(`^(\d+)/(\d+)/(\d+)$`)
+	macTokenRe   = regexp.MustCompile(`(?i)\b([0-9a-f]{2}(?::[0-9a-f]{2}){5}|[0-9a-f]{2}(?:-[0-9a-f]{2}){5}|[0-9a-f]{4}\.[0-9a-f]{4}\.[0-9a-f]{4})\b`)
+	portTokenRe  = regexp.MustCompile(`\b(\d+/\d+/\d+)\b`)
+	vlanTokenRe  = regexp.MustCompile(`\b(\d{1,4})(?:-(\d{1,4}))?\b`)
 )
 
 type Driver struct{}
@@ -57,20 +69,285 @@ func (d *Driver) GetAuthenticationSequence() []entities.AuthPrompt {
 	}
 }
 
+func normalizeInterface(name string) string {
+	compact := strings.ReplaceAll(strings.TrimSpace(name), " ", "")
+	lower := strings.ToLower(compact)
+	lower = strings.TrimPrefix(lower, "ethernet")
+	lower = strings.TrimPrefix(lower, "eth")
+	if !portPathRe.MatchString(lower) {
+		return compact
+	}
+	return lower
+}
+
+func isPortInterface(name string) bool {
+	return portPathRe.MatchString(name)
+}
+
+func compareInterfaceNames(a, b string) bool {
+	pa := strings.Split(a, "/")
+	pb := strings.Split(b, "/")
+	n := len(pa)
+	if len(pb) < n {
+		n = len(pb)
+	}
+	for i := 0; i < n; i++ {
+		na, _ := strconv.Atoi(pa[i])
+		nb, _ := strconv.Atoi(pb[i])
+		if na != nb {
+			return na < nb
+		}
+	}
+	return len(pa) < len(pb)
+}
+
 func (d *Driver) GetVLANList(repo ports.SwitchRepository) ([]string, error) {
-	return nil, nil
+	out, err := repo.ExecuteCommand("show vlan")
+	if err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(out) == "" {
+		out, err = repo.ExecuteCommand("show vlan brief")
+		if err != nil {
+			return nil, err
+		}
+	}
+	return parseVLANs(out), nil
+}
+
+func parseVLANs(output string) []string {
+	seen := make(map[int]bool)
+	var ids []int
+	for _, line := range strings.Split(output, "\n") {
+		if parseutil.IsSeparatorLine(line) {
+			continue
+		}
+		lower := strings.ToLower(line)
+		if strings.Contains(lower, "vlan") && strings.Contains(lower, "name") && strings.Contains(lower, "status") {
+			continue
+		}
+		for _, m := range vlanTokenRe.FindAllStringSubmatch(line, -1) {
+			start, err := strconv.Atoi(m[1])
+			if err != nil || start < 1 || start > 4094 {
+				continue
+			}
+			end := start
+			if m[2] != "" {
+				end, err = strconv.Atoi(m[2])
+				if err != nil || end < start || end > 4094 {
+					continue
+				}
+			}
+			for id := start; id <= end; id++ {
+				if !seen[id] {
+					seen[id] = true
+					ids = append(ids, id)
+				}
+			}
+		}
+	}
+	sort.Ints(ids)
+	out := make([]string, len(ids))
+	for i, id := range ids {
+		out[i] = strconv.Itoa(id)
+	}
+	return out
 }
 
 func (d *Driver) GetTrunkInterfaces(repo ports.SwitchRepository) ([]string, error) {
-	return nil, nil
+	out, err := repo.ExecuteCommand("show vlan port all")
+	if err == nil && strings.TrimSpace(out) != "" {
+		trunks := parseTrunkFromVlanPortAll(out)
+		if len(trunks) > 0 {
+			return trunks, nil
+		}
+	}
+	statusOut, statusErr := repo.ExecuteCommand("show interfaces status")
+	if statusErr != nil {
+		if err != nil {
+			return nil, err
+		}
+		return nil, statusErr
+	}
+	return parseTrunkFromStatus(statusOut), nil
+}
+
+func parseTrunkFromVlanPortAll(output string) []string {
+	seen := make(map[string]bool)
+	var trunks []string
+	for _, line := range strings.Split(output, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" {
+			continue
+		}
+		fields := strings.Fields(trimmed)
+		if len(fields) < 2 {
+			continue
+		}
+		iface := normalizeInterface(fields[0])
+		if !isPortInterface(iface) {
+			continue
+		}
+		if hasTaggedToken(fields[1:]) && !seen[iface] {
+			seen[iface] = true
+			trunks = append(trunks, iface)
+		}
+	}
+	return trunks
+}
+
+func hasTaggedToken(fields []string) bool {
+	for _, f := range fields {
+		if f == "T" || strings.EqualFold(f, "tagged") || strings.EqualFold(f, "trunk") {
+			return true
+		}
+	}
+	return false
+}
+
+func hasUntaggedToken(fields []string) bool {
+	for _, f := range fields {
+		if f == "U" || strings.EqualFold(f, "untagged") || strings.EqualFold(f, "access") {
+			return true
+		}
+	}
+	return false
+}
+
+func parseTrunkFromStatus(output string) []string {
+	seen := make(map[string]bool)
+	var trunks []string
+	for _, line := range strings.Split(output, "\n") {
+		fields := strings.Fields(line)
+		if len(fields) < 2 {
+			continue
+		}
+		iface := normalizeInterface(fields[0])
+		if !isPortInterface(iface) {
+			continue
+		}
+		for _, f := range fields[1:] {
+			if strings.EqualFold(f, "trunk") && !seen[iface] {
+				seen[iface] = true
+				trunks = append(trunks, iface)
+				break
+			}
+		}
+	}
+	return trunks
 }
 
 func (d *Driver) GetActivePorts(repo ports.SwitchRepository) ([]entities.Port, error) {
-	return nil, nil
+	out, err := repo.ExecuteCommand("show interfaces status")
+	if err != nil {
+		return nil, err
+	}
+	return parseActivePorts(out), nil
+}
+
+func parseActivePorts(output string) []entities.Port {
+	var ports []entities.Port
+	for _, line := range strings.Split(output, "\n") {
+		fields := strings.Fields(line)
+		if len(fields) < 3 {
+			continue
+		}
+		iface := normalizeInterface(fields[0])
+		if !isPortInterface(iface) {
+			continue
+		}
+		linkIdx := -1
+		for i, f := range fields[1:] {
+			lf := strings.ToLower(f)
+			if lf == "up" || lf == "down" {
+				linkIdx = i + 1
+				break
+			}
+		}
+		if linkIdx < 0 || !strings.EqualFold(fields[linkIdx], "up") {
+			continue
+		}
+		vlan := fields[len(fields)-1]
+		if !isAccessVLAN(vlan) {
+			continue
+		}
+		ports = append(ports, entities.Port{Interface: iface, Vlan: vlan})
+	}
+	sort.Slice(ports, func(i, j int) bool {
+		return compareInterfaceNames(ports[i].Interface, ports[j].Interface)
+	})
+	return ports
+}
+
+func isAccessVLAN(s string) bool {
+	var n int
+	_, err := fmt.Sscanf(s, "%d", &n)
+	return err == nil && n >= 1 && n <= 4094
 }
 
 func (d *Driver) GetMacTable(repo ports.SwitchRepository) ([]entities.Device, error) {
-	return nil, nil
+	trunks, err := d.GetTrunkInterfaces(repo)
+	if err != nil {
+		return nil, err
+	}
+	trunkSet := make(map[string]bool, len(trunks))
+	for _, t := range trunks {
+		trunkSet[t] = true
+	}
+
+	out, err := repo.ExecuteCommand("show mac-addr-table")
+	if err != nil || strings.TrimSpace(out) == "" {
+		out, err = repo.ExecuteCommand("show mac address-table")
+		if err != nil {
+			return nil, err
+		}
+	}
+	return parseMacTable(out, trunkSet), nil
+}
+
+func parseMacTable(output string, trunkSet map[string]bool) []entities.Device {
+	var devices []entities.Device
+	for _, line := range strings.Split(output, "\n") {
+		macM := macTokenRe.FindStringSubmatch(line)
+		portM := portTokenRe.FindStringSubmatch(line)
+		if macM == nil || portM == nil {
+			continue
+		}
+		iface := normalizeInterface(portM[1])
+		if !isPortInterface(iface) || trunkSet[iface] {
+			continue
+		}
+		macPlain := normalizeMAC(macM[1])
+		if len(macPlain) != 12 {
+			continue
+		}
+		vlan := "1"
+		fields := strings.Fields(line)
+		for _, f := range fields {
+			if strings.Contains(f, "/") {
+				continue
+			}
+			if normalizeMAC(f) == macPlain {
+				continue
+			}
+			if isAccessVLAN(f) {
+				vlan = f
+				break
+			}
+		}
+		devices = append(devices, entities.Device{
+			Vlan:      vlan,
+			Mac:       macPlain,
+			MacFull:   parseutil.FormatPlainMac(macPlain),
+			Interface: iface,
+		})
+	}
+	return devices
+}
+
+func normalizeMAC(mac string) string {
+	mac = strings.ToLower(mac)
+	return strings.NewReplacer(":", "", "-", "", ".", "").Replace(mac)
 }
 
 func (d *Driver) ConfigureAccessCommands(port entities.Port, vlan string) []string {

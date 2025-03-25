@@ -30,3 +30,21 @@ func TestSwitchConfigHelpers(t *testing.T) {
 		t.Fatal("platform should take precedence over legacy")
 	}
 }
+
+func TestRunResultHasChanges(t *testing.T) {
+	if (RunResult{}).HasChanges() {
+		t.Fatal("empty RunResult should report no changes")
+	}
+	if !(RunResult{PortsChanged: 1}).HasChanges() {
+		t.Fatal("PortsChanged should count as changes")
+	}
+	if !(RunResult{VLANsCreated: 1}).HasChanges() {
+		t.Fatal("VLANsCreated should count as changes")
+	}
+	if !(RunResult{VLANsDeleted: 1}).HasChanges() {
+		t.Fatal("VLANsDeleted should count as changes")
+	}
+	if (RunResult{PortsFailed: 2}).HasChanges() {
+		t.Fatal("PortsFailed alone should not count as changes")
+	}
+}

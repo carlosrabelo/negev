@@ -105,5 +105,6 @@ func (s *VLANApplicationService) Run(sandbox bool, verbosity int, createVLANs bo
 
 	driver.ClearCache()
 	svc := domainServices.NewVLANService(adapter, *switchCfg, driver)
-	return svc.ProcessPorts()
+	_, err := svc.ProcessPorts()
+	return err
 }

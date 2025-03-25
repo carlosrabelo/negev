@@ -339,26 +339,74 @@ func parseMacTable(output string, trunkSet map[string]bool) []entities.Device {
 	return devices
 }
 
+func formatInterfaceForCLI(name string) string {
+	if strings.HasPrefix(name, "ethernet") {
+		return "ethernet " + strings.TrimPrefix(name, "ethernet")
+	}
+	if strings.HasPrefix(name, "port-channel") {
+		return "port-channel " + strings.TrimPrefix(name, "port-channel")
+	}
+	return name
+}
+
 func (d *Driver) ConfigureAccessCommands(port entities.Port, vlan string) []string {
-	return nil
+	iface := formatInterfaceForCLI(port.Interface)
+	return []string{
+		"configure",
+		"interface vlan " + vlan,
+		"set-member untagged " + iface,
+		"exit",
+		"interface " + iface,
+		"switchport native vlan " + vlan,
+		"switchport acceptable-frame-type all",
+		"exit",
+		"end",
+	}
 }
 
 func (d *Driver) CreateVLANCommands(vlan string) []string {
-	return nil
+	return []string{
+		"configure",
+		"interface vlan " + vlan,
+		"exit",
+		"end",
+	}
 }
 
 func (d *Driver) DeleteVLANCommands(vlan string) []string {
-	return nil
+	return []string{
+		"configure",
+		"no interface vlan " + vlan,
+		"end",
+	}
 }
 
 func (d *Driver) SaveCommands() []string {
-	return nil
+	return []string{
+		"copy running-config startup-config",
+		"write memory",
+	}
 }
 
 func (d *Driver) ClearCache() {
 	clearSwitchportCache()
 }
 
+var dmswitchErrorPatterns = []string{
+	"unknown command",
+	"invalid input",
+	"incomplete command",
+	"invalid command",
+	"ambiguous command",
+	"% invalid",
+}
+
 func (d *Driver) IsCommandError(output string) bool {
+	lower := strings.ToLower(output)
+	for _, pat := range dmswitchErrorPatterns {
+		if strings.Contains(lower, pat) {
+			return true
+		}
+	}
 	return false
 }

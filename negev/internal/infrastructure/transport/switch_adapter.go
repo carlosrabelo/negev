@@ -53,6 +53,17 @@ func (sa *SwitchAdapter) SetAuthSequence(prompts []entities.AuthPrompt) {
 	}
 }
 
+func (sa *SwitchAdapter) SetSessionProfile(profile entities.SessionProfile) {
+	if sa.client == nil {
+		sa.client = GetClient(sa.config)
+	}
+	if profileCfg, ok := sa.client.(interface {
+		SetSessionProfile(entities.SessionProfile)
+	}); ok {
+		profileCfg.SetSessionProfile(profile)
+	}
+}
+
 func (sa *SwitchAdapter) GetTarget() string {
 	return sa.config.Target
 }

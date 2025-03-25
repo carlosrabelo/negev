@@ -5,4 +5,5 @@ type Device struct {
 	Mac       string
 	MacFull   string
 	Interface string
+	IsStatic  bool
 }

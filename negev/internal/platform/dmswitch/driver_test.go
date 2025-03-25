@@ -2,7 +2,10 @@ package dmswitch
 
 import (
 	"errors"
+	"reflect"
 	"testing"
+
+	"github.com/carlosrabelo/negev/negev/internal/domain/entities"
 )
 
 type mockRepo struct {
@@ -91,5 +94,96 @@ func TestAuthenticationSequence(t *testing.T) {
 		if p.SendCmd == "enable\n" {
 			t.Fatal("auth sequence must not send enable")
 		}
+	}
+}
+
+func TestNormalizeInterface(t *testing.T) {
+	tests := []struct {
+		in, want string
+	}{
+		{"Eth 1/1", "ethernet1/1"},
+		{"Eth 1/ 1", "ethernet1/1"},
+		{"ethernet 1/14", "ethernet1/14"},
+		{"Ethernet1/3", "ethernet1/3"},
+		{"Po1", "port-channel1"},
+		{"port-channel10", "port-channel10"},
+	}
+	for _, tc := range tests {
+		if got := normalizeInterface(tc.in); got != tc.want {
+			t.Errorf("normalizeInterface(%q) = %q; expected %q", tc.in, got, tc.want)
+		}
+	}
+}
+
+func TestParseVLANs(t *testing.T) {
+	output := `
+VLAN Name                             Status    Ports
+---- -------------------------------- --------- -------------------------------
+1    default                          active    Eth 1/1
+10   USERS                            active
+VLAN 20:
+`
+	got := parseVLANs(output)
+	want := []string{"1", "10", "20"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("parseVLANs() = %v; expected %v", got, want)
+	}
+}
+
+func TestParseTrunkInterfaces(t *testing.T) {
+	output := `
+interface ethernet 1/1
+  Allowed VLANs: 1-4094 (t)
+interface ethernet 1/3
+  Allowed VLANs: 10
+interface ethernet 1/24
+  Allowed VLANs: 1-4094 (t)
+`
+	got := parseTrunkInterfaces(output)
+	want := []string{"ethernet1/1", "ethernet1/24"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("parseTrunkInterfaces() = %v; expected %v", got, want)
+	}
+}
+
+func TestParseActivePorts(t *testing.T) {
+	status := `
+Information of Eth 1/1:
+  Link status: Up
+Information of Eth 1/2:
+  Link status: Down
+Information of Eth 1/3:
+  Link status: Up
+`
+	vlans := map[string]string{
+		"ethernet1/1": "1",
+		"ethernet1/3": "10",
+	}
+	got := parseActivePorts(status, vlans)
+	want := []entities.Port{
+		{Interface: "ethernet1/1", Vlan: "1"},
+		{Interface: "ethernet1/3", Vlan: "10"},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("parseActivePorts() = %+v; expected %+v", got, want)
+	}
+}
+
+func TestParseMacTable(t *testing.T) {
+	output := `
+Unit Interface MAC Address        VLAN Type
+---- --------- -----------------  ---- ---------
+1    Eth 1/ 1  00-e0-29-94-24-de  1    Static
+1    Eth 1/ 3  00-11-22-33-44-55  10   Dynamic
+1    Eth 1/24  aa-bb-cc-dd-ee-ff  20   Dynamic
+`
+	trunkSet := map[string]bool{"ethernet1/24": true}
+	got := parseMacTable(output, trunkSet)
+	want := []entities.Device{
+		{Vlan: "1", Mac: "00e0299424de", MacFull: "00:e0:29:94:24:de", Interface: "ethernet1/1"},
+		{Vlan: "10", Mac: "001122334455", MacFull: "00:11:22:33:44:55", Interface: "ethernet1/3"},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("parseMacTable() = %+v; expected %+v", got, want)
 	}
 }

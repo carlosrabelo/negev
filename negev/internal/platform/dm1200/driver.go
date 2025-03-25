@@ -351,23 +351,59 @@ func normalizeMAC(mac string) string {
 }
 
 func (d *Driver) ConfigureAccessCommands(port entities.Port, vlan string) []string {
-	return nil
+	return []string{
+		"configure",
+		"interface " + port.Interface,
+		"switchport mode access",
+		"switchport access vlan " + vlan,
+		"vlan participation exclude 1",
+		"exit",
+		"exit",
+	}
 }
 
 func (d *Driver) CreateVLANCommands(vlan string) []string {
-	return nil
+	return []string{
+		"vlan database",
+		"vlan " + vlan,
+		"exit",
+	}
 }
 
 func (d *Driver) DeleteVLANCommands(vlan string) []string {
-	return nil
+	if vlan == "1" {
+		return nil
+	}
+	return []string{
+		"vlan database",
+		"no vlan " + vlan,
+		"exit",
+	}
 }
 
 func (d *Driver) SaveCommands() []string {
-	return nil
+	return []string{
+		"copy system:running-config nvram:startup-config",
+		"write memory",
+	}
 }
 
 func (d *Driver) ClearCache() {}
 
+var dm1200ErrorPatterns = []string{
+	"invalid input",
+	"unrecognized command",
+	"incomplete command",
+	"ambiguous command",
+	"error:",
+}
+
 func (d *Driver) IsCommandError(output string) bool {
+	lower := strings.ToLower(output)
+	for _, pat := range dm1200ErrorPatterns {
+		if strings.Contains(lower, pat) {
+			return true
+		}
+	}
 	return false
 }

@@ -3,6 +3,8 @@ package dmswitch
 import (
 	"errors"
 	"testing"
+
+	"github.com/carlosrabelo/negev/negev/internal/domain/entities"
 )
 
 type mockCacheRepo struct {
@@ -14,6 +16,7 @@ type mockCacheRepo struct {
 func (m *mockCacheRepo) Connect() error    { return nil }
 func (m *mockCacheRepo) Disconnect()       {}
 func (m *mockCacheRepo) IsConnected() bool { return true }
+func (m *mockCacheRepo) SetSessionProfile(profile entities.SessionProfile) {}
 func (m *mockCacheRepo) GetTarget() string { return m.target }
 func (m *mockCacheRepo) ExecuteCommand(cmd string) (string, error) {
 	m.cmdCount++

@@ -18,6 +18,7 @@ func (f *fakeDriver) Name() string { return f.name }
 func (f *fakeDriver) Detect(repo ports.SwitchRepository) (bool, error) {
 	return f.match, f.detectE
 }
+func (f *fakeDriver) GetSessionProfile() entities.SessionProfile { return entities.SessionProfile{} }
 func (f *fakeDriver) GetAuthenticationSequence() []entities.AuthPrompt { return nil }
 func (f *fakeDriver) GetVLANList(repo ports.SwitchRepository) ([]string, error) {
 	return nil, nil
@@ -31,6 +32,10 @@ func (f *fakeDriver) GetActivePorts(repo ports.SwitchRepository) ([]entities.Por
 func (f *fakeDriver) GetMacTable(repo ports.SwitchRepository) ([]entities.Device, error) {
 	return nil, nil
 }
+func (f *fakeDriver) GetL3Interfaces(repo ports.SwitchRepository) ([]string, error) {
+	return nil, nil
+}
+func (f *fakeDriver) NormalizeInterface(name string) string { return name }
 func (f *fakeDriver) ConfigureAccessCommands(port entities.Port, vlan string) []string {
 	return nil
 }
@@ -45,10 +50,10 @@ func TestRegisterGetAvailableDetect(t *testing.T) {
 	t.Cleanup(func() { drivers = prev })
 	drivers = nil
 
-	a := &fakeDriver{name: "alpha", match: false}
 	b := &fakeDriver{name: "beta", match: true}
-	Register(a)
+	a := &fakeDriver{name: "alpha", match: false}
 	Register(b)
+	Register(a)
 
 	if Get("missing") != nil {
 		t.Fatal("expected nil for missing driver")
@@ -58,12 +63,22 @@ func TestRegisterGetAvailableDetect(t *testing.T) {
 	}
 	names := Available()
 	if len(names) != 2 || names[0] != "alpha" || names[1] != "beta" {
-		t.Fatalf("Available() = %v", names)
+		t.Fatalf("Available() = %v; expected alphabetical order", names)
 	}
 
 	got, err := Detect(nil)
 	if err != nil || got != b {
-		t.Fatalf("Detect() = %v, %v", got, err)
+		t.Fatalf("Detect() = %v, %v; expected beta (first alphabetical match)", got, err)
+	}
+
+	drivers = nil
+	zeta := &fakeDriver{name: "zeta", match: true}
+	alpha := &fakeDriver{name: "alpha", match: true}
+	Register(zeta)
+	Register(alpha)
+	got, err = Detect(nil)
+	if err != nil || got != alpha {
+		t.Fatalf("Detect alphabetical = %v, %v; expected alpha before zeta", got, err)
 	}
 
 	drivers = nil

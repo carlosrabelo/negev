@@ -341,6 +341,18 @@ func (d *Driver) DeleteVLANCommands(vlan string) []string {
 	}
 }
 
+func (d *Driver) GetSessionProfile() entities.SessionProfile {
+	return entities.SessionProfile{}
+}
+
+func (d *Driver) NormalizeInterface(name string) string {
+	return normalizeInterface(name)
+}
+
+func (d *Driver) GetL3Interfaces(repo ports.SwitchRepository) ([]string, error) {
+	return nil, nil
+}
+
 func (d *Driver) SaveCommands() []string {
 	return []string{"copy running-config startup-config"}
 }

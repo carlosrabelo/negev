@@ -261,6 +261,18 @@ func (d *Driver) SaveCommands() []string {
 
 func (d *Driver) ClearCache() {}
 
+func (d *Driver) GetSessionProfile() entities.SessionProfile {
+	return entities.SessionProfile{}
+}
+
+func (d *Driver) NormalizeInterface(name string) string {
+	return name
+}
+
+func (d *Driver) GetL3Interfaces(repo ports.SwitchRepository) ([]string, error) {
+	return nil, nil
+}
+
 func (d *Driver) IsCommandError(output string) bool {
 	return isIOSCommandError(output)
 }

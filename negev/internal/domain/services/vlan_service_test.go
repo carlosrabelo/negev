@@ -74,6 +74,7 @@ func (d *stubDriver) Name() string { return "stub" }
 func (d *stubDriver) Detect(repo ports.SwitchRepository) (bool, error) {
 	return true, nil
 }
+func (d *stubDriver) GetSessionProfile() entities.SessionProfile { return entities.SessionProfile{} }
 func (d *stubDriver) GetAuthenticationSequence() []entities.AuthPrompt { return nil }
 func (d *stubDriver) GetVLANList(repo ports.SwitchRepository) ([]string, error) {
 	if d.vlanListErr != nil {
@@ -99,6 +100,10 @@ func (d *stubDriver) GetMacTable(repo ports.SwitchRepository) ([]entities.Device
 	}
 	return d.devices, nil
 }
+func (d *stubDriver) GetL3Interfaces(repo ports.SwitchRepository) ([]string, error) {
+	return nil, nil
+}
+func (d *stubDriver) NormalizeInterface(name string) string { return name }
 func (d *stubDriver) ConfigureAccessCommands(port entities.Port, vlan string) []string {
 	prefix := d.configurePrefix
 	if prefix == "" {

@@ -22,6 +22,13 @@ func TestShouldSkipSSHEnableStep(t *testing.T) {
 	}
 }
 
+func TestSSHAuthMethodsIncludeKeyboardInteractive(t *testing.T) {
+	methods := sshAuthMethods("secret")
+	if len(methods) != 2 {
+		t.Fatalf("expected password + keyboard-interactive, got %d methods", len(methods))
+	}
+}
+
 func TestSSHClientBasicsAndConnectFailure(t *testing.T) {
 	cfg := entities.SwitchConfig{
 		Target:         "127.0.0.1",

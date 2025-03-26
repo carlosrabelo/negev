@@ -15,6 +15,7 @@ type Client interface {
 	Disconnect()
 	ExecuteCommand(cmd string) (string, error)
 	IsConnected() bool
+	SetSessionProfile(profile entities.SessionProfile)
 }
 
 type AuthConfigurable interface {

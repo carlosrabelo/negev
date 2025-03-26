@@ -16,6 +16,9 @@ type VLANServiceImpl struct {
 	repo   ports.SwitchRepository
 	config entities.SwitchConfig
 	driver platform.SwitchDriver
+
+	l3Vlans        map[string]bool
+	portVlansInUse map[string]bool
 }
 
 func NewVLANService(repo ports.SwitchRepository, config entities.SwitchConfig, driver platform.SwitchDriver) *VLANServiceImpl {
@@ -44,8 +47,13 @@ func (s *VLANServiceImpl) ProcessPorts() (entities.RunResult, error) {
 		return result, fmt.Errorf("failed to get trunks: %v", err)
 	}
 
-	if _, err := s.driver.GetL3Interfaces(s.repo); err != nil {
+	s.l3Vlans = make(map[string]bool)
+	if l3List, err := s.driver.GetL3Interfaces(s.repo); err != nil {
 		slog.Warn("Failed to discover L3 interfaces", "error", err, "target", s.config.Target)
+	} else {
+		for _, v := range l3List {
+			s.l3Vlans[canonicalVLAN(v)] = true
+		}
 	}
 
 	ports, err := s.GetActivePorts()
@@ -61,11 +69,12 @@ func (s *VLANServiceImpl) ProcessPorts() (entities.RunResult, error) {
 	modified := false
 	simulated := false
 
+	var allowed map[string]bool
 	if s.config.CreateVLANs {
 		if len(s.config.AllowedVlans) == 0 {
 			return result, fmt.Errorf("--create-vlans requires a non-empty allowed_vlans list")
 		}
-		allowed := s.getAllowedVLANs()
+		allowed = s.getAllowedVLANs()
 		if s.config.DefaultVlan != "" {
 			allowed[s.config.DefaultVlan] = true
 		}
@@ -86,6 +95,47 @@ func (s *VLANServiceImpl) ProcessPorts() (entities.RunResult, error) {
 				}
 			}
 		}
+	}
+
+	applied := make(map[string]string) // canonical iface → new vlan
+	for _, port := range ports {
+		if port.IsRouted || port.IsTrunk {
+			continue
+		}
+		ifaceKey := s.canonicalIface(port.Interface)
+		if trunks[ifaceKey] {
+			continue
+		}
+		if s.isExcludedPort(port.Interface) {
+			continue
+		}
+
+		targetVlan, ok := s.resolveTargetVlan(port, devices)
+		if !ok {
+			continue
+		}
+
+		changed, err := s.applyPortVlan(port, targetVlan, vlans)
+		if err != nil {
+			slog.Error("Port configuration failed — continuing", "port", port.Interface, "error", err, "target", s.config.Target)
+			result.PortsFailed++
+			result.Errors = append(result.Errors, err)
+			continue
+		}
+		if changed {
+			applied[ifaceKey] = targetVlan
+			result.PortsChanged++
+			if s.config.Sandbox {
+				simulated = true
+			} else {
+				modified = true
+			}
+		}
+	}
+
+	s.portVlansInUse = s.effectivePortVlans(ports, trunks, applied)
+
+	if s.config.CreateVLANs {
 		for _, v := range sortedKeys(vlans) {
 			if s.isProtected(v) || allowed[v] {
 				continue
@@ -103,76 +153,7 @@ func (s *VLANServiceImpl) ProcessPorts() (entities.RunResult, error) {
 		}
 	}
 
-	changes := 0
-	for _, port := range ports {
-		if port.IsRouted || port.IsTrunk {
-			continue
-		}
-		ifaceKey := s.canonicalIface(port.Interface)
-		if trunks[ifaceKey] {
-			continue
-		}
-		if s.isExcludedPort(port.Interface) {
-			continue
-		}
-
-		macs := s.filterDevices(devices, port.Interface)
-		if len(macs) == 0 {
-			if s.config.NoDataVlan == "" {
-				continue
-			}
-			changed, err := s.applyPortVlan(port, s.config.NoDataVlan, vlans)
-			if err != nil {
-				return result, err
-			}
-			if changed {
-				changes++
-				result.PortsChanged++
-				if s.config.Sandbox {
-					simulated = true
-				} else {
-					modified = true
-				}
-			}
-			continue
-		}
-
-		if len(macs) > 1 {
-			slog.Warn("Multiple MACs on port — skipping for safety", "port", port.Interface, "target", s.config.Target)
-			continue
-		}
-
-		mac := macs[0]
-		if len(mac.Mac) < 6 {
-			continue
-		}
-
-		if s.isExcluded(mac.Mac) {
-			continue
-		}
-
-		prefix := mac.Mac[:6]
-		targetVlan := s.config.MacToVlan[prefix]
-		if targetVlan == "" || targetVlan == "0" || targetVlan == "00" {
-			targetVlan = s.config.DefaultVlan
-		}
-
-		changed, err := s.applyPortVlan(port, targetVlan, vlans)
-		if err != nil {
-			return result, err
-		}
-		if changed {
-			changes++
-			result.PortsChanged++
-			if s.config.Sandbox {
-				simulated = true
-			} else {
-				modified = true
-			}
-		}
-	}
-
-	if changes == 0 && !modified && !simulated {
+	if result.PortsChanged == 0 && !modified && !simulated && result.PortsFailed == 0 {
 		fmt.Println("No changes required")
 	} else if s.config.Sandbox {
 		fmt.Printf("Changes simulated (sandbox mode, use --write to apply)\n")
@@ -184,7 +165,65 @@ func (s *VLANServiceImpl) ProcessPorts() (entities.RunResult, error) {
 		slog.Info("Configuration successfully saved", "target", s.config.Target)
 	}
 
+	if len(result.Errors) > 0 {
+		return result, fmt.Errorf("completed with %d port failure(s): %v", result.PortsFailed, result.Errors)
+	}
 	return result, nil
+}
+
+func (s *VLANServiceImpl) resolveTargetVlan(port entities.Port, devices []entities.Device) (string, bool) {
+	macs := s.filterDevices(devices, port.Interface)
+	if len(macs) == 0 {
+		if s.config.NoDataVlan == "" {
+			return "", false
+		}
+		return s.config.NoDataVlan, true
+	}
+	if len(macs) > 1 {
+		slog.Warn("Multiple MACs on port — skipping for safety", "port", port.Interface, "target", s.config.Target)
+		return "", false
+	}
+	mac := macs[0]
+	if len(mac.Mac) < 6 {
+		return "", false
+	}
+	if s.isExcluded(mac.Mac) {
+		return "", false
+	}
+	prefix := mac.Mac[:6]
+	targetVlan := s.config.MacToVlan[prefix]
+	if targetVlan == "" || targetVlan == "0" || targetVlan == "00" {
+		targetVlan = s.config.DefaultVlan
+	}
+	if targetVlan == "" {
+		return "", false
+	}
+	return targetVlan, true
+}
+
+func (s *VLANServiceImpl) effectivePortVlans(ports []entities.Port, trunks map[string]bool, applied map[string]string) map[string]bool {
+	inUse := make(map[string]bool)
+	for _, port := range ports {
+		if port.IsRouted {
+			continue
+		}
+		ifaceKey := s.canonicalIface(port.Interface)
+		if port.IsTrunk || trunks[ifaceKey] {
+			continue
+		}
+		vlan := port.Vlan
+		if next, ok := applied[ifaceKey]; ok {
+			vlan = next
+		}
+		if vlan == "" || strings.EqualFold(vlan, "trunk") || strings.EqualFold(vlan, "routed") {
+			continue
+		}
+		if _, err := strconv.Atoi(strings.TrimSpace(vlan)); err != nil {
+			continue
+		}
+		inUse[canonicalVLAN(vlan)] = true
+	}
+	return inUse
 }
 
 func (s *VLANServiceImpl) GetVlanList() (map[string]bool, error) {
@@ -362,11 +401,14 @@ func canonicalVLAN(vlan string) string {
 }
 
 func (s *VLANServiceImpl) isProtected(vlan string) bool {
+	canon := canonicalVLAN(vlan)
+	if canon == "1" {
+		return true
+	}
 	n, _ := strconv.Atoi(strings.TrimSpace(vlan))
 	if n >= 1000 && n <= 4094 {
 		return true
 	}
-	canon := canonicalVLAN(vlan)
 	if canon == s.config.DefaultVlan {
 		return true
 	}
@@ -377,6 +419,12 @@ func (s *VLANServiceImpl) isProtected(vlan string) bool {
 		if vlan == p || canon == canonicalVLAN(p) {
 			return true
 		}
+	}
+	if s.l3Vlans[canon] {
+		return true
+	}
+	if s.portVlansInUse[canon] {
+		return true
 	}
 	return false
 }

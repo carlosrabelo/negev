@@ -63,6 +63,7 @@ type stubDriver struct {
 	trunks          []string
 	ports           []entities.Port
 	devices         []entities.Device
+	l3Vlans         []string
 	vlanListErr     error
 	trunkErr        error
 	portsErr        error
@@ -106,7 +107,7 @@ func (d *stubDriver) GetMacTable(repo ports.SwitchRepository) ([]entities.Device
 	return d.devices, nil
 }
 func (d *stubDriver) GetL3Interfaces(repo ports.SwitchRepository) ([]string, error) {
-	return nil, nil
+	return d.l3Vlans, nil
 }
 func (d *stubDriver) NormalizeInterface(name string) string { return name }
 func (d *stubDriver) ConfigureAccessCommands(port entities.Port, vlan string) []string {
@@ -483,7 +484,7 @@ func TestGettersAndHelpers(t *testing.T) {
 	if !svc.isExcludedPort("gi1/0/9") {
 		t.Error("expected port exclusion (case-insensitive)")
 	}
-	if !svc.isProtected("1000") || !svc.isProtected("30") || svc.isProtected("40") {
+	if !svc.isProtected("1") || !svc.isProtected("1000") || !svc.isProtected("30") || svc.isProtected("40") {
 		t.Error("unexpected isProtected results")
 	}
 	filtered := svc.filterDevices(macs, "Gi1/0/1")
@@ -497,8 +498,9 @@ func TestGettersAndHelpers(t *testing.T) {
 }
 
 func TestSaveConfigurationError(t *testing.T) {
-	repo := &mockRepository{commandErr: errors.New("save failed")}
+	repo := &mockRepository{failOnCmd: "write memory"}
 	drv := baseDriver()
+	drv.saveCmds = []string{"write memory"}
 	cfg := entities.SwitchConfig{
 		Sandbox:     false,
 		DefaultVlan: "10",
@@ -511,9 +513,8 @@ func TestSaveConfigurationError(t *testing.T) {
 
 func TestSaveConfigurationCommandError(t *testing.T) {
 	drv := baseDriver()
-	drv.commandErrorOut = true
-	drv.saveCmds = []string{"write memory", "copy running-config startup-config"}
-	repo := &mockRepository{commandOut: "% Error: failed to write"}
+	drv.saveCmds = []string{"write memory"}
+	repo := &mockRepository{failOnCmd: "write memory"}
 	cfg := entities.SwitchConfig{
 		Sandbox:     false,
 		DefaultVlan: "10",
@@ -730,5 +731,123 @@ func TestProcessPortsSkipsRoutedPort(t *testing.T) {
 	}
 	if result.PortsChanged != 1 {
 		t.Fatalf("PortsChanged = %d; expected 1 (routed port skipped)", result.PortsChanged)
+	}
+}
+
+func TestProcessPortsNeverDeletesVLAN1(t *testing.T) {
+	repo := &mockRepository{}
+	drv := baseDriver()
+	drv.vlans = []string{"1", "20"}
+	drv.ports = []entities.Port{{Interface: "Gi1/0/1", Vlan: "10"}}
+	cfg := entities.SwitchConfig{
+		Sandbox:      false,
+		CreateVLANs:  true,
+		AllowedVlans: []string{"10"},
+		DefaultVlan:  "10",
+		MacToVlan:    map[string]string{"aabbcc": "10"},
+	}
+	if _, err := NewVLANService(repo, cfg, drv).ProcessPorts(); err != nil {
+		t.Fatalf("ProcessPorts failed: %v", err)
+	}
+	for _, cmd := range repo.executed {
+		if cmd == "no vlan 1" {
+			t.Fatalf("VLAN 1 must never be deleted, got %v", repo.executed)
+		}
+	}
+}
+
+func TestProcessPortsProtectsL3SVI(t *testing.T) {
+	repo := &mockRepository{}
+	drv := baseDriver()
+	drv.vlans = []string{"1", "50", "20"}
+	drv.l3Vlans = []string{"50"}
+	drv.ports = []entities.Port{{Interface: "Gi1/0/1", Vlan: "10"}}
+	cfg := entities.SwitchConfig{
+		Sandbox:      false,
+		CreateVLANs:  true,
+		AllowedVlans: []string{"10"},
+		DefaultVlan:  "10",
+		MacToVlan:    map[string]string{"aabbcc": "10"},
+	}
+	if _, err := NewVLANService(repo, cfg, drv).ProcessPorts(); err != nil {
+		t.Fatalf("ProcessPorts failed: %v", err)
+	}
+	for _, cmd := range repo.executed {
+		if cmd == "no vlan 50" {
+			t.Fatalf("L3 SVI VLAN must not be deleted, got %v", repo.executed)
+		}
+	}
+}
+
+func TestProcessPortsDeletesAfterPortMigrate(t *testing.T) {
+	repo := &mockRepository{}
+	drv := baseDriver()
+	drv.vlans = []string{"1", "10", "20"}
+	drv.ports = []entities.Port{{Interface: "Gi1/0/1", Vlan: "20"}}
+	drv.devices = []entities.Device{
+		{Interface: "Gi1/0/1", Mac: "aabbccddeeff", Vlan: "20"},
+	}
+	cfg := entities.SwitchConfig{
+		Sandbox:      false,
+		CreateVLANs:  true,
+		AllowedVlans: []string{"10"},
+		DefaultVlan:  "10",
+		MacToVlan:    map[string]string{"aabbcc": "10"},
+	}
+	if _, err := NewVLANService(repo, cfg, drv).ProcessPorts(); err != nil {
+		t.Fatalf("ProcessPorts failed: %v", err)
+	}
+	configureIdx, deleteIdx := -1, -1
+	for i, cmd := range repo.executed {
+		if cmd == "switchport access vlan 10" {
+			configureIdx = i
+		}
+		if cmd == "no vlan 20" {
+			deleteIdx = i
+		}
+	}
+	if configureIdx < 0 || deleteIdx < 0 {
+		t.Fatalf("expected configure and delete, got %v", repo.executed)
+	}
+	if configureIdx > deleteIdx {
+		t.Fatalf("port migrate must happen before VLAN delete, got %v", repo.executed)
+	}
+}
+
+func TestProcessPortsPartialPortFailureStillSaves(t *testing.T) {
+	repo := &mockRepository{failOnCmd: "switchport access vlan 20"}
+	drv := baseDriver()
+	drv.vlans = []string{"1", "10", "20"}
+	drv.ports = []entities.Port{
+		{Interface: "Gi1/0/1", Vlan: "1"},
+		{Interface: "Gi1/0/2", Vlan: "1"},
+	}
+	drv.devices = []entities.Device{
+		{Interface: "Gi1/0/1", Mac: "aabbccddeeff", Vlan: "1"},
+		{Interface: "Gi1/0/2", Mac: "112233445566", Vlan: "1"},
+	}
+	cfg := entities.SwitchConfig{
+		Sandbox:     false,
+		DefaultVlan: "10",
+		MacToVlan: map[string]string{
+			"aabbcc": "10",
+			"112233": "20",
+		},
+	}
+	result, err := NewVLANService(repo, cfg, drv).ProcessPorts()
+	if err == nil {
+		t.Fatal("expected aggregated port failure")
+	}
+	if result.PortsChanged != 1 || result.PortsFailed != 1 {
+		t.Fatalf("PortsChanged=%d PortsFailed=%d; expected 1 and 1", result.PortsChanged, result.PortsFailed)
+	}
+	saved := false
+	for _, cmd := range repo.executed {
+		if cmd == "write memory" {
+			saved = true
+		}
+	}
+	if !saved {
+		t.Fatalf("successful changes must be saved despite partial failure, got %v", repo.executed)
 	}
 }

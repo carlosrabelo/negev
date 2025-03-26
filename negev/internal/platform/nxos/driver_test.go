@@ -19,6 +19,7 @@ type mockRepo struct {
 func (m *mockRepo) Connect() error    { return nil }
 func (m *mockRepo) Disconnect()       {}
 func (m *mockRepo) IsConnected() bool { return true }
+func (m *mockRepo) SetSessionProfile(profile entities.SessionProfile) {}
 func (m *mockRepo) ExecuteCommand(cmd string) (string, error) {
 	if cmd == "show version" {
 		if m.err != nil {

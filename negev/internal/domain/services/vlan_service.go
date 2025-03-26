@@ -24,15 +24,17 @@ func NewVLANService(repo ports.SwitchRepository, config entities.SwitchConfig, d
 
 var _ ports.VLANService = (*VLANServiceImpl)(nil)
 
-func (s *VLANServiceImpl) ProcessPorts() error {
+func (s *VLANServiceImpl) ProcessPorts() (entities.RunResult, error) {
+	var result entities.RunResult
+
 	if err := s.repo.Connect(); err != nil {
-		return fmt.Errorf("failed to connect: %v", err)
+		return result, fmt.Errorf("failed to connect: %v", err)
 	}
 	defer s.repo.Disconnect()
 
 	vlans, err := s.GetVlanList()
 	if err != nil {
-		return fmt.Errorf("failed to get VLAN list: %v", err)
+		return result, fmt.Errorf("failed to get VLAN list: %v", err)
 	}
 
 	modified := false
@@ -40,7 +42,7 @@ func (s *VLANServiceImpl) ProcessPorts() error {
 
 	if s.config.CreateVLANs {
 		if len(s.config.AllowedVlans) == 0 {
-			return fmt.Errorf("--create-vlans requires a non-empty allowed_vlans list")
+			return result, fmt.Errorf("--create-vlans requires a non-empty allowed_vlans list")
 		}
 		allowed := s.getAllowedVLANs()
 		if s.config.DefaultVlan != "" {
@@ -52,9 +54,10 @@ func (s *VLANServiceImpl) ProcessPorts() error {
 		for _, v := range sortedKeys(allowed) {
 			if !vlans[v] {
 				if err := s.CreateVLAN(v); err != nil {
-					return fmt.Errorf("failed to create VLAN %s: %v", v, err)
+					return result, fmt.Errorf("failed to create VLAN %s: %v", v, err)
 				}
 				vlans[v] = true
+				result.VLANsCreated++
 				if s.config.Sandbox {
 					simulated = true
 				} else {
@@ -67,9 +70,10 @@ func (s *VLANServiceImpl) ProcessPorts() error {
 				continue
 			}
 			if err := s.DeleteVLAN(v); err != nil {
-				return fmt.Errorf("failed to delete VLAN %s: %v", v, err)
+				return result, fmt.Errorf("failed to delete VLAN %s: %v", v, err)
 			}
 			delete(vlans, v)
+			result.VLANsDeleted++
 			if s.config.Sandbox {
 				simulated = true
 			} else {
@@ -80,17 +84,17 @@ func (s *VLANServiceImpl) ProcessPorts() error {
 
 	trunks, err := s.GetTrunkInterfaces()
 	if err != nil {
-		return fmt.Errorf("failed to get trunks: %v", err)
+		return result, fmt.Errorf("failed to get trunks: %v", err)
 	}
 
 	ports, err := s.GetActivePorts()
 	if err != nil {
-		return fmt.Errorf("failed to get active ports: %v", err)
+		return result, fmt.Errorf("failed to get active ports: %v", err)
 	}
 
 	devices, err := s.GetMacTable()
 	if err != nil {
-		return fmt.Errorf("failed to get MAC table: %v", err)
+		return result, fmt.Errorf("failed to get MAC table: %v", err)
 	}
 
 	changes := 0
@@ -109,10 +113,11 @@ func (s *VLANServiceImpl) ProcessPorts() error {
 			}
 			changed, err := s.applyPortVlan(port, s.config.NoDataVlan, vlans)
 			if err != nil {
-				return err
+				return result, err
 			}
 			if changed {
 				changes++
+				result.PortsChanged++
 				if s.config.Sandbox {
 					simulated = true
 				} else {
@@ -144,10 +149,11 @@ func (s *VLANServiceImpl) ProcessPorts() error {
 
 		changed, err := s.applyPortVlan(port, targetVlan, vlans)
 		if err != nil {
-			return err
+			return result, err
 		}
 		if changed {
 			changes++
+			result.PortsChanged++
 			if s.config.Sandbox {
 				simulated = true
 			} else {
@@ -163,12 +169,12 @@ func (s *VLANServiceImpl) ProcessPorts() error {
 	} else if modified {
 		slog.Info("Saving changes to startup-config", "target", s.config.Target)
 		if err := s.saveConfiguration(); err != nil {
-			return fmt.Errorf("failed to save configuration: %v", err)
+			return result, fmt.Errorf("failed to save configuration: %v", err)
 		}
 		slog.Info("Configuration successfully saved", "target", s.config.Target)
 	}
 
-	return nil
+	return result, nil
 }
 
 func (s *VLANServiceImpl) GetVlanList() (map[string]bool, error) {

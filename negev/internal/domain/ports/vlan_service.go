@@ -3,7 +3,7 @@ package ports
 import "github.com/carlosrabelo/negev/negev/internal/domain/entities"
 
 type VLANService interface {
-	ProcessPorts() error
+	ProcessPorts() (entities.RunResult, error)
 	GetVlanList() (map[string]bool, error)
 	GetTrunkInterfaces() (map[string]bool, error)
 	GetActivePorts() ([]entities.Port, error)

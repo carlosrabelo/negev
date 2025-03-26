@@ -51,6 +51,8 @@ func (m *mockRepository) IsConnected() bool {
 	return m.connected
 }
 
+func (m *mockRepository) SetSessionProfile(profile entities.SessionProfile) {}
+
 type stubDriver struct {
 	vlans           []string
 	trunks          []string
@@ -147,7 +149,7 @@ func TestProcessPortsSaveConfiguration(t *testing.T) {
 	}
 
 	svc := NewVLANService(repo, cfg, drv)
-	if err := svc.ProcessPorts(); err != nil {
+	if _, err := svc.ProcessPorts(); err != nil {
 		t.Fatalf("ProcessPorts failed: %v", err)
 	}
 
@@ -168,7 +170,7 @@ func TestProcessPortsSaveConfiguration(t *testing.T) {
 		MacToVlan:   map[string]string{"aabbcc": "10"},
 	}
 	svcSandbox := NewVLANService(repoSandbox, cfgSandbox, drv)
-	if err := svcSandbox.ProcessPorts(); err != nil {
+	if _, err := svcSandbox.ProcessPorts(); err != nil {
 		t.Fatalf("ProcessPorts failed: %v", err)
 	}
 	for _, cmd := range repoSandbox.executed {
@@ -181,7 +183,7 @@ func TestProcessPortsSaveConfiguration(t *testing.T) {
 func TestProcessPortsConnectFailure(t *testing.T) {
 	repo := &mockRepository{connectErr: errors.New("dial refused")}
 	svc := NewVLANService(repo, entities.SwitchConfig{}, baseDriver())
-	if err := svc.ProcessPorts(); err == nil {
+	if _, err := svc.ProcessPorts(); err == nil {
 		t.Fatal("expected connect failure")
 	}
 }
@@ -195,7 +197,7 @@ func TestProcessPortsNoChanges(t *testing.T) {
 		DefaultVlan: "10",
 		MacToVlan:   map[string]string{"aabbcc": "10"},
 	}
-	if err := NewVLANService(repo, cfg, drv).ProcessPorts(); err != nil {
+	if _, err := NewVLANService(repo, cfg, drv).ProcessPorts(); err != nil {
 		t.Fatalf("ProcessPorts failed: %v", err)
 	}
 	if len(repo.executed) != 0 {
@@ -230,7 +232,7 @@ func TestProcessPortsSkipsTrunkExcludedAndMultiMAC(t *testing.T) {
 		ExcludeMacs:  []string{"aabbccddeeff"},
 		MacToVlan:    map[string]string{"deadbe": "10"},
 	}
-	if err := NewVLANService(repo, cfg, drv).ProcessPorts(); err != nil {
+	if _, err := NewVLANService(repo, cfg, drv).ProcessPorts(); err != nil {
 		t.Fatalf("ProcessPorts failed: %v", err)
 	}
 }
@@ -246,7 +248,7 @@ func TestProcessPortsDefaultVlanAndMissingVlan(t *testing.T) {
 		DefaultVlan: "10",
 		MacToVlan:   map[string]string{"ffffff": "0"},
 	}
-	if err := NewVLANService(repo, cfg, drv).ProcessPorts(); err != nil {
+	if _, err := NewVLANService(repo, cfg, drv).ProcessPorts(); err != nil {
 		t.Fatalf("ProcessPorts failed: %v", err)
 	}
 
@@ -257,7 +259,7 @@ func TestProcessPortsDefaultVlanAndMissingVlan(t *testing.T) {
 		DefaultVlan: "99",
 		MacToVlan:   map[string]string{"aabbcc": "99"},
 	}
-	if err := NewVLANService(repo, cfg2, drv2).ProcessPorts(); err != nil {
+	if _, err := NewVLANService(repo, cfg2, drv2).ProcessPorts(); err != nil {
 		t.Fatalf("ProcessPorts failed: %v", err)
 	}
 }
@@ -274,7 +276,7 @@ func TestProcessPortsCreateAndDeleteVLANs(t *testing.T) {
 		DefaultVlan:    "10",
 		MacToVlan:      map[string]string{"aabbcc": "10"},
 	}
-	if err := NewVLANService(repo, cfg, drv).ProcessPorts(); err != nil {
+	if _, err := NewVLANService(repo, cfg, drv).ProcessPorts(); err != nil {
 		t.Fatalf("ProcessPorts failed: %v", err)
 	}
 
@@ -312,7 +314,7 @@ func TestProcessPortsCreateVLANSandbox(t *testing.T) {
 		DefaultVlan:  "10",
 		MacToVlan:    map[string]string{"aabbcc": "10"},
 	}
-	if err := NewVLANService(repo, cfg, drv).ProcessPorts(); err != nil {
+	if _, err := NewVLANService(repo, cfg, drv).ProcessPorts(); err != nil {
 		t.Fatalf("ProcessPorts failed: %v", err)
 	}
 	for _, cmd := range repo.executed {
@@ -388,7 +390,7 @@ func TestProcessPortsPropagatesDriverErrors(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			err := NewVLANService(&mockRepository{}, entities.SwitchConfig{}, tc.drv).ProcessPorts()
+			_, err := NewVLANService(&mockRepository{}, entities.SwitchConfig{}, tc.drv).ProcessPorts()
 			if err == nil {
 				t.Fatal("expected error")
 			}
@@ -405,7 +407,7 @@ func TestProcessPortsCreateVLANFailure(t *testing.T) {
 		CreateVLANs:  true,
 		AllowedVlans: []string{"1", "10"},
 	}
-	if err := NewVLANService(repo, cfg, drv).ProcessPorts(); err == nil {
+	if _, err := NewVLANService(repo, cfg, drv).ProcessPorts(); err == nil {
 		t.Fatal("expected create VLAN failure")
 	}
 }
@@ -419,7 +421,7 @@ func TestProcessPortsDeleteVLANFailure(t *testing.T) {
 		CreateVLANs:  true,
 		AllowedVlans: []string{"1"},
 	}
-	if err := NewVLANService(repo, cfg, drv).ProcessPorts(); err == nil {
+	if _, err := NewVLANService(repo, cfg, drv).ProcessPorts(); err == nil {
 		t.Fatal("expected delete VLAN failure")
 	}
 }
@@ -432,7 +434,7 @@ func TestProcessPortsConfigureFailure(t *testing.T) {
 		DefaultVlan: "10",
 		MacToVlan:   map[string]string{"aabbcc": "10"},
 	}
-	if err := NewVLANService(repo, cfg, drv).ProcessPorts(); err == nil {
+	if _, err := NewVLANService(repo, cfg, drv).ProcessPorts(); err == nil {
 		t.Fatal("expected configure failure")
 	}
 }
@@ -492,7 +494,7 @@ func TestSaveConfigurationError(t *testing.T) {
 		DefaultVlan: "10",
 		MacToVlan:   map[string]string{"aabbcc": "10"},
 	}
-	if err := NewVLANService(repo, cfg, drv).ProcessPorts(); err == nil {
+	if _, err := NewVLANService(repo, cfg, drv).ProcessPorts(); err == nil {
 		t.Fatal("expected save configuration failure")
 	}
 }
@@ -507,7 +509,7 @@ func TestSaveConfigurationCommandError(t *testing.T) {
 		DefaultVlan: "10",
 		MacToVlan:   map[string]string{"aabbcc": "10"},
 	}
-	if err := NewVLANService(repo, cfg, drv).ProcessPorts(); err == nil {
+	if _, err := NewVLANService(repo, cfg, drv).ProcessPorts(); err == nil {
 		t.Fatal("expected save to fail when the CLI reports an error")
 	}
 }
@@ -521,7 +523,7 @@ func TestSaveConfigurationFallsBackToNextCommand(t *testing.T) {
 		DefaultVlan: "10",
 		MacToVlan:   map[string]string{"aabbcc": "10"},
 	}
-	if err := NewVLANService(repo, cfg, drv).ProcessPorts(); err != nil {
+	if _, err := NewVLANService(repo, cfg, drv).ProcessPorts(); err != nil {
 		t.Fatalf("expected fallback save to succeed: %v", err)
 	}
 	saved := false
@@ -545,7 +547,7 @@ func TestProcessPortsAssignsNoDataVlan(t *testing.T) {
 		DefaultVlan: "10",
 		NoDataVlan:  "999",
 	}
-	if err := NewVLANService(repo, cfg, drv).ProcessPorts(); err != nil {
+	if _, err := NewVLANService(repo, cfg, drv).ProcessPorts(); err != nil {
 		t.Fatalf("ProcessPorts failed: %v", err)
 	}
 	if len(repo.executed) != 0 {
@@ -554,7 +556,7 @@ func TestProcessPortsAssignsNoDataVlan(t *testing.T) {
 
 	repoWrite := &mockRepository{}
 	cfg.Sandbox = false
-	if err := NewVLANService(repoWrite, cfg, drv).ProcessPorts(); err != nil {
+	if _, err := NewVLANService(repoWrite, cfg, drv).ProcessPorts(); err != nil {
 		t.Fatalf("ProcessPorts write failed: %v", err)
 	}
 	configured := false
@@ -580,7 +582,7 @@ func TestProcessPortsSandboxVLANSyncSummary(t *testing.T) {
 		DefaultVlan:  "10",
 		MacToVlan:    map[string]string{"aabbcc": "10"},
 	}
-	if err := NewVLANService(repo, cfg, drv).ProcessPorts(); err != nil {
+	if _, err := NewVLANService(repo, cfg, drv).ProcessPorts(); err != nil {
 		t.Fatalf("ProcessPorts failed: %v", err)
 	}
 	if len(repo.executed) != 0 {
@@ -601,7 +603,7 @@ func TestProcessPortsKeepsDefaultAndNoDataVLANs(t *testing.T) {
 		NoDataVlan:   "999",
 		MacToVlan:    map[string]string{"aabbcc": "10"},
 	}
-	if err := NewVLANService(repo, cfg, drv).ProcessPorts(); err != nil {
+	if _, err := NewVLANService(repo, cfg, drv).ProcessPorts(); err != nil {
 		t.Fatalf("ProcessPorts failed: %v", err)
 	}
 	for _, cmd := range repo.executed {
@@ -621,7 +623,7 @@ func TestProcessPortsCreateVLANsRequiresAllowed(t *testing.T) {
 		DefaultVlan: "10",
 		MacToVlan:   map[string]string{"aabbcc": "10"},
 	}
-	if err := NewVLANService(repo, cfg, drv).ProcessPorts(); err == nil {
+	if _, err := NewVLANService(repo, cfg, drv).ProcessPorts(); err == nil {
 		t.Fatal("expected error when --create-vlans has empty allowed_vlans")
 	}
 	for _, cmd := range repo.executed {
@@ -641,7 +643,7 @@ func TestProcessPortsSkipsEmptyPortWithoutNoDataVlan(t *testing.T) {
 		Sandbox:     false,
 		DefaultVlan: "1",
 	}
-	if err := NewVLANService(repo, cfg, drv).ProcessPorts(); err != nil {
+	if _, err := NewVLANService(repo, cfg, drv).ProcessPorts(); err != nil {
 		t.Fatalf("ProcessPorts failed: %v", err)
 	}
 	for _, cmd := range repo.executed {
@@ -663,7 +665,7 @@ func TestProcessPortsSyncDoesNotInventNoDataVlan(t *testing.T) {
 		DefaultVlan:  "1",
 		MacToVlan:    map[string]string{"aabbcc": "10"},
 	}
-	if err := NewVLANService(repo, cfg, drv).ProcessPorts(); err != nil {
+	if _, err := NewVLANService(repo, cfg, drv).ProcessPorts(); err != nil {
 		t.Fatalf("ProcessPorts failed: %v", err)
 	}
 	created999 := false

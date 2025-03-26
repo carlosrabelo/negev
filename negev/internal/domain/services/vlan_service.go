@@ -27,6 +27,8 @@ var _ ports.VLANService = (*VLANServiceImpl)(nil)
 func (s *VLANServiceImpl) ProcessPorts() (entities.RunResult, error) {
 	var result entities.RunResult
 
+	s.repo.SetSessionProfile(s.driver.GetSessionProfile())
+
 	if err := s.repo.Connect(); err != nil {
 		return result, fmt.Errorf("failed to connect: %v", err)
 	}
@@ -35,6 +37,25 @@ func (s *VLANServiceImpl) ProcessPorts() (entities.RunResult, error) {
 	vlans, err := s.GetVlanList()
 	if err != nil {
 		return result, fmt.Errorf("failed to get VLAN list: %v", err)
+	}
+
+	trunks, err := s.GetTrunkInterfaces()
+	if err != nil {
+		return result, fmt.Errorf("failed to get trunks: %v", err)
+	}
+
+	if _, err := s.driver.GetL3Interfaces(s.repo); err != nil {
+		slog.Warn("Failed to discover L3 interfaces", "error", err, "target", s.config.Target)
+	}
+
+	ports, err := s.GetActivePorts()
+	if err != nil {
+		return result, fmt.Errorf("failed to get active ports: %v", err)
+	}
+
+	devices, err := s.GetMacTable()
+	if err != nil {
+		return result, fmt.Errorf("failed to get MAC table: %v", err)
 	}
 
 	modified := false
@@ -82,24 +103,13 @@ func (s *VLANServiceImpl) ProcessPorts() (entities.RunResult, error) {
 		}
 	}
 
-	trunks, err := s.GetTrunkInterfaces()
-	if err != nil {
-		return result, fmt.Errorf("failed to get trunks: %v", err)
-	}
-
-	ports, err := s.GetActivePorts()
-	if err != nil {
-		return result, fmt.Errorf("failed to get active ports: %v", err)
-	}
-
-	devices, err := s.GetMacTable()
-	if err != nil {
-		return result, fmt.Errorf("failed to get MAC table: %v", err)
-	}
-
 	changes := 0
 	for _, port := range ports {
-		if trunks[port.Interface] {
+		if port.IsRouted || port.IsTrunk {
+			continue
+		}
+		ifaceKey := s.canonicalIface(port.Interface)
+		if trunks[ifaceKey] {
 			continue
 		}
 		if s.isExcludedPort(port.Interface) {
@@ -196,7 +206,7 @@ func (s *VLANServiceImpl) GetTrunkInterfaces() (map[string]bool, error) {
 	}
 	result := make(map[string]bool, len(trunks))
 	for _, t := range trunks {
-		result[t] = true
+		result[s.canonicalIface(t)] = true
 	}
 	return result, nil
 }
@@ -309,10 +319,15 @@ func (s *VLANServiceImpl) getAllowedVLANs() map[string]bool {
 	return result
 }
 
+func (s *VLANServiceImpl) canonicalIface(name string) string {
+	return strings.ToLower(s.driver.NormalizeInterface(name))
+}
+
 func (s *VLANServiceImpl) filterDevices(devices []entities.Device, iface string) []entities.Device {
+	key := s.canonicalIface(iface)
 	var result []entities.Device
 	for _, d := range devices {
-		if strings.EqualFold(d.Interface, iface) {
+		if s.canonicalIface(d.Interface) == key {
 			result = append(result, d)
 		}
 	}
@@ -329,8 +344,9 @@ func (s *VLANServiceImpl) isExcluded(mac string) bool {
 }
 
 func (s *VLANServiceImpl) isExcludedPort(iface string) bool {
+	key := s.canonicalIface(iface)
 	for _, e := range s.config.ExcludePorts {
-		if strings.EqualFold(iface, e) {
+		if s.canonicalIface(e) == key {
 			return true
 		}
 	}

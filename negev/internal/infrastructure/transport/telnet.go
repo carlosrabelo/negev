@@ -23,9 +23,10 @@ const (
 )
 
 type TelnetClient struct {
-	conn         *telnet.Conn
-	config       entities.SwitchConfig
-	authSequence []entities.AuthPrompt
+	conn           *telnet.Conn
+	config         entities.SwitchConfig
+	authSequence   []entities.AuthPrompt
+	sessionProfile entities.SessionProfile
 }
 
 func NewTelnetClient(cfg entities.SwitchConfig) *TelnetClient {
@@ -34,6 +35,10 @@ func NewTelnetClient(cfg entities.SwitchConfig) *TelnetClient {
 
 func (tc *TelnetClient) SetAuthSequence(prompts []entities.AuthPrompt) {
 	tc.authSequence = prompts
+}
+
+func (tc *TelnetClient) SetSessionProfile(profile entities.SessionProfile) {
+	tc.sessionProfile = profile
 }
 
 func telnetDialAddr(target string) string {
@@ -224,18 +229,55 @@ func (tc *TelnetClient) ExecuteCommand(cmd string) (string, error) {
 	if _, err := tc.conn.Write([]byte(cmd + "\n")); err != nil {
 		return "", fmt.Errorf("failed to send command %s: %v", cmd, err)
 	}
-	output, err := tc.readUntil(PromptPrivileged, DefaultTimeout)
+	raw, err := tc.readUntilPrompt(tc.sessionProfile, DefaultTimeout)
 	if err != nil {
 		return "", fmt.Errorf("error executing %s: %v", cmd, err)
 	}
-	lines := strings.Split(output, "\n")
-	if len(lines) > 1 {
-		output = strings.Join(lines[1:len(lines)-1], "\n")
-	} else {
-		output = ""
-	}
+	output := stripCommandEchoAndPrompt(raw)
 	if tc.config.IsRawOutputEnabled() {
 		fmt.Printf("Switch output for '%s':\n%s\n", cmd, output)
 	}
 	return output, nil
+}
+
+func (tc *TelnetClient) readUntilPrompt(profile entities.SessionProfile, timeout time.Duration) (string, error) {
+	profile = effectiveProfile(profile)
+	buffer := make([]byte, BufferSize)
+	var output strings.Builder
+	output.Grow(BufferSize)
+	deadline := time.Now().Add(timeout)
+	_ = tc.conn.SetReadDeadline(deadline)
+	for {
+		n, err := tc.conn.Read(buffer)
+		if n > 0 {
+			output.Write(buffer[:n])
+			if tc.config.IsRawOutputEnabled() {
+				fmt.Printf("Switch output: Read: %s\n", string(buffer[:n]))
+			}
+			text := output.String()
+			for {
+				loc := pagerMatchLoc(profile, text)
+				if loc == nil {
+					break
+				}
+				_ = tc.conn.SetWriteDeadline(time.Now().Add(DefaultTimeout))
+				if _, werr := tc.conn.Write([]byte(profile.PagerResponse)); werr != nil {
+					return text, fmt.Errorf("failed to advance pager: %v", werr)
+				}
+				text = stripPager(text, loc)
+				output.Reset()
+				output.WriteString(text)
+			}
+			if promptMatched(profile, text) {
+				return text, nil
+			}
+		}
+		if err != nil {
+			return output.String(), fmt.Errorf("read error: %v", err)
+		}
+		if time.Now().After(deadline) {
+			break
+		}
+	}
+	return output.String(), fmt.Errorf("timeout waiting for session prompt")
 }

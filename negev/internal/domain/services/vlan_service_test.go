@@ -10,13 +10,15 @@ import (
 )
 
 type mockRepository struct {
-	connected    bool
-	executed     []string
-	connectErr   error
-	commandErr   error
-	commandOut   string
-	failOnCmd    string
-	commandErrBy map[string]error
+	connected     bool
+	executed      []string
+	connectErr    error
+	commandErr    error
+	commandOut    string
+	failOnCmd     string
+	commandErrBy  map[string]error
+	sessionSet    bool
+	sessionProfile entities.SessionProfile
 }
 
 func (m *mockRepository) Connect() error {
@@ -51,7 +53,10 @@ func (m *mockRepository) IsConnected() bool {
 	return m.connected
 }
 
-func (m *mockRepository) SetSessionProfile(profile entities.SessionProfile) {}
+func (m *mockRepository) SetSessionProfile(profile entities.SessionProfile) {
+	m.sessionSet = true
+	m.sessionProfile = profile
+}
 
 type stubDriver struct {
 	vlans           []string
@@ -460,7 +465,7 @@ func TestGettersAndHelpers(t *testing.T) {
 		t.Fatalf("GetVlanList = %v, %v", vlans, err)
 	}
 	trunks, err := svc.GetTrunkInterfaces()
-	if err != nil || !trunks["Gi1/0/24"] {
+	if err != nil || !trunks["gi1/0/24"] {
 		t.Fatalf("GetTrunkInterfaces = %v, %v", trunks, err)
 	}
 	ports, err := svc.GetActivePorts()
@@ -688,5 +693,42 @@ func TestProcessPortsSyncDoesNotInventNoDataVlan(t *testing.T) {
 	}
 	if !deleted999 {
 		t.Fatalf("must not protect 999 when no_data_vlan is unset, got %v", repo.executed)
+	}
+}
+
+func TestProcessPortsSetsSessionProfile(t *testing.T) {
+	repo := &mockRepository{}
+	drv := baseDriver()
+	cfg := entities.SwitchConfig{Sandbox: true, DefaultVlan: "10"}
+	if _, err := NewVLANService(repo, cfg, drv).ProcessPorts(); err != nil {
+		t.Fatalf("ProcessPorts failed: %v", err)
+	}
+	if !repo.sessionSet {
+		t.Fatal("expected SetSessionProfile before Connect")
+	}
+}
+
+func TestProcessPortsSkipsRoutedPort(t *testing.T) {
+	repo := &mockRepository{}
+	drv := baseDriver()
+	drv.ports = []entities.Port{
+		{Interface: "Gi1/0/1", Vlan: "routed", IsRouted: true},
+		{Interface: "Gi1/0/2", Vlan: "1"},
+	}
+	drv.devices = []entities.Device{
+		{Interface: "Gi1/0/1", Mac: "aabbccddeeff", Vlan: "1"},
+		{Interface: "Gi1/0/2", Mac: "aabbccddeeff", Vlan: "1"},
+	}
+	cfg := entities.SwitchConfig{
+		Sandbox:     true,
+		DefaultVlan: "10",
+		MacToVlan:   map[string]string{"aabbcc": "10"},
+	}
+	result, err := NewVLANService(repo, cfg, drv).ProcessPorts()
+	if err != nil {
+		t.Fatalf("ProcessPorts failed: %v", err)
+	}
+	if result.PortsChanged != 1 {
+		t.Fatalf("PortsChanged = %d; expected 1 (routed port skipped)", result.PortsChanged)
 	}
 }

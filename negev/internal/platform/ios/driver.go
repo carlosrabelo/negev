@@ -12,8 +12,11 @@ import (
 )
 
 var vlanLineRegex = regexp.MustCompile(`^\s*(?:vlan\s+)?(\d{1,4})\b`)
-var interfaceRegex = regexp.MustCompile(`^[A-Za-z]+\d+(?:/\d+){0,2}$`)
-var macTableRegex = regexp.MustCompile(`^\s*(\d+)\s+([0-9A-Fa-f]{4}\.[0-9A-Fa-f]{4}\.[0-9A-Fa-f]{4})\s+DYNAMIC\s+(\S+)`)
+var interfaceRegex = regexp.MustCompile(`^[A-Za-z-]+\d+(?:/\d+){0,2}$`)
+var macTableRegex = regexp.MustCompile(`(?i)^\s*(\d+)\s+([0-9a-f]{4}\.[0-9a-f]{4}\.[0-9a-f]{4})\s+(DYNAMIC|STATIC)\s+(\S+)`)
+var sviNameRegex = regexp.MustCompile(`(?i)^Vlan(\d+)$`)
+var iosPromptPattern = regexp.MustCompile(`(?m)^[A-Za-z0-9_.-]+(?:-[A-Za-z0-9_.-]+)*[>#]\s*$`)
+var iosPagerPattern = regexp.MustCompile(`(?m)--More--`)
 
 type Driver struct{}
 
@@ -137,11 +140,20 @@ func parseActivePorts(output string) []entities.Port {
 				}
 			}
 		}
-		if status == "notconnect" {
+		lowerStatus := strings.ToLower(status)
+		if lowerStatus == "notconnect" || lowerStatus == "monitor" {
 			continue
 		}
 		if status != "" && vlan != "" {
-			ports = append(ports, entities.Port{Interface: fields[0], Vlan: vlan})
+			lowerVlan := strings.ToLower(vlan)
+			port := entities.Port{Interface: fields[0], Vlan: vlan}
+			if lowerVlan == "routed" || lowerVlan == "routed-port" {
+				port.IsRouted = true
+			}
+			if lowerVlan == "trunk" {
+				port.IsTrunk = true
+			}
+			ports = append(ports, port)
 		}
 	}
 	sort.Slice(ports, func(i, j int) bool {
@@ -176,17 +188,20 @@ func (d *Driver) GetMacTable(repo ports.SwitchRepository) ([]entities.Device, er
 	}
 	trunkSet := make(map[string]bool, len(trunks))
 	for _, t := range trunks {
-		trunkSet[t] = true
+		trunkSet[strings.ToLower(d.NormalizeInterface(t))] = true
 	}
 
-	out, err := repo.ExecuteCommand("show mac address-table dynamic")
-	if err != nil {
-		return nil, err
+	out, err := repo.ExecuteCommand("show mac address-table")
+	if err != nil || out == "" {
+		out, err = repo.ExecuteCommand("show mac address-table dynamic")
+		if err != nil {
+			return nil, err
+		}
 	}
-	return parseMacTable(out, trunkSet), nil
+	return parseMacTable(out, trunkSet, d), nil
 }
 
-func parseMacTable(output string, trunkSet map[string]bool) []entities.Device {
+func parseMacTable(output string, trunkSet map[string]bool, d *Driver) []entities.Device {
 	lines := strings.Split(output, "\n")
 	var devices []entities.Device
 	for _, line := range lines {
@@ -194,21 +209,23 @@ func parseMacTable(output string, trunkSet map[string]bool) []entities.Device {
 		if m == nil {
 			continue
 		}
-		iface := m[3]
-		if trunkSet[iface] {
+		iface := m[4]
+		canon := d.NormalizeInterface(iface)
+		if trunkSet[strings.ToLower(canon)] {
 			continue
 		}
-		if !interfaceRegex.MatchString(iface) {
+		if !interfaceRegex.MatchString(iface) && !interfaceRegex.MatchString(canon) {
 			continue
 		}
 		macDotted := m[2]
-		macPlain := strings.ReplaceAll(macDotted, ".", "")
+		macPlain := strings.ToLower(strings.ReplaceAll(macDotted, ".", ""))
 		macFull := formatMac(macPlain)
 		devices = append(devices, entities.Device{
 			Vlan:      m[1],
 			Mac:       macPlain,
 			MacFull:   macFull,
-			Interface: iface,
+			Interface: canon,
+			IsStatic:  strings.EqualFold(m[3], "STATIC"),
 		})
 	}
 	return devices
@@ -262,15 +279,89 @@ func (d *Driver) SaveCommands() []string {
 func (d *Driver) ClearCache() {}
 
 func (d *Driver) GetSessionProfile() entities.SessionProfile {
-	return entities.SessionProfile{}
+	return entities.SessionProfile{
+		PromptPattern: iosPromptPattern,
+		PagerPattern:  iosPagerPattern,
+		PagerResponse: " ",
+	}
 }
 
 func (d *Driver) NormalizeInterface(name string) string {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return name
+	}
+	lower := strings.ToLower(name)
+	type repl struct {
+		prefix string
+		full   string
+	}
+	// Longer prefixes first so "gi" does not match inside "gigabitethernet".
+	for _, r := range []repl{
+		{"gigabitethernet", "GigabitEthernet"},
+		{"tengigabitethernet", "TenGigabitEthernet"},
+		{"fastethernet", "FastEthernet"},
+		{"port-channel", "Port-channel"},
+		{"gi", "GigabitEthernet"},
+		{"te", "TenGigabitEthernet"},
+		{"fa", "FastEthernet"},
+		{"po", "Port-channel"},
+	} {
+		if !strings.HasPrefix(lower, r.prefix) {
+			continue
+		}
+		rest := name[len(r.prefix):]
+		if rest == "" {
+			return r.full
+		}
+		if rest[0] >= '0' && rest[0] <= '9' {
+			return r.full + rest
+		}
+	}
 	return name
 }
 
 func (d *Driver) GetL3Interfaces(repo ports.SwitchRepository) ([]string, error) {
-	return nil, nil
+	out, err := repo.ExecuteCommand("show ip interface brief")
+	if err != nil {
+		return nil, err
+	}
+	return parseL3Interfaces(out), nil
+}
+
+func parseL3Interfaces(output string) []string {
+	seen := make(map[string]bool)
+	var vlans []string
+	for _, line := range strings.Split(output, "\n") {
+		fields := strings.Fields(line)
+		if len(fields) == 0 {
+			continue
+		}
+		m := sviNameRegex.FindStringSubmatch(fields[0])
+		if m == nil {
+			continue
+		}
+		v := m[1]
+		if !seen[v] {
+			seen[v] = true
+			vlans = append(vlans, v)
+		}
+	}
+	sort.Slice(vlans, func(i, j int) bool {
+		return atoiSafe(vlans[i]) < atoiSafe(vlans[j])
+	})
+	return vlans
+}
+
+func atoiSafe(s string) int {
+	n := 0
+	for _, c := range s {
+		if c < '0' || c > '9' {
+			return n
+		}
+		n = n*10 + int(c-'0')
+	}
+	return n
 }
 
 func (d *Driver) IsCommandError(output string) bool {

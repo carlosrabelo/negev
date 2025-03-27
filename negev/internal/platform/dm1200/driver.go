@@ -14,10 +14,13 @@ import (
 )
 
 var (
-	portPathRe   = regexp.MustCompile(`^(\d+)/(\d+)/(\d+)$`)
-	macTokenRe   = regexp.MustCompile(`(?i)\b([0-9a-f]{2}(?::[0-9a-f]{2}){5}|[0-9a-f]{2}(?:-[0-9a-f]{2}){5}|[0-9a-f]{4}\.[0-9a-f]{4}\.[0-9a-f]{4})\b`)
-	portTokenRe  = regexp.MustCompile(`\b(\d+/\d+/\d+)\b`)
-	vlanTokenRe  = regexp.MustCompile(`\b(\d{1,4})(?:-(\d{1,4}))?\b`)
+	portPathRe          = regexp.MustCompile(`^(\d+)/(\d+)/(\d+)$`)
+	macTokenRe          = regexp.MustCompile(`(?i)\b([0-9a-f]{2}(?::[0-9a-f]{2}){5}|[0-9a-f]{2}(?:-[0-9a-f]{2}){5}|[0-9a-f]{4}\.[0-9a-f]{4}\.[0-9a-f]{4})\b`)
+	portTokenRe         = regexp.MustCompile(`\b(\d+/\d+/\d+)\b`)
+	vlanTokenRe         = regexp.MustCompile(`\b(\d{1,4})(?:-(\d{1,4}))?\b`)
+	sviNameRegex        = regexp.MustCompile(`(?i)^Vlan(?:-interface)?(\d+)$`)
+	dm1200PromptPattern = regexp.MustCompile(`(?m)^[A-Za-z0-9_.-]+(?:-[A-Za-z0-9_.-]+)*[>#]\s*$`)
+	dm1200PagerPattern  = regexp.MustCompile(`(?m)--More--|---- More ----`)
 )
 
 type Driver struct{}
@@ -382,7 +385,11 @@ func (d *Driver) DeleteVLANCommands(vlan string) []string {
 }
 
 func (d *Driver) GetSessionProfile() entities.SessionProfile {
-	return entities.SessionProfile{}
+	return entities.SessionProfile{
+		PromptPattern: dm1200PromptPattern,
+		PagerPattern:  dm1200PagerPattern,
+		PagerResponse: " ",
+	}
 }
 
 func (d *Driver) NormalizeInterface(name string) string {
@@ -390,7 +397,37 @@ func (d *Driver) NormalizeInterface(name string) string {
 }
 
 func (d *Driver) GetL3Interfaces(repo ports.SwitchRepository) ([]string, error) {
-	return nil, nil
+	out, err := repo.ExecuteCommand("show ip interface brief")
+	if err != nil {
+		return nil, err
+	}
+	return parseL3Interfaces(out), nil
+}
+
+func parseL3Interfaces(output string) []string {
+	seen := make(map[string]bool)
+	var vlans []string
+	for _, line := range strings.Split(output, "\n") {
+		fields := strings.Fields(line)
+		if len(fields) == 0 {
+			continue
+		}
+		m := sviNameRegex.FindStringSubmatch(fields[0])
+		if m == nil {
+			continue
+		}
+		v := m[1]
+		if !seen[v] {
+			seen[v] = true
+			vlans = append(vlans, v)
+		}
+	}
+	sort.Slice(vlans, func(i, j int) bool {
+		ai, _ := strconv.Atoi(vlans[i])
+		bi, _ := strconv.Atoi(vlans[j])
+		return ai < bi
+	})
+	return vlans
 }
 
 func (d *Driver) SaveCommands() []string {

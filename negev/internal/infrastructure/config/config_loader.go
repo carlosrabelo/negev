@@ -63,7 +63,8 @@ func mergeStringSlices(global, local []string, normalize func(string) (string, e
 }
 
 func NormalizeMAC(mac string) string {
-	return strings.ToLower(strings.ReplaceAll(strings.ReplaceAll(mac, ":", ""), ".", ""))
+	mac = strings.ToLower(mac)
+	return strings.NewReplacer(":", "", "-", "", ".", "").Replace(mac)
 }
 
 func isHexMAC(s string) bool {
@@ -98,10 +99,10 @@ func canonicalizePlatform(platform string) string {
 
 func validatePlatform(platform string) error {
 	switch platform {
-	case "ios", "nxos", "dmswitch", "dm1200", "auto":
+	case "ios", "nxos", "dmswitch", "dm1200", "comware", "auto":
 		return nil
 	default:
-		return fmt.Errorf("platform %s is invalid, must be 'ios', 'nxos', 'dmswitch', 'dm1200', or 'auto'", platform)
+		return fmt.Errorf("platform %s is invalid, must be 'ios', 'nxos', 'dmswitch', 'dm1200', 'comware', or 'auto'", platform)
 	}
 }
 

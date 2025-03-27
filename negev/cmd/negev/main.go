@@ -7,6 +7,7 @@ import (
 
 	"github.com/carlosrabelo/negev/negev/internal/application/services"
 
+	_ "github.com/carlosrabelo/negev/negev/internal/platform/comware"
 	_ "github.com/carlosrabelo/negev/negev/internal/platform/dm1200"
 	_ "github.com/carlosrabelo/negev/negev/internal/platform/dmswitch"
 	_ "github.com/carlosrabelo/negev/negev/internal/platform/ios"

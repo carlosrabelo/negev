@@ -14,11 +14,14 @@ import (
 )
 
 var (
-	vlanLineRegex  = regexp.MustCompile(`(?i)^\s*(?:vlan\s+)?(\d{1,4})\b`)
-	infoPortRegex  = regexp.MustCompile(`(?i)^Information of Eth\s+(\d+\s*/\s*\d+)`)
-	macLineRegex   = regexp.MustCompile(`(?i)^\s*\d+\s+(Eth\s+\d+\s*/\s*\d+)\s+([0-9a-f]{2}(?:-[0-9a-f]{2}){5})\s+(\d+)\s+(Static|Dynamic)\b`)
-	ethCompactRe   = regexp.MustCompile(`^eth(?:ernet)?(\d+/\d+)$`)
-	poCompactRe    = regexp.MustCompile(`^(?:port-channel|po)(\d+)$`)
+	vlanLineRegex         = regexp.MustCompile(`(?i)^\s*(?:vlan\s+)?(\d{1,4})\b`)
+	infoPortRegex         = regexp.MustCompile(`(?i)^Information of Eth\s+(\d+\s*/\s*\d+)`)
+	macLineRegex          = regexp.MustCompile(`(?i)^\s*\d+\s+(Eth\s+\d+\s*/\s*\d+)\s+([0-9a-f]{2}(?:-[0-9a-f]{2}){5})\s+(\d+)\s+(Static|Dynamic)\b`)
+	ethCompactRe          = regexp.MustCompile(`^eth(?:ernet)?(\d+/\d+)$`)
+	poCompactRe           = regexp.MustCompile(`^(?:port-channel|po)(\d+)$`)
+	sviNameRegex          = regexp.MustCompile(`(?i)^Vlan(?:-interface)?(\d+)$`)
+	dmswitchPromptPattern = regexp.MustCompile(`(?m)^[A-Za-z0-9_.-]+(?:-[A-Za-z0-9_.-]+)*[>#]\s*$`)
+	dmswitchPagerPattern  = regexp.MustCompile(`(?m)--More--|---- More ----`)
 )
 
 type Driver struct{}
@@ -382,7 +385,11 @@ func (d *Driver) DeleteVLANCommands(vlan string) []string {
 }
 
 func (d *Driver) GetSessionProfile() entities.SessionProfile {
-	return entities.SessionProfile{}
+	return entities.SessionProfile{
+		PromptPattern: dmswitchPromptPattern,
+		PagerPattern:  dmswitchPagerPattern,
+		PagerResponse: " ",
+	}
 }
 
 func (d *Driver) NormalizeInterface(name string) string {
@@ -390,7 +397,37 @@ func (d *Driver) NormalizeInterface(name string) string {
 }
 
 func (d *Driver) GetL3Interfaces(repo ports.SwitchRepository) ([]string, error) {
-	return nil, nil
+	out, err := repo.ExecuteCommand("show ip interface brief")
+	if err != nil {
+		return nil, err
+	}
+	return parseL3Interfaces(out), nil
+}
+
+func parseL3Interfaces(output string) []string {
+	seen := make(map[string]bool)
+	var vlans []string
+	for _, line := range strings.Split(output, "\n") {
+		fields := strings.Fields(line)
+		if len(fields) == 0 {
+			continue
+		}
+		m := sviNameRegex.FindStringSubmatch(fields[0])
+		if m == nil {
+			continue
+		}
+		v := m[1]
+		if !seen[v] {
+			seen[v] = true
+			vlans = append(vlans, v)
+		}
+	}
+	sort.Slice(vlans, func(i, j int) bool {
+		ai, _ := strconv.Atoi(vlans[i])
+		bi, _ := strconv.Atoi(vlans[j])
+		return ai < bi
+	})
+	return vlans
 }
 
 func (d *Driver) SaveCommands() []string {

@@ -57,11 +57,7 @@ func (sa *SwitchAdapter) SetSessionProfile(profile entities.SessionProfile) {
 	if sa.client == nil {
 		sa.client = GetClient(sa.config)
 	}
-	if profileCfg, ok := sa.client.(interface {
-		SetSessionProfile(entities.SessionProfile)
-	}); ok {
-		profileCfg.SetSessionProfile(profile)
-	}
+	sa.client.SetSessionProfile(profile)
 }
 
 func (sa *SwitchAdapter) GetTarget() string {

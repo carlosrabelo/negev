@@ -15,13 +15,14 @@ import (
 )
 
 type SSHClient struct {
-	config       entities.SwitchConfig
-	client       *ssh.Client
-	session      *ssh.Session
-	stdin        io.WriteCloser
-	reader       *bufio.Reader
-	netConn      net.Conn
-	authSequence []entities.AuthPrompt
+	config         entities.SwitchConfig
+	client         *ssh.Client
+	session        *ssh.Session
+	stdin          io.WriteCloser
+	reader         *bufio.Reader
+	netConn        net.Conn
+	authSequence   []entities.AuthPrompt
+	sessionProfile entities.SessionProfile
 }
 
 func NewSSHClient(cfg entities.SwitchConfig) *SSHClient {
@@ -32,6 +33,23 @@ func (sc *SSHClient) SetAuthSequence(prompts []entities.AuthPrompt) {
 	sc.authSequence = prompts
 }
 
+func (sc *SSHClient) SetSessionProfile(profile entities.SessionProfile) {
+	sc.sessionProfile = profile
+}
+
+func sshAuthMethods(password string) []ssh.AuthMethod {
+	return []ssh.AuthMethod{
+		ssh.Password(password),
+		ssh.KeyboardInteractive(func(user, instruction string, questions []string, echos []bool) ([]string, error) {
+			answers := make([]string, len(questions))
+			for i := range questions {
+				answers[i] = password
+			}
+			return answers, nil
+		}),
+	}
+}
+
 func (sc *SSHClient) Connect() error {
 	if sc.IsConnected() {
 		return nil
@@ -40,7 +58,7 @@ func (sc *SSHClient) Connect() error {
 	slog.Warn("SSH host key verification is disabled — use only on trusted networks", "target", sc.config.Target)
 	sshConfig := &ssh.ClientConfig{
 		User:            sc.config.Username,
-		Auth:            []ssh.AuthMethod{ssh.Password(sc.config.Password)},
+		Auth:            sshAuthMethods(sc.config.Password),
 		HostKeyCallback: ssh.InsecureIgnoreHostKey(), //nolint:gosec
 		Timeout:         DefaultTimeout,
 	}
@@ -233,23 +251,63 @@ func (sc *SSHClient) ExecuteCommand(cmd string) (string, error) {
 		return "", fmt.Errorf("failed to send command %s: %v", cmd, err)
 	}
 
-	output, err := sc.readUntil(PromptPrivileged, DefaultTimeout)
+	raw, err := sc.readUntilPrompt(sc.sessionProfile, DefaultTimeout)
 	if err != nil {
 		return "", fmt.Errorf("error executing %s: %v", cmd, err)
 	}
-
-	lines := strings.Split(output, "\n")
-	if len(lines) > 1 {
-		output = strings.Join(lines[1:len(lines)-1], "\n")
-	} else {
-		output = ""
-	}
+	output := stripCommandEchoAndPrompt(raw)
 
 	if sc.config.IsRawOutputEnabled() {
 		fmt.Printf("Switch output for '%s':\n%s\n", cmd, output)
 	}
 
 	return output, nil
+}
+
+func (sc *SSHClient) readUntilPrompt(profile entities.SessionProfile, timeout time.Duration) (string, error) {
+	profile = effectiveProfile(profile)
+	buffer := make([]byte, BufferSize)
+	var output strings.Builder
+	output.Grow(BufferSize)
+	deadline := time.Now().Add(timeout)
+
+	if sc.netConn != nil {
+		_ = sc.netConn.SetReadDeadline(deadline)
+	}
+
+	for {
+		n, err := sc.reader.Read(buffer)
+		if n > 0 {
+			output.Write(buffer[:n])
+			if sc.config.IsRawOutputEnabled() {
+				fmt.Printf("Switch output: Read: %s\n", string(buffer[:n]))
+			}
+			text := output.String()
+			for {
+				loc := pagerMatchLoc(profile, text)
+				if loc == nil {
+					break
+				}
+				if werr := sc.send(profile.PagerResponse); werr != nil {
+					return text, fmt.Errorf("failed to advance pager: %v", werr)
+				}
+				text = stripPager(text, loc)
+				output.Reset()
+				output.WriteString(text)
+			}
+			if promptMatched(profile, text) {
+				return text, nil
+			}
+		}
+
+		if err != nil {
+			return output.String(), fmt.Errorf("read error: %v", err)
+		}
+
+		if time.Now().After(deadline) {
+			return output.String(), fmt.Errorf("timeout waiting for session prompt")
+		}
+	}
 }
 
 func shouldSkipSSHEnableStep(alreadyPrivileged bool, waitFor, sendCmd, enablePassword string) bool {

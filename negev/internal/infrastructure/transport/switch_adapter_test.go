@@ -10,6 +10,7 @@ import (
 type mockClient struct {
 	connected  bool
 	prompts    []entities.AuthPrompt
+	profile    entities.SessionProfile
 	connectErr error
 	executed   []string
 	commandOut string
@@ -39,6 +40,10 @@ func (m *mockClient) IsConnected() bool {
 
 func (m *mockClient) SetAuthSequence(prompts []entities.AuthPrompt) {
 	m.prompts = prompts
+}
+
+func (m *mockClient) SetSessionProfile(profile entities.SessionProfile) {
+	m.profile = profile
 }
 
 func TestSwitchAdapterGetTargetAndSetAuthSequence(t *testing.T) {

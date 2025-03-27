@@ -9,9 +9,10 @@ import (
 )
 
 type mockRepo struct {
-	target  string
-	version string
-	err     error
+	target    string
+	version   string
+	err       error
+	responses map[string]string
 }
 
 func (m *mockRepo) Connect() error    { return nil }
@@ -25,6 +26,11 @@ func (m *mockRepo) ExecuteCommand(cmd string) (string, error) {
 			return "", m.err
 		}
 		return m.version, nil
+	}
+	if m.responses != nil {
+		if out, ok := m.responses[cmd]; ok {
+			return out, nil
+		}
 	}
 	return "", errors.New("unexpected command: " + cmd)
 }
@@ -109,9 +115,13 @@ func TestNormalizeInterface(t *testing.T) {
 		{"Po1", "port-channel1"},
 		{"port-channel10", "port-channel10"},
 	}
+	d := &Driver{}
 	for _, tc := range tests {
 		if got := normalizeInterface(tc.in); got != tc.want {
 			t.Errorf("normalizeInterface(%q) = %q; expected %q", tc.in, got, tc.want)
+		}
+		if got := d.NormalizeInterface(tc.in); got != tc.want {
+			t.Errorf("Driver.NormalizeInterface(%q) = %q; expected %q", tc.in, got, tc.want)
 		}
 	}
 }
@@ -253,5 +263,38 @@ func TestIsDmSwitchCommandError(t *testing.T) {
 	}
 	if d.IsCommandError("Packets invalid: 0") {
 		t.Fatal("must not treat a counter line containing 'invalid' as a command error")
+	}
+}
+
+func TestGetSessionProfile(t *testing.T) {
+	p := (&Driver{}).GetSessionProfile()
+	if p.PromptPattern == nil || !p.PromptPattern.MatchString("DmSwitch#\n") {
+		t.Fatal("expected DmSwitch prompt pattern to match DmSwitch#")
+	}
+	if p.PagerPattern == nil || !p.PagerPattern.MatchString("--More--") {
+		t.Fatal("expected pager pattern to match --More--")
+	}
+	if p.PagerResponse != " " {
+		t.Fatalf("PagerResponse = %q", p.PagerResponse)
+	}
+}
+
+func TestGetL3Interfaces(t *testing.T) {
+	repo := &mockRepo{responses: map[string]string{
+		"show ip interface brief": `
+Interface            IP-Address      Status
+Vlan1                192.168.1.1     up
+Vlan10               10.0.0.1        up
+ethernet1/1          unassigned      up
+Vlan-interface20     10.0.20.1       up
+`,
+	}}
+	got, err := (&Driver{}).GetL3Interfaces(repo)
+	if err != nil {
+		t.Fatalf("GetL3Interfaces error: %v", err)
+	}
+	want := []string{"1", "10", "20"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("GetL3Interfaces() = %v; expected %v", got, want)
 	}
 }

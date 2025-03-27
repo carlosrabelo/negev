@@ -7,11 +7,20 @@ import (
 	"github.com/carlosrabelo/negev/negev/internal/domain/entities"
 )
 
-// defaultSessionProfile matches typical Cisco IOS/NX-OS privileged prompts.
+// defaultPromptPattern matches Cisco hostname[>#] lines and Comware
+// user-view `<sysname>` / system-view `[sysname]` (or `[sysname-...]`) lines.
+var defaultPromptPattern = regexp.MustCompile(
+	`(?m)^(?:<[^>\n]+>|\[[^\]\n]+\]|[A-Za-z0-9_.-]+(?:-[A-Za-z0-9_.-]+)*[>#])\s*$`,
+)
+
+// defaultPagerPattern matches Cisco `--More--` and Comware `---- More ----`.
+var defaultPagerPattern = regexp.MustCompile(`(?m)--More--|---- More ----`)
+
+// defaultSessionProfile is used when a driver does not supply its own profile.
 func defaultSessionProfile() entities.SessionProfile {
 	return entities.SessionProfile{
-		PromptPattern: regexp.MustCompile(`(?m)^[A-Za-z0-9_.-]+(?:-[A-Za-z0-9_.-]+)*[>#]\s*$`),
-		PagerPattern:  regexp.MustCompile(`(?m)--More--|---- More ----`),
+		PromptPattern: defaultPromptPattern,
+		PagerPattern:  defaultPagerPattern,
 		PagerResponse: " ",
 	}
 }

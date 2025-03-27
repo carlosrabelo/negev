@@ -60,3 +60,37 @@ func TestEffectiveProfileFillsDefaults(t *testing.T) {
 		t.Fatalf("expected defaults, got %+v", p)
 	}
 }
+
+func TestComwarePromptAndPager(t *testing.T) {
+	profile := defaultSessionProfile()
+
+	cases := []struct {
+		name string
+		buf  string
+		want bool
+	}{
+		{"user view", "display version\n<3Com>\n", true},
+		{"system view", "system-view\n[3Com]\n", true},
+		{"system subview", "interface Vlan-interface1\n[3Com-Vlan-interface1]\n", true},
+		{"incomplete angle", "display version\n<3Com\n", false},
+		{"hash in body still ignored", "Description: port #1\n", false},
+	}
+	for _, tc := range cases {
+		if got := promptMatched(profile, tc.buf); got != tc.want {
+			t.Errorf("%s: promptMatched = %v; expected %v", tc.name, got, tc.want)
+		}
+	}
+
+	pagerBuf := "vlan 1\n---- More ----\nvlan 10\n"
+	loc := pagerMatchLoc(profile, pagerBuf)
+	if loc == nil {
+		t.Fatal("expected ---- More ---- pager match for Comware")
+	}
+	cleaned := stripPager(pagerBuf, loc)
+	if strings.Contains(cleaned, "---- More ----") {
+		t.Fatalf("Comware pager text should be stripped, got %q", cleaned)
+	}
+	if profile.PagerResponse != " " {
+		t.Fatalf("PagerResponse = %q; expected space to advance Comware pager", profile.PagerResponse)
+	}
+}

@@ -110,9 +110,13 @@ func TestNormalizeInterface(t *testing.T) {
 		{"mgmt0", "mgmt0"},
 		{"Vlan10", "Vlan10"},
 	}
+	d := &Driver{}
 	for _, tc := range tests {
 		if got := normalizeInterface(tc.in); got != tc.want {
 			t.Errorf("normalizeInterface(%q) = %q; expected %q", tc.in, got, tc.want)
+		}
+		if got := d.NormalizeInterface(tc.in); got != tc.want {
+			t.Errorf("Driver.NormalizeInterface(%q) = %q; expected %q", tc.in, got, tc.want)
 		}
 	}
 }
@@ -253,5 +257,39 @@ func TestIsNXOSCommandError(t *testing.T) {
 	}
 	if d.IsCommandError("Packets invalid: 0") {
 		t.Fatal("must not treat a counter line containing 'invalid' as a command error")
+	}
+}
+
+func TestGetSessionProfile(t *testing.T) {
+	p := (&Driver{}).GetSessionProfile()
+	if p.PromptPattern == nil || !p.PromptPattern.MatchString("Nexus#\n") {
+		t.Fatal("expected NX-OS prompt pattern to match Nexus#")
+	}
+	if p.PagerPattern == nil || !p.PagerPattern.MatchString("--More--") {
+		t.Fatal("expected NX-OS pager pattern to match --More--")
+	}
+	if p.PagerResponse != " " {
+		t.Fatalf("PagerResponse = %q", p.PagerResponse)
+	}
+}
+
+func TestGetL3Interfaces(t *testing.T) {
+	repo := &mockRepo{responses: map[string]string{
+		"show ip interface brief": `
+IP Interface Status for VRF "default"(1)
+Interface            IP Address      Interface Status
+Vlan1                192.168.1.1     protocol-up/link-up/admin-up
+Vlan10               10.0.0.1        protocol-up/link-up/admin-up
+Ethernet1/1          unassigned      protocol-up/link-up/admin-up
+Vlan20               10.0.20.1       protocol-up/link-up/admin-up
+`,
+	}}
+	got, err := (&Driver{}).GetL3Interfaces(repo)
+	if err != nil {
+		t.Fatalf("GetL3Interfaces error: %v", err)
+	}
+	want := []string{"1", "10", "20"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("GetL3Interfaces() = %v; expected %v", got, want)
 	}
 }

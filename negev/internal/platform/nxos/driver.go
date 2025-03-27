@@ -15,6 +15,9 @@ import (
 
 var vlanLineRegex = regexp.MustCompile(`^\s*(?:vlan\s+)?(\d{1,4})\b`)
 var macLineRegex = regexp.MustCompile(`(?i)^\s*[*+GC]?\s*(\d+)\s+([0-9a-f]{4}\.[0-9a-f]{4}\.[0-9a-f]{4})\s+(dynamic|static)\s+\S+\s+\S+\s+\S+\s+(\S+)`)
+var sviNameRegex = regexp.MustCompile(`(?i)^Vlan(\d+)$`)
+var nxosPromptPattern = regexp.MustCompile(`(?m)^[A-Za-z0-9_.-]+(?:-[A-Za-z0-9_.-]+)*[>#]\s*$`)
+var nxosPagerPattern = regexp.MustCompile(`(?m)--More--`)
 
 var statusTokens = map[string]bool{
 	"connected": true,
@@ -342,7 +345,11 @@ func (d *Driver) DeleteVLANCommands(vlan string) []string {
 }
 
 func (d *Driver) GetSessionProfile() entities.SessionProfile {
-	return entities.SessionProfile{}
+	return entities.SessionProfile{
+		PromptPattern: nxosPromptPattern,
+		PagerPattern:  nxosPagerPattern,
+		PagerResponse: " ",
+	}
 }
 
 func (d *Driver) NormalizeInterface(name string) string {
@@ -350,7 +357,37 @@ func (d *Driver) NormalizeInterface(name string) string {
 }
 
 func (d *Driver) GetL3Interfaces(repo ports.SwitchRepository) ([]string, error) {
-	return nil, nil
+	out, err := repo.ExecuteCommand("show ip interface brief")
+	if err != nil {
+		return nil, err
+	}
+	return parseL3Interfaces(out), nil
+}
+
+func parseL3Interfaces(output string) []string {
+	seen := make(map[string]bool)
+	var vlans []string
+	for _, line := range strings.Split(output, "\n") {
+		fields := strings.Fields(line)
+		if len(fields) == 0 {
+			continue
+		}
+		m := sviNameRegex.FindStringSubmatch(fields[0])
+		if m == nil {
+			continue
+		}
+		v := m[1]
+		if !seen[v] {
+			seen[v] = true
+			vlans = append(vlans, v)
+		}
+	}
+	sort.Slice(vlans, func(i, j int) bool {
+		ai, _ := strconv.Atoi(vlans[i])
+		bi, _ := strconv.Atoi(vlans[j])
+		return ai < bi
+	})
+	return vlans
 }
 
 func (d *Driver) SaveCommands() []string {

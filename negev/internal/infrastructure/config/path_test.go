@@ -13,6 +13,12 @@ func TestFindPathCustomAndMissing(t *testing.T) {
 	}
 
 	dir := t.TempDir()
+	// Isolate UserConfigDir so a real ~/.config/negev/config.yaml cannot leak.
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(dir, "xdg"))
+	t.Setenv("HOME", dir)
+	t.Setenv("APPDATA", filepath.Join(dir, "appdata"))
+	t.Setenv("ProgramData", filepath.Join(dir, "programdata"))
+
 	cwd, err := os.Getwd()
 	if err != nil {
 		t.Fatal(err)

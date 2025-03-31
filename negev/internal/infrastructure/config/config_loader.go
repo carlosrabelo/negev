@@ -28,7 +28,7 @@ type Config struct {
 
 func debugf(verbose bool, format string, args ...any) {
 	if verbose {
-		fmt.Printf(format, args...)
+		fmt.Fprintf(os.Stderr, format, args...)
 	}
 }
 

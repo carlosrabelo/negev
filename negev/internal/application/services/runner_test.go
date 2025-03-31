@@ -176,6 +176,25 @@ func TestRunAutoDetectConnectFailure(t *testing.T) {
 	}
 }
 
+func TestApplyAskPassOverridesCredentials(t *testing.T) {
+	cfg := &config.Config{Switches: []entities.SwitchConfig{
+		{Target: "10.0.0.1", Password: "yaml", EnablePassword: "yaml-en"},
+		{Target: "10.0.0.2", Password: "other", EnablePassword: "other-en"},
+	}}
+	applyAskPass(cfg, "10.0.0.1", "prompted", "prompt-en")
+	if cfg.Switches[0].Password != "prompted" || cfg.Switches[0].EnablePassword != "prompt-en" {
+		t.Fatalf("target not overridden: %+v", cfg.Switches[0])
+	}
+	if cfg.Switches[1].Password != "other" || cfg.Switches[1].EnablePassword != "other-en" {
+		t.Fatalf("other switch changed: %+v", cfg.Switches[1])
+	}
+
+	applyAskPass(cfg, "10.0.0.1", "only-pass", "")
+	if cfg.Switches[0].Password != "only-pass" || cfg.Switches[0].EnablePassword != "prompt-en" {
+		t.Fatalf("empty enable should keep prior enable: %+v", cfg.Switches[0])
+	}
+}
+
 func TestRunAutoDetectNoMatch(t *testing.T) {
 	cli := &scriptedClient{
 		responses: map[string]string{

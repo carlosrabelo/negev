@@ -5,10 +5,12 @@ type SwitchConfig struct {
 	LegacyPlatform string            `yaml:"vendor"`
 	Target         string            `yaml:"target"`
 	Transport      string            `yaml:"transport"`
-	Username       string            `yaml:"username"`
-	Password       string            `yaml:"password"`
-	EnablePassword string            `yaml:"enable_password"`
-	MacToVlan      map[string]string `yaml:"mac_to_vlan"`
+	Username              string            `yaml:"username"`
+	Password              string            `yaml:"password"`
+	EnablePassword        string            `yaml:"enable_password"`
+	PasswordCommand       string            `yaml:"password_command"`
+	EnablePasswordCommand string            `yaml:"enable_password_command"`
+	MacToVlan             map[string]string `yaml:"mac_to_vlan"`
 	ExcludeMacs    []string          `yaml:"exclude_macs"`
 	ExcludePorts   []string          `yaml:"exclude_ports"`
 	DefaultVlan    string            `yaml:"default_vlan"`

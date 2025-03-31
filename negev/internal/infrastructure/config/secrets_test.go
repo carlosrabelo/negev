@@ -58,6 +58,56 @@ switches:
 	}
 }
 
+func TestPasswordCommandExecution(t *testing.T) {
+	yaml := `
+username: admin
+password_command: "printf 'p@ss\\r\\n'"
+enable_password_command: "printf 'enab1e\\n'"
+default_vlan: "10"
+switches:
+  - target: "192.0.2.1"
+    platform: ios
+`
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	if err := os.WriteFile(path, []byte(yaml), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(path, "192.0.2.1", 0)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.Password != "p@ss" {
+		t.Fatalf("password = %q; want p@ss (trimmed)", cfg.Password)
+	}
+	if cfg.EnablePassword != "enab1e" {
+		t.Fatalf("enable_password = %q; want enab1e", cfg.EnablePassword)
+	}
+	sw := cfg.Switches[0]
+	if sw.Password != "p@ss" || sw.EnablePassword != "enab1e" {
+		t.Fatalf("inherited switch credentials = %q/%q", sw.Password, sw.EnablePassword)
+	}
+}
+
+func TestPasswordCommandTimeout(t *testing.T) {
+	yaml := `
+username: admin
+password_command: "sleep 10"
+enable_password: "e"
+default_vlan: "10"
+switches:
+  - target: "192.0.2.1"
+    platform: ios
+`
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	if err := os.WriteFile(path, []byte(yaml), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, err := Load(path, "", 0)
+	if err == nil || !strings.Contains(err.Error(), "password command failed") {
+		t.Fatalf("Load timeout = %v", err)
+	}
+}
+
 func TestEnvVarMissingError(t *testing.T) {
 	_ = os.Unsetenv("NEGEV_MISSING_SECRET")
 	_, err := expandEnv("x=${NEGEV_MISSING_SECRET}")

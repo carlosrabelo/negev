@@ -33,6 +33,7 @@ func run(args []string) int {
 	write := fs.Bool("write", false, "Apply changes (disables sandbox)")
 	verbose := fs.Int("verbose", 0, "Verbosity level: 0=none, 1=debug, 2=raw, 3=both")
 	createVLANs := fs.Bool("create-vlans", false, "Synchronize VLANs (create missing, delete extras)")
+	askPass := fs.Bool("ask-pass", false, "Prompt interactively for switch passwords")
 	showVersion := fs.Bool("version", false, "Show version and exit")
 	fs.Usage = func() { printUsage(fs) }
 
@@ -50,7 +51,12 @@ func run(args []string) int {
 		return 1
 	}
 
-	result, err := services.RunTarget(*target, *configPath, *write, *verbose, *createVLANs)
+	var ask services.AskPassFunc
+	if *askPass {
+		ask = promptAskPass
+	}
+
+	result, err := services.RunTarget(*target, *configPath, *write, *verbose, *createVLANs, ask)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
 		return 1
@@ -81,5 +87,6 @@ func printUsage(fs *flag.FlagSet) {
 	fmt.Fprintf(os.Stderr, "  --write\n        Apply changes (disables sandbox)\n")
 	fmt.Fprintf(os.Stderr, "  --verbose <0-3>\n        Verbosity level: 0=none, 1=debug, 2=raw, 3=both (default 0)\n")
 	fmt.Fprintf(os.Stderr, "  --create-vlans\n        Synchronize VLANs (create missing, delete extras)\n")
+	fmt.Fprintf(os.Stderr, "  --ask-pass\n        Prompt interactively for switch passwords\n")
 	fmt.Fprintf(os.Stderr, "  --version\n        Show version and exit\n")
 }

@@ -6,6 +6,7 @@ import (
 	"io"
 	"log/slog"
 	"net"
+	"os"
 	"strings"
 	"time"
 
@@ -126,7 +127,7 @@ func (sc *SSHClient) Connect() error {
 	sc.netConn = rawConn
 
 	if sc.config.IsDebugEnabled() {
-		fmt.Printf("DEBUG: Connected to %s via SSH\n", sc.config.Target)
+		fmt.Fprintf(os.Stderr, "DEBUG: Connected to %s via SSH\n", sc.config.Target)
 	}
 
 	initial, err := sc.readUntilAny([]string{PromptPrivileged, PromptEnable}, DefaultTimeout)
@@ -175,7 +176,7 @@ func (sc *SSHClient) Connect() error {
 					if strings.Contains(strings.ToLower(p.WaitFor), "password") {
 						displayCmd = "********"
 					}
-					fmt.Printf("DEBUG: Sent %s for prompt %s\n", displayCmd, p.WaitFor)
+					fmt.Fprintf(os.Stderr, "DEBUG: Sent %s for prompt %s\n", displayCmd, p.WaitFor)
 				}
 				currentOutput = ""
 			}
@@ -183,7 +184,7 @@ func (sc *SSHClient) Connect() error {
 	} else {
 		if !strings.Contains(initial, PromptPrivileged) {
 			if sc.config.IsDebugEnabled() {
-				fmt.Printf("DEBUG: Elevating to privileged mode on %s\n", sc.config.Target)
+				fmt.Fprintf(os.Stderr, "DEBUG: Elevating to privileged mode on %s\n", sc.config.Target)
 			}
 			if err := sc.send("enable\n"); err != nil {
 				sc.Disconnect()
@@ -232,7 +233,7 @@ func (sc *SSHClient) Disconnect() {
 	sc.stdin = nil
 	sc.reader = nil
 	if sc.config.IsDebugEnabled() {
-		fmt.Println("DEBUG: Disconnected")
+		fmt.Fprintln(os.Stderr, "DEBUG: Disconnected")
 	}
 }
 
@@ -242,7 +243,7 @@ func (sc *SSHClient) IsConnected() bool {
 
 func (sc *SSHClient) ExecuteCommand(cmd string) (string, error) {
 	if sc.config.IsDebugEnabled() {
-		fmt.Printf("DEBUG: Executing: %s\n", cmd)
+		fmt.Fprintf(os.Stderr, "DEBUG: Executing: %s\n", cmd)
 	}
 	if sc.netConn != nil {
 		_ = sc.netConn.SetWriteDeadline(time.Now().Add(DefaultTimeout))
@@ -258,7 +259,7 @@ func (sc *SSHClient) ExecuteCommand(cmd string) (string, error) {
 	output := stripCommandEchoAndPrompt(raw)
 
 	if sc.config.IsRawOutputEnabled() {
-		fmt.Printf("Switch output for '%s':\n%s\n", cmd, output)
+		fmt.Fprintf(os.Stderr, "Switch output for '%s':\n%s\n", cmd, output)
 	}
 
 	return output, nil
@@ -280,7 +281,7 @@ func (sc *SSHClient) readUntilPrompt(profile entities.SessionProfile, timeout ti
 		if n > 0 {
 			output.Write(buffer[:n])
 			if sc.config.IsRawOutputEnabled() {
-				fmt.Printf("Switch output: Read: %s\n", string(buffer[:n]))
+				fmt.Fprintf(os.Stderr, "Switch output: Read: %s\n", string(buffer[:n]))
 			}
 			text := output.String()
 			for {
@@ -347,7 +348,7 @@ func (sc *SSHClient) readUntilAny(patterns []string, timeout time.Duration) (str
 		if n > 0 {
 			output.Write(buffer[:n])
 			if sc.config.IsRawOutputEnabled() {
-				fmt.Printf("Switch output: Read: %s\n", string(buffer[:n]))
+				fmt.Fprintf(os.Stderr, "Switch output: Read: %s\n", string(buffer[:n]))
 			}
 			text := output.String()
 			for _, pattern := range patterns {

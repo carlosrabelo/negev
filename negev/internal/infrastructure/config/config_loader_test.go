@@ -327,14 +327,47 @@ switches:
 	}
 }
 
-func TestValidatePlatformErrorListsNXOS(t *testing.T) {
+func TestValidatePlatformErrorListsComware(t *testing.T) {
 	err := validatePlatform("bogus")
 	if err == nil {
 		t.Fatal("expected error for invalid platform")
 	}
-	want := "platform bogus is invalid, must be 'ios', 'nxos', 'dmswitch', 'dm1200', or 'auto'"
+	want := "platform bogus is invalid, must be 'ios', 'nxos', 'dmswitch', 'dm1200', 'comware', or 'auto'"
 	if err.Error() != want {
 		t.Fatalf("error = %q; expected %q", err.Error(), want)
+	}
+}
+
+func TestNormalizeMACStripsHyphen(t *testing.T) {
+	got := NormalizeMAC("00-11-22-AA-BB-CC")
+	want := "001122aabbcc"
+	if got != want {
+		t.Fatalf("NormalizeMAC() = %q; expected %q", got, want)
+	}
+}
+
+func TestLoadAcceptsComwarePlatform(t *testing.T) {
+	yamlData := `
+platform: auto
+transport: telnet
+username: admin
+password: cisco123
+enable_password: cisco123
+default_vlan: "1"
+switches:
+  - target: 192.0.2.40
+    platform: comware
+`
+	tmpFile := filepath.Join(t.TempDir(), "comware.yaml")
+	if err := os.WriteFile(tmpFile, []byte(yamlData), 0644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(tmpFile, "192.0.2.40", 0)
+	if err != nil {
+		t.Fatalf("Load() with platform comware returned error: %v", err)
+	}
+	if cfg.Switches[0].Platform != "comware" {
+		t.Fatalf("Platform = %q; expected %q", cfg.Switches[0].Platform, "comware")
 	}
 }
 

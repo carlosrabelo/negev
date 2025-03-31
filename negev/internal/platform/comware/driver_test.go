@@ -161,3 +161,67 @@ MAC ADDR        VLAN ID   STATE          PORT INDEX               AGING TIME(s)
 		t.Fatalf("parseMacTable() = %+v; expected %+v", got, want)
 	}
 }
+
+func TestConfigureAccessCommands(t *testing.T) {
+	got := (&Driver{}).ConfigureAccessCommands(entities.Port{Interface: "Ethernet1/0/5"}, "10")
+	want := []string{
+		"system-view",
+		"interface Ethernet1/0/5",
+		"port link-type access",
+		"port access vlan 10",
+		"quit",
+		"return",
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("ConfigureAccessCommands() = %v; expected %v", got, want)
+	}
+}
+
+func TestCreateVLANCommands(t *testing.T) {
+	got := (&Driver{}).CreateVLANCommands("20")
+	want := []string{
+		"system-view",
+		"vlan 20",
+		"quit",
+		"return",
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("CreateVLANCommands() = %v; expected %v", got, want)
+	}
+}
+
+func TestDeleteVLANCommands(t *testing.T) {
+	got := (&Driver{}).DeleteVLANCommands("20")
+	want := []string{
+		"system-view",
+		"undo vlan 20",
+		"return",
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("DeleteVLANCommands() = %v; expected %v", got, want)
+	}
+	if got := (&Driver{}).DeleteVLANCommands("1"); got != nil {
+		t.Fatalf("DeleteVLANCommands(1) = %v; expected nil", got)
+	}
+}
+
+func TestSaveCommands(t *testing.T) {
+	got := (&Driver{}).SaveCommands()
+	want := []string{"save\ny\n\n"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("SaveCommands() = %v; expected %v", got, want)
+	}
+}
+
+func TestIsComwareCommandError(t *testing.T) {
+	d := &Driver{}
+	if !d.IsCommandError("% Unrecognized command found at '^' position.") {
+		t.Fatal("expected unrecognized command to be an error")
+	}
+	if !d.IsCommandError("% Wrong parameter found at '^' position.") {
+		t.Fatal("expected wrong parameter to be an error")
+	}
+	if d.IsCommandError("Packets invalid: 0") {
+		t.Fatal("must not treat a counter line as a command error")
+	}
+}

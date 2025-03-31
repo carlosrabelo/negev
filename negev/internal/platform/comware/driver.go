@@ -391,15 +391,59 @@ func (d *Driver) GetL3Interfaces(repo ports.SwitchRepository) ([]string, error) 
 }
 
 func (d *Driver) ConfigureAccessCommands(port entities.Port, vlan string) []string {
-	return nil
+	return []string{
+		"system-view",
+		"interface " + port.Interface,
+		"port link-type access",
+		"port access vlan " + vlan,
+		"quit",
+		"return",
+	}
 }
 
-func (d *Driver) CreateVLANCommands(vlan string) []string { return nil }
+func (d *Driver) CreateVLANCommands(vlan string) []string {
+	return []string{
+		"system-view",
+		"vlan " + vlan,
+		"quit",
+		"return",
+	}
+}
 
-func (d *Driver) DeleteVLANCommands(vlan string) []string { return nil }
+func (d *Driver) DeleteVLANCommands(vlan string) []string {
+	if vlan == "1" {
+		return nil
+	}
+	return []string{
+		"system-view",
+		"undo vlan " + vlan,
+		"return",
+	}
+}
 
-func (d *Driver) SaveCommands() []string { return nil }
+func (d *Driver) SaveCommands() []string {
+	return []string{
+		"save\ny\n\n",
+	}
+}
 
 func (d *Driver) ClearCache() {}
 
-func (d *Driver) IsCommandError(output string) bool { return false }
+var comwareErrorPatterns = []string{
+	"% unrecognized command",
+	"% wrong parameter",
+	"% incomplete command",
+	"% ambiguous command",
+	"% too many parameters",
+	"error:",
+}
+
+func (d *Driver) IsCommandError(output string) bool {
+	lower := strings.ToLower(output)
+	for _, pat := range comwareErrorPatterns {
+		if strings.Contains(lower, pat) {
+			return true
+		}
+	}
+	return false
+}

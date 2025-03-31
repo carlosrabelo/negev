@@ -1,11 +1,96 @@
 package config
 
 import (
+	"bytes"
+	"context"
 	"fmt"
 	"os"
+	"os/exec"
+	"runtime"
 	"strings"
+	"syscall"
+	"time"
 	"unicode"
 )
+
+const passwordCommandTimeout = 5 * time.Second
+
+func resolvePasswordCommands(password *string, passwordCmd string, enable *string, enableCmd string) error {
+	if *password == "" && passwordCmd != "" {
+		out, err := runPasswordCommand(passwordCmd)
+		if err != nil {
+			return err
+		}
+		*password = out
+	}
+	if *enable == "" && enableCmd != "" {
+		out, err := runPasswordCommand(enableCmd)
+		if err != nil {
+			return err
+		}
+		*enable = out
+	}
+	return nil
+}
+
+func runPasswordCommand(command string) (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), passwordCommandTimeout)
+	defer cancel()
+
+	var cmd *exec.Cmd
+	if runtime.GOOS == "windows" {
+		cmd = exec.Command("cmd", "/C", command)
+	} else {
+		cmd = exec.Command("/bin/sh", "-c", command)
+		cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	}
+	cmd.Env = minimalPasswordCommandEnv()
+	var stdout bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &bytes.Buffer{}
+
+	if err := cmd.Start(); err != nil {
+		return "", fmt.Errorf("password command failed: %w", err)
+	}
+
+	done := make(chan error, 1)
+	go func() { done <- cmd.Wait() }()
+
+	select {
+	case err := <-done:
+		if err != nil {
+			return "", fmt.Errorf("password command failed: %w", err)
+		}
+		return strings.TrimRight(stdout.String(), "\r\n"), nil
+	case <-ctx.Done():
+		killPasswordCommand(cmd)
+		<-done
+		return "", fmt.Errorf("password command failed: %w", context.DeadlineExceeded)
+	}
+}
+
+func killPasswordCommand(cmd *exec.Cmd) {
+	if cmd.Process == nil {
+		return
+	}
+	if runtime.GOOS == "windows" {
+		_ = cmd.Process.Kill()
+		return
+	}
+	// Negative PID kills the process group started with Setpgid.
+	_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+}
+
+func minimalPasswordCommandEnv() []string {
+	keys := []string{"PATH", "HOME", "USER", "LANG", "LC_ALL", "SystemRoot", "ComSpec"}
+	var env []string
+	for _, key := range keys {
+		if val, ok := os.LookupEnv(key); ok {
+			env = append(env, key+"="+val)
+		}
+	}
+	return env
+}
 
 // expandEnv resolves ${VAR} references in s. $${VAR} becomes the literal ${VAR}.
 // Unset variables return an error: environment variable "VAR" not set.

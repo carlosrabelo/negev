@@ -11,19 +11,21 @@ import (
 )
 
 type Config struct {
-	Platform       string                  `yaml:"platform"`
-	LegacyVendor   string                  `yaml:"vendor"`
-	Transport      string                  `yaml:"transport"`
-	Username       string                  `yaml:"username"`
-	Password       string                  `yaml:"password"`
-	EnablePassword string                  `yaml:"enable_password"`
-	DefaultVlan    string                  `yaml:"default_vlan"`
-	NoDataVlan     string                  `yaml:"no_data_vlan"`
-	ExcludeMacs    []string                `yaml:"exclude_macs"`
-	MacToVlan      map[string]string       `yaml:"mac_to_vlan"`
-	AllowedVlans   []string                `yaml:"allowed_vlans"`
-	ProtectedVlans []string                `yaml:"protected_vlans"`
-	Switches       []entities.SwitchConfig `yaml:"switches"`
+	Platform              string                  `yaml:"platform"`
+	LegacyVendor          string                  `yaml:"vendor"`
+	Transport             string                  `yaml:"transport"`
+	Username              string                  `yaml:"username"`
+	Password              string                  `yaml:"password"`
+	EnablePassword        string                  `yaml:"enable_password"`
+	PasswordCommand       string                  `yaml:"password_command"`
+	EnablePasswordCommand string                  `yaml:"enable_password_command"`
+	DefaultVlan           string                  `yaml:"default_vlan"`
+	NoDataVlan            string                  `yaml:"no_data_vlan"`
+	ExcludeMacs           []string                `yaml:"exclude_macs"`
+	MacToVlan             map[string]string       `yaml:"mac_to_vlan"`
+	AllowedVlans          []string                `yaml:"allowed_vlans"`
+	ProtectedVlans        []string                `yaml:"protected_vlans"`
+	Switches              []entities.SwitchConfig `yaml:"switches"`
 }
 
 func debugf(verbose bool, format string, args ...any) {
@@ -122,6 +124,9 @@ func Load(yamlFile, target string, verbosityLevel int) (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
+	if err := resolvePasswordCommands(&cfg.Password, cfg.PasswordCommand, &cfg.EnablePassword, cfg.EnablePasswordCommand); err != nil {
+		return nil, err
+	}
 	for i := range cfg.Switches {
 		sw := &cfg.Switches[i]
 		sw.Username, sw.Password, sw.EnablePassword, err = expandCredentialFields(sw.Username, sw.Password, sw.EnablePassword)
@@ -165,12 +170,6 @@ func Load(yamlFile, target string, verbosityLevel int) (*Config, error) {
 	if cfg.Username == "" {
 		return nil, fmt.Errorf("global username is required")
 	}
-	if cfg.Password == "" {
-		return nil, fmt.Errorf("global password is required")
-	}
-	if cfg.EnablePassword == "" {
-		return nil, fmt.Errorf("global enable_password is required")
-	}
 
 	debugf(verbose, "DEBUG: Global values: Platform=%s, Transport=%s, DefaultVlan=%s, NoDataVlan=%s\n",
 		cfg.Platform, cfg.Transport, cfg.DefaultVlan, cfg.NoDataVlan)
@@ -211,10 +210,24 @@ func Load(yamlFile, target string, verbosityLevel int) (*Config, error) {
 			sw.Username = cfg.Username
 		}
 		if sw.Password == "" {
-			sw.Password = cfg.Password
+			if sw.PasswordCommand != "" {
+				sw.Password, err = runPasswordCommand(sw.PasswordCommand)
+				if err != nil {
+					return nil, err
+				}
+			} else {
+				sw.Password = cfg.Password
+			}
 		}
 		if sw.EnablePassword == "" {
-			sw.EnablePassword = cfg.EnablePassword
+			if sw.EnablePasswordCommand != "" {
+				sw.EnablePassword, err = runPasswordCommand(sw.EnablePasswordCommand)
+				if err != nil {
+					return nil, err
+				}
+			} else {
+				sw.EnablePassword = cfg.EnablePassword
+			}
 		}
 
 		if sw.DefaultVlan == "" {

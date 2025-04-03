@@ -103,7 +103,7 @@ negev/internal/infrastructure/   # Config loading, transport (Telnet/SSH), clien
 negev/internal/platform/         # Platform drivers (ios, dmos) and registries
 bin/                             # Compiled binaries (git-ignored)
 .make/                           # Build and install scripts
-demos/                           # Sample configuration files
+docs/examples/                   # Sample configuration files
 ```
 
 ## Development

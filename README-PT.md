@@ -103,7 +103,7 @@ negev/internal/infrastructure/   # Carregamento de configuração, transporte (T
 negev/internal/platform/         # Drivers de plataforma (ios, dmos) e registros
 bin/                             # Binários compilados (git-ignored)
 .make/                           # Scripts de build e instalação
-demos/                           # Arquivos de configuração de exemplo
+docs/examples/                   # Arquivos de configuração de exemplo
 ```
 
 ## Desenvolvimento

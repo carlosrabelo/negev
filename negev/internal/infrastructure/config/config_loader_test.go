@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/carlosrabelo/negev/negev/internal/domain/entities"
@@ -522,5 +523,68 @@ switches:
 	}
 	if _, err := Load(path, "", 0); err == nil {
 		t.Fatal("expected invalid multi_mac_policy error")
+	}
+}
+
+func TestSwitchNameAndTagsParsing(t *testing.T) {
+	yamlData := `
+username: admin
+password: p
+enable_password: e
+default_vlan: "10"
+switches:
+  - name: bh-a2-sw-01
+    target: 10.13.150.82
+    tags: [distribution, building-a, distribution]
+    platform: ios
+  - target: 10.13.150.83
+    platform: ios
+    tags: ["  edge  ", ""]
+`
+	path := filepath.Join(t.TempDir(), "names-tags.yaml")
+	if err := os.WriteFile(path, []byte(yamlData), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(path, "", 0)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	sw0 := cfg.Switches[0]
+	if sw0.Name != "bh-a2-sw-01" {
+		t.Fatalf("Name = %q", sw0.Name)
+	}
+	if len(sw0.Tags) != 2 || sw0.Tags[0] != "distribution" || sw0.Tags[1] != "building-a" {
+		t.Fatalf("Tags = %#v; want deduped [distribution building-a]", sw0.Tags)
+	}
+	sw1 := cfg.Switches[1]
+	if sw1.Name != "" {
+		t.Fatalf("optional name should be empty, got %q", sw1.Name)
+	}
+	if len(sw1.Tags) != 1 || sw1.Tags[0] != "edge" {
+		t.Fatalf("trimmed tags = %#v", sw1.Tags)
+	}
+}
+
+func TestDuplicateSwitchNameError(t *testing.T) {
+	yamlData := `
+username: admin
+password: p
+enable_password: e
+default_vlan: "10"
+switches:
+  - name: core-1
+    target: 10.0.0.1
+    platform: ios
+  - name: core-1
+    target: 10.0.0.2
+    platform: ios
+`
+	path := filepath.Join(t.TempDir(), "dup-name.yaml")
+	if err := os.WriteFile(path, []byte(yamlData), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, err := Load(path, "", 0)
+	if err == nil || !strings.Contains(err.Error(), `duplicate switch name "core-1"`) {
+		t.Fatalf("Load duplicate name = %v", err)
 	}
 }

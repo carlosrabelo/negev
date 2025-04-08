@@ -1,8 +1,11 @@
 package services
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
+	"log/slog"
+	"strings"
 	"testing"
 
 	"github.com/carlosrabelo/negev/negev/internal/domain/entities"
@@ -10,14 +13,14 @@ import (
 )
 
 type mockRepository struct {
-	connected     bool
-	executed      []string
-	connectErr    error
-	commandErr    error
-	commandOut    string
-	failOnCmd     string
-	commandErrBy  map[string]error
-	sessionSet    bool
+	connected      bool
+	executed       []string
+	connectErr     error
+	commandErr     error
+	commandOut     string
+	failOnCmd      string
+	commandErrBy   map[string]error
+	sessionSet     bool
 	sessionProfile entities.SessionProfile
 }
 
@@ -80,7 +83,7 @@ func (d *stubDriver) Name() string { return "stub" }
 func (d *stubDriver) Detect(repo ports.SwitchRepository) (bool, error) {
 	return true, nil
 }
-func (d *stubDriver) GetSessionProfile() entities.SessionProfile { return entities.SessionProfile{} }
+func (d *stubDriver) GetSessionProfile() entities.SessionProfile       { return entities.SessionProfile{} }
 func (d *stubDriver) GetAuthenticationSequence() []entities.AuthPrompt { return nil }
 func (d *stubDriver) GetVLANList(repo ports.SwitchRepository) ([]string, error) {
 	if d.vlanListErr != nil {
@@ -893,5 +896,118 @@ func TestLongestPrefixMatchVariableLengths(t *testing.T) {
 	}
 	if got := resolveMacToVlan("aabbccddeeff", mapping, "10"); got != "10" {
 		t.Fatalf("default fallback = %s; want 10", got)
+	}
+}
+
+func TestMultiMacPolicyIgnore(t *testing.T) {
+	var logBuf bytes.Buffer
+	prev := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&logBuf, &slog.HandlerOptions{Level: slog.LevelWarn})))
+	t.Cleanup(func() { slog.SetDefault(prev) })
+
+	repo := &mockRepository{}
+	drv := &stubDriver{
+		vlans: []string{"1", "10", "20"},
+		ports: []entities.Port{{Interface: "Gi1/0/1", Vlan: "1"}},
+		devices: []entities.Device{
+			{Interface: "Gi1/0/1", Mac: "0004f2112233"},
+			{Interface: "Gi1/0/1", Mac: "3c2af4998877"},
+		},
+	}
+	cfg := entities.SwitchConfig{
+		Sandbox:        true,
+		DefaultVlan:    "10",
+		MultiMacPolicy: entities.MultiMacIgnore,
+		MacToVlan: map[string]string{
+			"0004f2": "50",
+			"3c2af4": "20",
+		},
+	}
+	result, err := NewVLANService(repo, cfg, drv).ProcessPorts()
+	if err != nil {
+		t.Fatalf("ProcessPorts: %v", err)
+	}
+	if result.PortsChanged != 0 {
+		t.Fatalf("PortsChanged=%d; want 0 (ignore skips multi-MAC)", result.PortsChanged)
+	}
+	if strings.Contains(logBuf.String(), "multiple MACs") || strings.Contains(logBuf.String(), "Multiple MACs") {
+		t.Fatalf("ignore must not warn, log=%q", logBuf.String())
+	}
+}
+
+func TestMultiMacPolicyAlert(t *testing.T) {
+	var logBuf bytes.Buffer
+	prev := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&logBuf, &slog.HandlerOptions{Level: slog.LevelWarn})))
+	t.Cleanup(func() { slog.SetDefault(prev) })
+
+	repo := &mockRepository{}
+	drv := &stubDriver{
+		vlans: []string{"1", "20", "50"},
+		ports: []entities.Port{{Interface: "Gi1/0/12", Vlan: "1"}},
+		devices: []entities.Device{
+			{Interface: "Gi1/0/12", Mac: "0004f2112233"},
+			{Interface: "Gi1/0/12", Mac: "3c2af4998877"},
+		},
+	}
+	cfg := entities.SwitchConfig{
+		Sandbox:        true,
+		DefaultVlan:    "10",
+		MultiMacPolicy: entities.MultiMacAlert,
+		MacToVlan: map[string]string{
+			"0004f2": "50",
+			"3c2af4": "20",
+		},
+	}
+	result, err := NewVLANService(repo, cfg, drv).ProcessPorts()
+	if err != nil {
+		t.Fatalf("ProcessPorts: %v", err)
+	}
+	if result.PortsChanged != 0 {
+		t.Fatalf("PortsChanged=%d; want 0 (alert skips)", result.PortsChanged)
+	}
+	logOut := logBuf.String()
+	if !strings.Contains(logOut, "Port Gi1/0/12 has multiple MACs:") {
+		t.Fatalf("missing alert message, log=%q", logOut)
+	}
+	if !strings.Contains(logOut, "0004f2112233 (VLAN 50)") || !strings.Contains(logOut, "3c2af4998877 (VLAN 20)") {
+		t.Fatalf("missing MAC/VLAN details, log=%q", logOut)
+	}
+	if !strings.Contains(logOut, "skipped") {
+		t.Fatalf("missing skipped marker, log=%q", logOut)
+	}
+}
+
+func TestMultiMacPolicyPriority(t *testing.T) {
+	repo := &mockRepository{}
+	drv := &stubDriver{
+		vlans: []string{"1", "20", "55"},
+		ports: []entities.Port{{Interface: "Gi1/0/1", Vlan: "1"}},
+		devices: []entities.Device{
+			{Interface: "Gi1/0/1", Mac: "0004f21a2b3c"}, // exact -> 55
+			{Interface: "Gi1/0/1", Mac: "3c2af4998877"}, // OUI -> 20
+		},
+	}
+	cfg := entities.SwitchConfig{
+		Sandbox:        true,
+		DefaultVlan:    "10",
+		MultiMacPolicy: entities.MultiMacPriority,
+		MacToVlan: map[string]string{
+			"0004f2":       "50",
+			"0004f21a2b3c": "55",
+			"3c2af4":       "20",
+		},
+	}
+	result, err := NewVLANService(repo, cfg, drv).ProcessPorts()
+	if err != nil {
+		t.Fatalf("ProcessPorts: %v", err)
+	}
+	if result.PortsChanged != 1 {
+		t.Fatalf("PortsChanged=%d; want 1 (priority picks longest explicit)", result.PortsChanged)
+	}
+	// Confirm chosen VLAN is 55 via resolve path
+	vlan, ok := NewVLANService(repo, cfg, drv).resolveTargetVlan(drv.ports[0], drv.devices)
+	if !ok || vlan != "55" {
+		t.Fatalf("priority vlan = %q ok=%v; want 55", vlan, ok)
 	}
 }

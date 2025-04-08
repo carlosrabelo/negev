@@ -38,7 +38,7 @@ func main() {
 		flag.Usage()
 		os.Exit(1)
 	}
-	if err := services.RunTarget(*target, *configPath, *write, *verbose, *createVLANs); err != nil {
+	if _, err := services.RunTarget(*target, *configPath, *write, *verbose, *createVLANs); err != nil {
 		fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
 		os.Exit(1)
 	}

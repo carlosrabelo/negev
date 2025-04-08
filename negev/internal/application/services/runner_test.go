@@ -16,6 +16,7 @@ import (
 type scriptedClient struct {
 	connected   bool
 	prompts     []entities.AuthPrompt
+	profile     entities.SessionProfile
 	responses   map[string]string
 	failConnect error
 }
@@ -48,6 +49,10 @@ func (c *scriptedClient) SetAuthSequence(prompts []entities.AuthPrompt) {
 	c.prompts = prompts
 }
 
+func (c *scriptedClient) SetSessionProfile(profile entities.SessionProfile) {
+	c.profile = profile
+}
+
 func iosScriptedClient() *scriptedClient {
 	return &scriptedClient{
 		responses: map[string]string{
@@ -66,10 +71,19 @@ Gi1/0/24    on               802.1q         trunking      1
 Port      Name               Status       Vlan       Duplex  Speed Type
 Gi1/0/1                      connected    1          a-full  a-1000 10/100/1000BaseTX
 `,
+			"show mac address-table": `
+Vlan    Mac Address       Type        Ports
+----    -----------       ----        -----
+   1    aabb.ccdd.eeff    DYNAMIC     Gi1/0/1
+`,
 			"show mac address-table dynamic": `
 Vlan    Mac Address       Type        Ports
 ----    -----------       ----        -----
    1    aabb.ccdd.eeff    DYNAMIC     Gi1/0/1
+`,
+			"show ip interface brief": `
+Interface              IP-Address      OK? Method Status                Protocol
+Vlan1                  unassigned      YES NVRAM  up                    up
 `,
 		},
 	}
@@ -78,7 +92,7 @@ Vlan    Mac Address       Type        Ports
 func TestRunTargetNotFound(t *testing.T) {
 	cfg := &config.Config{Switches: []entities.SwitchConfig{{Target: "10.0.0.1"}}}
 	svc := NewVLANApplicationService(cfg, "10.0.0.2")
-	if err := svc.Run(true, 0, false); err == nil {
+	if _, err := svc.Run(true, 0, false); err == nil {
 		t.Fatal("expected target not found error")
 	}
 }
@@ -92,7 +106,7 @@ func TestRunUnknownPlatform(t *testing.T) {
 	svc.newAdapter = func(sc entities.SwitchConfig) *transport.SwitchAdapter {
 		return transport.NewSwitchAdapterWithClient(sc, iosScriptedClient())
 	}
-	if err := svc.Run(true, 0, false); err == nil {
+	if _, err := svc.Run(true, 0, false); err == nil {
 		t.Fatal("expected unknown platform error")
 	}
 }
@@ -109,11 +123,18 @@ func TestRunIOSSandboxSuccess(t *testing.T) {
 	svc.newAdapter = func(sc entities.SwitchConfig) *transport.SwitchAdapter {
 		return transport.NewSwitchAdapterWithClient(sc, cli)
 	}
-	if err := svc.Run(true, 1, false); err != nil {
+	result, err := svc.Run(true, 1, false)
+	if err != nil {
 		t.Fatalf("Run failed: %v", err)
+	}
+	if !result.HasChanges() {
+		t.Fatalf("expected sandbox port change in RunResult, got %+v", result)
 	}
 	if len(cli.prompts) == 0 {
 		t.Fatal("expected auth sequence to be applied")
+	}
+	if cli.profile.PromptPattern == nil {
+		t.Fatal("expected session profile to be applied")
 	}
 	if cfg.Switches[0].Sandbox != true || cfg.Switches[0].VerbosityLevel != 1 {
 		t.Fatalf("expected sandbox/verbosity flags applied, got %+v", cfg.Switches[0])
@@ -132,7 +153,7 @@ func TestRunAutoDetectSuccess(t *testing.T) {
 	svc.newAdapter = func(sc entities.SwitchConfig) *transport.SwitchAdapter {
 		return transport.NewSwitchAdapterWithClient(sc, cli)
 	}
-	if err := svc.Run(true, 0, false); err != nil {
+	if _, err := svc.Run(true, 0, false); err != nil {
 		t.Fatalf("Run auto failed: %v", err)
 	}
 	if len(cli.prompts) == 0 || cli.prompts[0].WaitFor != "Username:" {
@@ -150,7 +171,7 @@ func TestRunAutoDetectConnectFailure(t *testing.T) {
 	svc.newAdapter = func(sc entities.SwitchConfig) *transport.SwitchAdapter {
 		return transport.NewSwitchAdapterWithClient(sc, cli)
 	}
-	if err := svc.Run(true, 0, false); err == nil {
+	if _, err := svc.Run(true, 0, false); err == nil {
 		t.Fatal("expected auto-detect connect failure")
 	}
 }
@@ -169,7 +190,7 @@ func TestRunAutoDetectNoMatch(t *testing.T) {
 	svc.newAdapter = func(sc entities.SwitchConfig) *transport.SwitchAdapter {
 		return transport.NewSwitchAdapterWithClient(sc, cli)
 	}
-	if err := svc.Run(true, 0, false); err == nil {
+	if _, err := svc.Run(true, 0, false); err == nil {
 		t.Fatal("expected platform detection failure")
 	}
 }

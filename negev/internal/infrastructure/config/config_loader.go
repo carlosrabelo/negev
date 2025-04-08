@@ -118,6 +118,18 @@ func Load(yamlFile, target string, verbosityLevel int) (*Config, error) {
 
 	verbose := verbosityLevel == 1 || verbosityLevel == 3
 
+	cfg.Username, cfg.Password, cfg.EnablePassword, err = expandCredentialFields(cfg.Username, cfg.Password, cfg.EnablePassword)
+	if err != nil {
+		return nil, err
+	}
+	for i := range cfg.Switches {
+		sw := &cfg.Switches[i]
+		sw.Username, sw.Password, sw.EnablePassword, err = expandCredentialFields(sw.Username, sw.Password, sw.EnablePassword)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	primaryPlatform := cfg.Platform
 	if primaryPlatform == "" {
 		primaryPlatform = cfg.LegacyVendor

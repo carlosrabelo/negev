@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"os"
 	"strings"
 	"time"
 
@@ -61,7 +62,7 @@ func (tc *TelnetClient) Connect() error {
 	tc.conn.SetReadDeadline(time.Now().Add(DefaultTimeout))
 	tc.conn.SetWriteDeadline(time.Now().Add(DefaultTimeout))
 	if tc.config.IsDebugEnabled() {
-		fmt.Printf("DEBUG: Connected to %s\n", tc.config.Target)
+		fmt.Fprintf(os.Stderr, "DEBUG: Connected to %s\n", tc.config.Target)
 	}
 
 	if err := tc.authenticate(); err != nil {
@@ -140,7 +141,7 @@ func (tc *TelnetClient) runAuthSequence(prompts []entities.AuthPrompt) error {
 				if strings.Contains(strings.ToLower(p.WaitFor), "password") {
 					displayCmd = "********"
 				}
-				fmt.Printf("DEBUG: Sent %s for prompt %s\n", displayCmd, p.WaitFor)
+				fmt.Fprintf(os.Stderr, "DEBUG: Sent %s for prompt %s\n", displayCmd, p.WaitFor)
 			}
 		}
 	}
@@ -158,7 +159,7 @@ func (tc *TelnetClient) readUntilAny(patterns []string, timeout time.Duration) (
 		if n > 0 {
 			output.Write(buffer[:n])
 			if tc.config.IsRawOutputEnabled() {
-				fmt.Printf("Switch output: Read: %s\n", string(buffer[:n]))
+				fmt.Fprintf(os.Stderr, "Switch output: Read: %s\n", string(buffer[:n]))
 			}
 			got := output.String()
 			for _, pattern := range patterns {
@@ -188,7 +189,7 @@ func (tc *TelnetClient) readUntil(pattern string, timeout time.Duration) (string
 		if n > 0 {
 			output.Write(buffer[:n])
 			if tc.config.IsRawOutputEnabled() {
-				fmt.Printf("Switch output: Read: %s\n", string(buffer[:n]))
+				fmt.Fprintf(os.Stderr, "Switch output: Read: %s\n", string(buffer[:n]))
 			}
 			if strings.Contains(output.String(), pattern) {
 				return output.String(), nil
@@ -208,7 +209,7 @@ func (tc *TelnetClient) Disconnect() {
 	if tc.conn != nil {
 		tc.conn.Close()
 		if tc.config.IsDebugEnabled() {
-			fmt.Println("DEBUG: Disconnected")
+			fmt.Fprintln(os.Stderr, "DEBUG: Disconnected")
 		}
 		tc.conn = nil
 	}
@@ -223,7 +224,7 @@ func (tc *TelnetClient) ExecuteCommand(cmd string) (string, error) {
 		return "", fmt.Errorf("not connected")
 	}
 	if tc.config.IsDebugEnabled() {
-		fmt.Printf("DEBUG: Executing: %s\n", cmd)
+		fmt.Fprintf(os.Stderr, "DEBUG: Executing: %s\n", cmd)
 	}
 	_ = tc.conn.SetWriteDeadline(time.Now().Add(DefaultTimeout))
 	if _, err := tc.conn.Write([]byte(cmd + "\n")); err != nil {
@@ -235,7 +236,7 @@ func (tc *TelnetClient) ExecuteCommand(cmd string) (string, error) {
 	}
 	output := stripCommandEchoAndPrompt(raw)
 	if tc.config.IsRawOutputEnabled() {
-		fmt.Printf("Switch output for '%s':\n%s\n", cmd, output)
+		fmt.Fprintf(os.Stderr, "Switch output for '%s':\n%s\n", cmd, output)
 	}
 	return output, nil
 }
@@ -252,7 +253,7 @@ func (tc *TelnetClient) readUntilPrompt(profile entities.SessionProfile, timeout
 		if n > 0 {
 			output.Write(buffer[:n])
 			if tc.config.IsRawOutputEnabled() {
-				fmt.Printf("Switch output: Read: %s\n", string(buffer[:n]))
+				fmt.Fprintf(os.Stderr, "Switch output: Read: %s\n", string(buffer[:n]))
 			}
 			text := output.String()
 			for {

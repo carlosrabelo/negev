@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/carlosrabelo/negev/negev/internal/application/services"
+	"github.com/carlosrabelo/negev/negev/internal/domain/entities"
 
 	_ "github.com/carlosrabelo/negev/negev/internal/platform/comware"
 	_ "github.com/carlosrabelo/negev/negev/internal/platform/dm1200"
@@ -20,32 +21,61 @@ var (
 )
 
 func main() {
-	target := flag.String("target", "", "Switch IP address (required)")
-	configPath := flag.String("config", "", "Path to YAML config file")
-	write := flag.Bool("write", false, "Apply changes (disables sandbox)")
-	verbose := flag.Int("verbose", 0, "Verbosity level: 0=none, 1=debug, 2=raw, 3=both")
-	createVLANs := flag.Bool("create-vlans", false, "Synchronize VLANs (create missing, delete extras)")
-	showVersion := flag.Bool("version", false, "Show version and exit")
-	flag.Usage = printUsage
-	flag.Parse()
+	os.Exit(run(os.Args[1:]))
+}
+
+func run(args []string) int {
+	fs := flag.NewFlagSet("negev", flag.ContinueOnError)
+	fs.SetOutput(os.Stderr)
+
+	target := fs.String("target", "", "Switch IP address (required)")
+	configPath := fs.String("config", "", "Path to YAML config file")
+	write := fs.Bool("write", false, "Apply changes (disables sandbox)")
+	verbose := fs.Int("verbose", 0, "Verbosity level: 0=none, 1=debug, 2=raw, 3=both")
+	createVLANs := fs.Bool("create-vlans", false, "Synchronize VLANs (create missing, delete extras)")
+	showVersion := fs.Bool("version", false, "Show version and exit")
+	fs.Usage = func() { printUsage(fs) }
+
+	if err := fs.Parse(args); err != nil {
+		return 1
+	}
 
 	if *showVersion {
 		fmt.Printf("Negev %s (built %s)\n", version, buildTime)
-		return
+		return 0
 	}
 	if *target == "" {
 		fmt.Fprintf(os.Stderr, "ERROR: --target is required\n\n")
-		flag.Usage()
-		os.Exit(1)
+		fs.Usage()
+		return 1
 	}
-	if _, err := services.RunTarget(*target, *configPath, *write, *verbose, *createVLANs); err != nil {
+
+	result, err := services.RunTarget(*target, *configPath, *write, *verbose, *createVLANs)
+	if err != nil {
 		fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
-		os.Exit(1)
+		return 1
 	}
+	return exitStatus(*write, result)
 }
 
-func printUsage() {
-	fmt.Fprintf(os.Stderr, "Usage: %s [options]\n\nVLAN automation tool for network switches.\n\nOptions:\n", os.Args[0])
+// exitStatus maps run outcome to process exit codes:
+// 0 success (no changes or written), 2 sandbox simulated changes.
+func exitStatus(write bool, result entities.RunResult) int {
+	if !write && result.HasChanges() {
+		return 2
+	}
+	return 0
+}
+
+func printUsage(fs *flag.FlagSet) {
+	name := "negev"
+	if fs != nil && fs.Name() != "" {
+		name = fs.Name()
+	}
+	if len(os.Args) > 0 {
+		name = os.Args[0]
+	}
+	fmt.Fprintf(os.Stderr, "Usage: %s [options]\n\nVLAN automation tool for network switches.\n\nOptions:\n", name)
 	fmt.Fprintf(os.Stderr, "  --target <ip>\n        Switch IP address (required)\n")
 	fmt.Fprintf(os.Stderr, "  --config <path>\n        Path to YAML config file\n")
 	fmt.Fprintf(os.Stderr, "  --write\n        Apply changes (disables sandbox)\n")

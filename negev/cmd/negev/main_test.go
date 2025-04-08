@@ -3,7 +3,10 @@ package main
 import (
 	"testing"
 
+	"github.com/carlosrabelo/negev/negev/internal/application/services"
 	"github.com/carlosrabelo/negev/negev/internal/domain/entities"
+	"github.com/carlosrabelo/negev/negev/internal/infrastructure/config"
+	"golang.org/x/term"
 )
 
 func TestExitStatus(t *testing.T) {
@@ -45,5 +48,56 @@ func TestRunConfigError(t *testing.T) {
 	code := run([]string{"--target", "10.0.0.1", "--config", "/nonexistent/negev-config.yaml"})
 	if code != 1 {
 		t.Fatalf("run(bad config) = %d; want 1", code)
+	}
+}
+
+func TestAskPassFlag(t *testing.T) {
+	calls := 0
+	readPassword = func(fd int) ([]byte, error) {
+		calls++
+		switch calls {
+		case 1:
+			return []byte("prompt-secret"), nil
+		case 2:
+			return []byte("prompt-enable"), nil
+		default:
+			t.Fatalf("unexpected readPassword call %d", calls)
+			return nil, nil
+		}
+	}
+	t.Cleanup(func() { readPassword = term.ReadPassword })
+
+	cfg := &config.Config{Switches: []entities.SwitchConfig{{
+		Target:         "10.0.0.1",
+		Password:       "yaml-pass",
+		EnablePassword: "yaml-enable",
+	}}}
+
+	ask := services.AskPassFunc(promptAskPass)
+	pw, en, err := ask()
+	if err != nil {
+		t.Fatalf("askPass: %v", err)
+	}
+	if pw != "prompt-secret" || en != "prompt-enable" {
+		t.Fatalf("askPass = %q/%q", pw, en)
+	}
+
+	for i := range cfg.Switches {
+		if cfg.Switches[i].Target != "10.0.0.1" {
+			continue
+		}
+		cfg.Switches[i].Password = pw
+		if en != "" {
+			cfg.Switches[i].EnablePassword = en
+		}
+	}
+	if cfg.Switches[0].Password != "prompt-secret" {
+		t.Fatalf("password not overridden: %q", cfg.Switches[0].Password)
+	}
+	if cfg.Switches[0].EnablePassword != "prompt-enable" {
+		t.Fatalf("enable not overridden: %q", cfg.Switches[0].EnablePassword)
+	}
+	if calls != 2 {
+		t.Fatalf("readPassword calls = %d; want 2", calls)
 	}
 }

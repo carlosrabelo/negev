@@ -172,7 +172,7 @@ func (s *VLANServiceImpl) ProcessPorts() (entities.RunResult, error) {
 }
 
 func (s *VLANServiceImpl) resolveTargetVlan(port entities.Port, devices []entities.Device) (string, bool) {
-	macs := s.filterDevices(devices, port.Interface)
+	macs := s.filterActiveMacs(devices, port.Interface)
 	if len(macs) == 0 {
 		if s.config.NoDataVlan == "" {
 			return "", false
@@ -180,14 +180,10 @@ func (s *VLANServiceImpl) resolveTargetVlan(port entities.Port, devices []entiti
 		return s.config.NoDataVlan, true
 	}
 	if len(macs) > 1 {
-		slog.Warn("Multiple MACs on port — skipping for safety", "port", port.Interface, "target", s.config.Target)
-		return "", false
+		return s.resolveMultiMacVlan(port, macs)
 	}
 	mac := macs[0]
 	if len(mac.Mac) < 2 {
-		return "", false
-	}
-	if s.isExcluded(mac.Mac) {
 		return "", false
 	}
 	targetVlan := resolveMacToVlan(mac.Mac, s.config.MacToVlan, s.config.DefaultVlan)
@@ -197,18 +193,82 @@ func (s *VLANServiceImpl) resolveTargetVlan(port entities.Port, devices []entiti
 	return targetVlan, true
 }
 
+func (s *VLANServiceImpl) filterActiveMacs(devices []entities.Device, iface string) []entities.Device {
+	var result []entities.Device
+	for _, d := range s.filterDevices(devices, iface) {
+		if s.isExcluded(d.Mac) {
+			continue
+		}
+		result = append(result, d)
+	}
+	return result
+}
+
+func (s *VLANServiceImpl) resolveMultiMacVlan(port entities.Port, macs []entities.Device) (string, bool) {
+	policy := s.config.MultiMacPolicy
+	if policy == "" {
+		policy = entities.MultiMacIgnore
+	}
+
+	switch policy {
+	case entities.MultiMacAlert:
+		parts := make([]string, 0, len(macs))
+		for _, mac := range macs {
+			vlan := resolveMacToVlan(mac.Mac, s.config.MacToVlan, s.config.DefaultVlan)
+			if vlan == "" {
+				vlan = "?"
+			}
+			parts = append(parts, fmt.Sprintf("%s (VLAN %s)", mac.Mac, vlan))
+		}
+		slog.Warn(fmt.Sprintf("Port %s has multiple MACs: %s; skipped", port.Interface, strings.Join(parts, ", ")),
+			"port", port.Interface, "target", s.config.Target)
+		return "", false
+
+	case entities.MultiMacPriority:
+		bestVlan := ""
+		bestLen := -1
+		for _, mac := range macs {
+			if len(mac.Mac) < 2 {
+				continue
+			}
+			vlan, prefixLen, explicit := matchMacToVlan(mac.Mac, s.config.MacToVlan, s.config.DefaultVlan)
+			if !explicit || vlan == "" {
+				continue
+			}
+			if prefixLen > bestLen {
+				bestLen = prefixLen
+				bestVlan = vlan
+			}
+		}
+		if bestVlan == "" {
+			return "", false
+		}
+		return bestVlan, true
+
+	default: // ignore
+		return "", false
+	}
+}
+
 // resolveMacToVlan picks the longest matching even-length prefix (12..2) in mapping.
 func resolveMacToVlan(mac string, mapping map[string]string, defaultVlan string) string {
+	vlan, _, _ := matchMacToVlan(mac, mapping, defaultVlan)
+	return vlan
+}
+
+// matchMacToVlan returns the resolved VLAN, matched prefix length, and whether the
+// VLAN came from an explicit mac_to_vlan entry (vs default_vlan fallback).
+func matchMacToVlan(mac string, mapping map[string]string, defaultVlan string) (vlan string, prefixLen int, explicit bool) {
 	for length := 12; length >= 2; length -= 2 {
 		if len(mac) < length {
 			continue
 		}
-		vlan := mapping[mac[:length]]
-		if vlan != "" && vlan != "0" && vlan != "00" {
-			return vlan
+		v := mapping[mac[:length]]
+		if v != "" && v != "0" && v != "00" {
+			return v, length, true
 		}
 	}
-	return defaultVlan
+	return defaultVlan, 0, false
 }
 
 func (s *VLANServiceImpl) effectivePortVlans(ports []entities.Port, trunks map[string]bool, applied map[string]string) map[string]bool {

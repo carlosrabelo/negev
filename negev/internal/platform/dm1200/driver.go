@@ -19,7 +19,9 @@ var (
 	portTokenRe         = regexp.MustCompile(`\b(\d+/\d+/\d+)\b`)
 	vlanTokenRe         = regexp.MustCompile(`\b(\d{1,4})(?:-(\d{1,4}))?\b`)
 	sviNameRegex        = regexp.MustCompile(`(?i)^Vlan(?:-interface)?(\d+)$`)
-	dm1200PromptPattern = regexp.MustCompile(`(?m)^[A-Za-z0-9_.-]+(?:-[A-Za-z0-9_.-]+)*[>#]\s*$`)
+	// Hostname may be bare or parenthesized; Fastpath config modes append
+	// another parenthetical before the mode char, e.g. "(DM1200E) (Vlan)#".
+	dm1200PromptPattern = regexp.MustCompile(`(?m)^\(?[A-Za-z0-9_.-]+(?:-[A-Za-z0-9_.-]+)*\)?(?:\s+\([^)]+\))*\s*[>#]\s*$`)
 	dm1200PagerPattern  = regexp.MustCompile(`(?m)--More--|---- More ----`)
 )
 
@@ -67,6 +69,8 @@ func (d *Driver) GetAuthenticationSequence() []entities.AuthPrompt {
 	return []entities.AuthPrompt{
 		{WaitFor: "User:", SendCmd: "USERNAME_PLACEHOLDER\n"},
 		{WaitFor: "Password:", SendCmd: "PASSWORD_PLACEHOLDER\n"},
+		{WaitFor: ">", SendCmd: "enable\n"},
+		{WaitFor: "Password:", SendCmd: "ENABLE_PASSWORD_PLACEHOLDER\n"},
 		{WaitFor: "#", SendCmd: "terminal length 0\n"},
 		{WaitFor: "#", SendCmd: ""},
 	}

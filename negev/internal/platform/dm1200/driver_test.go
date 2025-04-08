@@ -97,13 +97,14 @@ func TestDetectFallsBackToSysinfo(t *testing.T) {
 
 func TestAuthenticationSequence(t *testing.T) {
 	seq := (&Driver{}).GetAuthenticationSequence()
-	if len(seq) != 4 || seq[0].WaitFor != "User:" {
+	if len(seq) != 6 || seq[0].WaitFor != "User:" {
 		t.Fatalf("seq = %+v", seq)
 	}
-	for _, p := range seq {
-		if p.SendCmd == "enable\n" {
-			t.Fatal("auth sequence must not send enable")
-		}
+	if seq[2].WaitFor != ">" || seq[2].SendCmd != "enable\n" {
+		t.Fatalf("expected enable step, got %+v", seq[2])
+	}
+	if seq[3].SendCmd != "ENABLE_PASSWORD_PLACEHOLDER\n" {
+		t.Fatalf("expected enable password placeholder, got %+v", seq[3])
 	}
 }
 
@@ -273,8 +274,21 @@ func TestIsDM1200CommandError(t *testing.T) {
 
 func TestGetSessionProfile(t *testing.T) {
 	p := (&Driver{}).GetSessionProfile()
-	if p.PromptPattern == nil || !p.PromptPattern.MatchString("DM1200E#\n") {
-		t.Fatal("expected DM1200E prompt pattern to match DM1200E#")
+	if p.PromptPattern == nil {
+		t.Fatal("expected prompt pattern")
+	}
+	for _, sample := range []string{
+		"DM1200E#\n",
+		"DM1200E>\n",
+		"(DM1200E)#\n",
+		"(DM1200E) >\n",
+		"(DM1200E) (Vlan)#\n",
+		"(DM1200E) (Config)#\n",
+		"(DM1200E) (Interface 1/0/1)#\n",
+	} {
+		if !p.PromptPattern.MatchString(sample) {
+			t.Fatalf("expected prompt pattern to match %q", sample)
+		}
 	}
 	if p.PagerPattern == nil || !p.PagerPattern.MatchString("--More--") {
 		t.Fatal("expected pager pattern to match --More--")

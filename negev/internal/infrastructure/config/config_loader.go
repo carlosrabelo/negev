@@ -73,12 +73,31 @@ func isHexMAC(s string) bool {
 	if len(s) < 6 {
 		return false
 	}
+	return isHexString(s)
+}
+
+func isHexString(s string) bool {
+	if s == "" {
+		return false
+	}
 	for _, c := range s {
 		if (c < '0' || c > '9') && (c < 'a' || c > 'f') {
 			return false
 		}
 	}
 	return true
+}
+
+// normalizeMacPrefix accepts even-length hex prefixes from 2 to 12 characters.
+func normalizeMacPrefix(prefix string) (string, error) {
+	norm := NormalizeMAC(prefix)
+	if !isHexString(norm) {
+		return "", fmt.Errorf("must be hexadecimal")
+	}
+	if len(norm) < 2 || len(norm) > 12 || len(norm)%2 != 0 {
+		return "", fmt.Errorf("length must be even and between 2 and 12")
+	}
+	return norm, nil
 }
 
 func normalizeVLAN(vlan, context string) (string, error) {
@@ -296,12 +315,9 @@ func Load(yamlFile, target string, verbosityLevel int) (*Config, error) {
 		// Mesclar MacToVlan: chaves do switch sobrescrevem globais, chaves e valores normalizados e validados
 		mergedMacToVlan := make(map[string]string)
 		addMacMapping := func(prefix, vlan, context string, removeZero bool) error {
-			norm := NormalizeMAC(prefix)
-			if !isHexMAC(norm) {
-				return fmt.Errorf("invalid MAC prefix %q in %s", prefix, context)
-			}
-			if len(norm) > 6 {
-				norm = norm[:6]
+			norm, err := normalizeMacPrefix(prefix)
+			if err != nil {
+				return fmt.Errorf("invalid MAC prefix %q in %s: %w", prefix, context, err)
 			}
 			if vlan == "0" || vlan == "00" || vlan == "" {
 				if removeZero {

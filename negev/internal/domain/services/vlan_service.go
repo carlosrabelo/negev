@@ -184,21 +184,31 @@ func (s *VLANServiceImpl) resolveTargetVlan(port entities.Port, devices []entiti
 		return "", false
 	}
 	mac := macs[0]
-	if len(mac.Mac) < 6 {
+	if len(mac.Mac) < 2 {
 		return "", false
 	}
 	if s.isExcluded(mac.Mac) {
 		return "", false
 	}
-	prefix := mac.Mac[:6]
-	targetVlan := s.config.MacToVlan[prefix]
-	if targetVlan == "" || targetVlan == "0" || targetVlan == "00" {
-		targetVlan = s.config.DefaultVlan
-	}
+	targetVlan := resolveMacToVlan(mac.Mac, s.config.MacToVlan, s.config.DefaultVlan)
 	if targetVlan == "" {
 		return "", false
 	}
 	return targetVlan, true
+}
+
+// resolveMacToVlan picks the longest matching even-length prefix (12..2) in mapping.
+func resolveMacToVlan(mac string, mapping map[string]string, defaultVlan string) string {
+	for length := 12; length >= 2; length -= 2 {
+		if len(mac) < length {
+			continue
+		}
+		vlan := mapping[mac[:length]]
+		if vlan != "" && vlan != "0" && vlan != "00" {
+			return vlan
+		}
+	}
+	return defaultVlan
 }
 
 func (s *VLANServiceImpl) effectivePortVlans(ports []entities.Port, trunks map[string]bool, applied map[string]string) map[string]bool {

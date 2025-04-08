@@ -159,9 +159,10 @@ switches:
 
 	sw1 := cfg.Switches[0]
 	expectedMacToVlan := map[string]string{
-		"aabbcc": "10",
-		"deadbe": "200",
-		"001122": "30",
+		"aabbcc":       "10",
+		"112233445566": "20",
+		"deadbe":       "200",
+		"001122":       "30",
 	}
 
 	if !reflect.DeepEqual(sw1.MacToVlan, expectedMacToVlan) {

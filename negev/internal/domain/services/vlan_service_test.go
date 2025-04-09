@@ -851,3 +851,47 @@ func TestProcessPortsPartialPortFailureStillSaves(t *testing.T) {
 		t.Fatalf("successful changes must be saved despite partial failure, got %v", repo.executed)
 	}
 }
+
+func TestLongestPrefixMatchExactOverOUI(t *testing.T) {
+	mapping := map[string]string{
+		"0004f2":       "50",
+		"0004f21a2b3c": "55",
+	}
+	if got := resolveMacToVlan("0004f21a2b3c", mapping, "1"); got != "55" {
+		t.Fatalf("exact MAC = %s; want 55", got)
+	}
+	if got := resolveMacToVlan("0004f2aabbcc", mapping, "1"); got != "50" {
+		t.Fatalf("OUI fallback = %s; want 50", got)
+	}
+
+	repo := &mockRepository{}
+	drv := &stubDriver{
+		vlans:   []string{"1", "50", "55"},
+		ports:   []entities.Port{{Interface: "Gi1/0/1", Vlan: "1"}},
+		devices: []entities.Device{{Interface: "Gi1/0/1", Mac: "0004f21a2b3c", Vlan: "1"}},
+	}
+	cfg := entities.SwitchConfig{Sandbox: true, DefaultVlan: "1", MacToVlan: mapping}
+	result, err := NewVLANService(repo, cfg, drv).ProcessPorts()
+	if err != nil {
+		t.Fatalf("ProcessPorts: %v", err)
+	}
+	if result.PortsChanged != 1 {
+		t.Fatalf("PortsChanged=%d; want 1 (exact MAC -> VLAN 55)", result.PortsChanged)
+	}
+}
+
+func TestLongestPrefixMatchVariableLengths(t *testing.T) {
+	mapping := map[string]string{
+		"3c2af4":   "20",
+		"3c2af499": "25",
+	}
+	if got := resolveMacToVlan("3c2af4998877", mapping, "1"); got != "25" {
+		t.Fatalf("8-char prefix = %s; want 25", got)
+	}
+	if got := resolveMacToVlan("3c2af4aabbcc", mapping, "1"); got != "20" {
+		t.Fatalf("6-char prefix = %s; want 20", got)
+	}
+	if got := resolveMacToVlan("aabbccddeeff", mapping, "10"); got != "10" {
+		t.Fatalf("default fallback = %s; want 10", got)
+	}
+}

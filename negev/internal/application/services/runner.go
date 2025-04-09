@@ -12,8 +12,13 @@ import (
 	"github.com/carlosrabelo/negev/negev/internal/platform"
 )
 
+// AskPassFunc prompts for switch and optional enable passwords.
+// A nil function skips interactive prompting.
+type AskPassFunc func() (password, enable string, err error)
+
 // RunTarget loads configuration and runs VLAN automation for a switch.
-func RunTarget(target, configPath string, write bool, verbose int, createVLANs bool) (entities.RunResult, error) {
+// When askPass is non-nil, prompted credentials override YAML/env for the target switch.
+func RunTarget(target, configPath string, write bool, verbose int, createVLANs bool, askPass AskPassFunc) (entities.RunResult, error) {
 	var result entities.RunResult
 	if verbose < 0 || verbose > 3 {
 		return result, fmt.Errorf("--verbose must be 0-3")
@@ -42,9 +47,30 @@ func RunTarget(target, configPath string, write bool, verbose int, createVLANs b
 		return result, fmt.Errorf("failed to load config: %w", err)
 	}
 
+	if askPass != nil {
+		password, enable, err := askPass()
+		if err != nil {
+			return result, err
+		}
+		applyAskPass(cfg, target, password, enable)
+	}
+
 	defer transport.CloseAll()
 
 	return NewVLANApplicationService(cfg, target).Run(!write, verbose, createVLANs)
+}
+
+func applyAskPass(cfg *config.Config, target, password, enable string) {
+	for i := range cfg.Switches {
+		if cfg.Switches[i].Target != target {
+			continue
+		}
+		cfg.Switches[i].Password = password
+		if enable != "" {
+			cfg.Switches[i].EnablePassword = enable
+		}
+		return
+	}
 }
 
 type VLANApplicationService struct {

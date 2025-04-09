@@ -128,6 +128,20 @@ func validatePlatform(platform string) error {
 	}
 }
 
+func normalizeTags(tags []string) []string {
+	seen := make(map[string]bool)
+	var out []string
+	for _, tag := range tags {
+		tag = strings.TrimSpace(tag)
+		if tag == "" || seen[tag] {
+			continue
+		}
+		seen[tag] = true
+		out = append(out, tag)
+	}
+	return out
+}
+
 func normalizeMultiMacPolicy(policy, context string) (string, error) {
 	policy = strings.ToLower(strings.TrimSpace(policy))
 	if policy == "" {
@@ -212,6 +226,7 @@ func Load(yamlFile, target string, verbosityLevel int) (*Config, error) {
 	debugf(verbose, "DEBUG: Global values: Platform=%s, Transport=%s, DefaultVlan=%s, NoDataVlan=%s\n",
 		cfg.Platform, cfg.Transport, cfg.DefaultVlan, cfg.NoDataVlan)
 
+	seenNames := make(map[string]bool)
 	for i := range cfg.Switches {
 		sw := &cfg.Switches[i]
 		swVerbose := verbose
@@ -221,6 +236,15 @@ func Load(yamlFile, target string, verbosityLevel int) (*Config, error) {
 		if sw.Target == "" {
 			return nil, fmt.Errorf("target is required for switch %d", i)
 		}
+
+		sw.Name = strings.TrimSpace(sw.Name)
+		if sw.Name != "" {
+			if seenNames[sw.Name] {
+				return nil, fmt.Errorf("duplicate switch name %q", sw.Name)
+			}
+			seenNames[sw.Name] = true
+		}
+		sw.Tags = normalizeTags(sw.Tags)
 		sw.Transport = strings.ToLower(strings.TrimSpace(sw.Transport))
 		if sw.Transport == "" {
 			sw.Transport = cfg.Transport

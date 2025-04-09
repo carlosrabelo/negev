@@ -36,6 +36,9 @@ func TestRunMissingTarget(t *testing.T) {
 	if code := run(nil); code != 1 {
 		t.Fatalf("run(nil) = %d; want 1", code)
 	}
+	if code := run([]string{"--config", "/nonexistent/negev-config.yaml"}); code != 1 {
+		t.Fatalf("run(no selector) = %d; want 1", code)
+	}
 }
 
 func TestRunVersion(t *testing.T) {

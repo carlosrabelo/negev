@@ -25,6 +25,7 @@ type Config struct {
 	MacToVlan             map[string]string       `yaml:"mac_to_vlan"`
 	AllowedVlans          []string                `yaml:"allowed_vlans"`
 	ProtectedVlans        []string                `yaml:"protected_vlans"`
+	MultiMacPolicy        string                  `yaml:"multi_mac_policy"`
 	Switches              []entities.SwitchConfig `yaml:"switches"`
 }
 
@@ -127,6 +128,19 @@ func validatePlatform(platform string) error {
 	}
 }
 
+func normalizeMultiMacPolicy(policy, context string) (string, error) {
+	policy = strings.ToLower(strings.TrimSpace(policy))
+	if policy == "" {
+		return entities.MultiMacIgnore, nil
+	}
+	switch policy {
+	case entities.MultiMacIgnore, entities.MultiMacAlert, entities.MultiMacPriority:
+		return policy, nil
+	default:
+		return "", fmt.Errorf("%s multi_mac_policy %q is invalid, must be 'ignore', 'alert', or 'priority'", context, policy)
+	}
+}
+
 func Load(yamlFile, target string, verbosityLevel int) (*Config, error) {
 	data, err := os.ReadFile(yamlFile)
 	if err != nil {
@@ -190,6 +204,11 @@ func Load(yamlFile, target string, verbosityLevel int) (*Config, error) {
 		return nil, fmt.Errorf("global username is required")
 	}
 
+	cfg.MultiMacPolicy, err = normalizeMultiMacPolicy(cfg.MultiMacPolicy, "global")
+	if err != nil {
+		return nil, err
+	}
+
 	debugf(verbose, "DEBUG: Global values: Platform=%s, Transport=%s, DefaultVlan=%s, NoDataVlan=%s\n",
 		cfg.Platform, cfg.Transport, cfg.DefaultVlan, cfg.NoDataVlan)
 
@@ -246,6 +265,15 @@ func Load(yamlFile, target string, verbosityLevel int) (*Config, error) {
 				}
 			} else {
 				sw.EnablePassword = cfg.EnablePassword
+			}
+		}
+
+		if sw.MultiMacPolicy == "" {
+			sw.MultiMacPolicy = cfg.MultiMacPolicy
+		} else {
+			sw.MultiMacPolicy, err = normalizeMultiMacPolicy(sw.MultiMacPolicy, fmt.Sprintf("switch %s", sw.Target))
+			if err != nil {
+				return nil, err
 			}
 		}
 

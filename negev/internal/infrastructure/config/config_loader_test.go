@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"reflect"
 	"testing"
+
+	"github.com/carlosrabelo/negev/negev/internal/domain/entities"
 )
 
 func TestConfigLoadMergeDefaultAndVlans(t *testing.T) {
@@ -444,5 +446,81 @@ switches:
 	}
 	if cfg.Switches[0].Platform != "dmswitch" {
 		t.Fatalf("Platform = %q; expected legacy dmos to load as %q", cfg.Switches[0].Platform, "dmswitch")
+	}
+}
+
+func TestMultiMacPolicyDefaultAndInheritance(t *testing.T) {
+	yamlData := `
+username: admin
+password: p
+enable_password: e
+default_vlan: "10"
+switches:
+  - target: 192.0.2.1
+    platform: ios
+  - target: 192.0.2.2
+    platform: ios
+    multi_mac_policy: alert
+`
+	path := filepath.Join(t.TempDir(), "multi-mac.yaml")
+	if err := os.WriteFile(path, []byte(yamlData), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(path, "", 0)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.MultiMacPolicy != entities.MultiMacIgnore {
+		t.Fatalf("global default = %q; want ignore", cfg.MultiMacPolicy)
+	}
+	if cfg.Switches[0].MultiMacPolicy != entities.MultiMacIgnore {
+		t.Fatalf("inherited = %q; want ignore", cfg.Switches[0].MultiMacPolicy)
+	}
+	if cfg.Switches[1].MultiMacPolicy != entities.MultiMacAlert {
+		t.Fatalf("switch override = %q; want alert", cfg.Switches[1].MultiMacPolicy)
+	}
+}
+
+func TestMultiMacPolicyGlobalInherit(t *testing.T) {
+	yamlData := `
+username: admin
+password: p
+enable_password: e
+default_vlan: "10"
+multi_mac_policy: priority
+switches:
+  - target: 192.0.2.1
+    platform: ios
+`
+	path := filepath.Join(t.TempDir(), "multi-mac-global.yaml")
+	if err := os.WriteFile(path, []byte(yamlData), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(path, "192.0.2.1", 0)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.Switches[0].MultiMacPolicy != entities.MultiMacPriority {
+		t.Fatalf("inherited priority = %q", cfg.Switches[0].MultiMacPolicy)
+	}
+}
+
+func TestMultiMacPolicyInvalid(t *testing.T) {
+	yamlData := `
+username: admin
+password: p
+enable_password: e
+default_vlan: "10"
+multi_mac_policy: explode
+switches:
+  - target: 192.0.2.1
+    platform: ios
+`
+	path := filepath.Join(t.TempDir(), "multi-mac-bad.yaml")
+	if err := os.WriteFile(path, []byte(yamlData), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Load(path, "", 0); err == nil {
+		t.Fatal("expected invalid multi_mac_policy error")
 	}
 }

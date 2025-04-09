@@ -3,6 +3,7 @@ package comware
 import (
 	"errors"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/carlosrabelo/negev/negev/internal/domain/entities"
@@ -13,9 +14,9 @@ type mockRepo struct {
 	err       error
 }
 
-func (m *mockRepo) Connect() error                                   { return nil }
-func (m *mockRepo) Disconnect()                                      {}
-func (m *mockRepo) IsConnected() bool                                { return true }
+func (m *mockRepo) Connect() error                                    { return nil }
+func (m *mockRepo) Disconnect()                                       {}
+func (m *mockRepo) IsConnected() bool                                 { return true }
 func (m *mockRepo) SetSessionProfile(profile entities.SessionProfile) {}
 func (m *mockRepo) ExecuteCommand(cmd string) (string, error) {
 	if m.err != nil {
@@ -223,5 +224,18 @@ func TestIsComwareCommandError(t *testing.T) {
 	}
 	if d.IsCommandError("Packets invalid: 0") {
 		t.Fatal("must not treat a counter line as a command error")
+	}
+}
+
+func TestGetRunningConfig(t *testing.T) {
+	repo := &mockRepo{responses: map[string]string{
+		"display current-configuration": "# comware cfg\nsysname SW1\n",
+	}}
+	got, err := (&Driver{}).GetRunningConfig(repo)
+	if err != nil {
+		t.Fatalf("GetRunningConfig: %v", err)
+	}
+	if !strings.Contains(got, "sysname SW1") {
+		t.Fatalf("unexpected config: %q", got)
 	}
 }

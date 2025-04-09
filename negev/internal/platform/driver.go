@@ -18,6 +18,7 @@ type SwitchDriver interface {
 	GetActivePorts(repo ports.SwitchRepository) ([]entities.Port, error)
 	GetMacTable(repo ports.SwitchRepository) ([]entities.Device, error)
 	GetL3Interfaces(repo ports.SwitchRepository) ([]string, error)
+	GetRunningConfig(repo ports.SwitchRepository) (string, error)
 	NormalizeInterface(name string) string
 	ConfigureAccessCommands(port entities.Port, vlan string) []string
 	CreateVLANCommands(vlan string) []string

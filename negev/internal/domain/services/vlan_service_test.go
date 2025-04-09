@@ -112,6 +112,9 @@ func (d *stubDriver) GetMacTable(repo ports.SwitchRepository) ([]entities.Device
 func (d *stubDriver) GetL3Interfaces(repo ports.SwitchRepository) ([]string, error) {
 	return d.l3Vlans, nil
 }
+func (d *stubDriver) GetRunningConfig(repo ports.SwitchRepository) (string, error) {
+	return "! stub running-config\n", nil
+}
 func (d *stubDriver) NormalizeInterface(name string) string { return name }
 func (d *stubDriver) ConfigureAccessCommands(port entities.Port, vlan string) []string {
 	prefix := d.configurePrefix

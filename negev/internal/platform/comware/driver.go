@@ -1,6 +1,7 @@
 package comware
 
 import (
+	"fmt"
 	"regexp"
 	"sort"
 	"strconv"
@@ -419,6 +420,17 @@ func (d *Driver) DeleteVLANCommands(vlan string) []string {
 		"undo vlan " + vlan,
 		"return",
 	}
+}
+
+func (d *Driver) GetRunningConfig(repo ports.SwitchRepository) (string, error) {
+	out, err := repo.ExecuteCommand("display current-configuration")
+	if err != nil {
+		return "", err
+	}
+	if d.IsCommandError(out) {
+		return "", fmt.Errorf("display current-configuration failed")
+	}
+	return out, nil
 }
 
 func (d *Driver) SaveCommands() []string {

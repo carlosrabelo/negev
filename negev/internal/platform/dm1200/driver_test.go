@@ -3,6 +3,7 @@ package dm1200
 import (
 	"errors"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/carlosrabelo/negev/negev/internal/domain/entities"
@@ -16,9 +17,9 @@ type mockRepo struct {
 	cmdErr    map[string]error
 }
 
-func (m *mockRepo) Connect() error    { return nil }
-func (m *mockRepo) Disconnect()       {}
-func (m *mockRepo) IsConnected() bool { return true }
+func (m *mockRepo) Connect() error                                    { return nil }
+func (m *mockRepo) Disconnect()                                       {}
+func (m *mockRepo) IsConnected() bool                                 { return true }
 func (m *mockRepo) SetSessionProfile(profile entities.SessionProfile) {}
 func (m *mockRepo) ExecuteCommand(cmd string) (string, error) {
 	if cmd == "show version" {
@@ -300,5 +301,18 @@ Vlan-interface20     10.0.20.1       up
 	want := []string{"1", "10", "20"}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("GetL3Interfaces() = %v; expected %v", got, want)
+	}
+}
+
+func TestGetRunningConfig(t *testing.T) {
+	repo := &mockRepo{responses: map[string]string{
+		"show running-config": "hostname test\n",
+	}}
+	got, err := (&Driver{}).GetRunningConfig(repo)
+	if err != nil {
+		t.Fatalf("GetRunningConfig: %v", err)
+	}
+	if !strings.Contains(got, "hostname test") {
+		t.Fatalf("unexpected: %q", got)
 	}
 }

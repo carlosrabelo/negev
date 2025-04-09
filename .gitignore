@@ -3,7 +3,7 @@
 # ============================================================================
 
 # Directories
-# (none - secrets are typically files)
+backups/
 
 # Files
 .env

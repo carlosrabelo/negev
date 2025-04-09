@@ -160,9 +160,10 @@ func (tc *TelnetClient) runAuthSequence(prompts []entities.AuthPrompt) error {
 					continue
 				}
 			default:
-				if !strings.Contains(currentOutput, p.WaitFor) {
+				patterns := authWaitPatterns(p.WaitFor)
+				if !outputContainsAny(currentOutput, patterns) {
 					var err error
-					currentOutput, err = tc.readUntil(p.WaitFor, DefaultTimeout)
+					currentOutput, err = tc.readUntilAny(patterns, DefaultTimeout)
 					if err != nil {
 						return fmt.Errorf("failed to wait for %s: %v, output: %s", p.WaitFor, err, currentOutput)
 					}

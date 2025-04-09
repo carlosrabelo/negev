@@ -32,6 +32,7 @@ func run(args []string) int {
 	target := fs.String("target", "", "Switch IP(s) and/or name(s), comma-separated")
 	all := fs.Bool("all", false, "Run against all switches in the config")
 	group := fs.String("group", "", "Run against switches with the given tag")
+	concurrency := fs.Int("concurrency", services.DefaultConcurrency, "Max concurrent switch runs")
 	configPath := fs.String("config", "", "Path to YAML config file")
 	write := fs.Bool("write", false, "Apply changes (disables sandbox)")
 	verbose := fs.Int("verbose", 0, "Verbosity level: 0=none, 1=debug, 2=raw, 3=both")
@@ -47,6 +48,11 @@ func run(args []string) int {
 	if *showVersion {
 		fmt.Printf("Negev %s (built %s)\n", version, buildTime)
 		return 0
+	}
+
+	if *concurrency < 1 {
+		fmt.Fprintf(os.Stderr, "ERROR: --concurrency must be >= 1\n")
+		return 1
 	}
 
 	cfgPath := *configPath
@@ -88,26 +94,15 @@ func run(args []string) int {
 		ask = func() (string, string, error) { return password, enable, nil }
 	}
 
-	hadError := false
-	hadChanges := false
-	for _, sw := range selected {
-		result, err := services.RunTarget(sw.Target, cfgPath, *write, *verbose, *createVLANs, ask)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
-			hadError = true
-			continue
-		}
-		if result.HasChanges() {
-			hadChanges = true
-		}
-	}
-	if hadError {
-		return 1
-	}
-	if !*write && hadChanges {
-		return 2
-	}
-	return 0
+	result := services.RunMulti(selected, services.MultiRunOptions{
+		ConfigPath:  cfgPath,
+		Write:       *write,
+		Verbose:     *verbose,
+		CreateVLANs: *createVLANs,
+		Concurrency: *concurrency,
+		AskPass:     ask,
+	})
+	return result.ExitCode(*write)
 }
 
 // exitStatus maps run outcome to process exit codes:
@@ -128,6 +123,7 @@ func printUsage(fs *flag.FlagSet) {
 	fmt.Fprintf(os.Stderr, "  --target <ip|name>[,...]\n        Switch IP(s) and/or name(s), comma-separated\n")
 	fmt.Fprintf(os.Stderr, "  --all\n        Run against all switches in the config\n")
 	fmt.Fprintf(os.Stderr, "  --group <tag>\n        Run against switches with the given tag\n")
+	fmt.Fprintf(os.Stderr, "  --concurrency <n>\n        Max concurrent switch runs (default %d)\n", services.DefaultConcurrency)
 	fmt.Fprintf(os.Stderr, "  --config <path>\n        Path to YAML config file\n")
 	fmt.Fprintf(os.Stderr, "  --write\n        Apply changes (disables sandbox)\n")
 	fmt.Fprintf(os.Stderr, "  --verbose <0-3>\n        Verbosity level: 0=none, 1=debug, 2=raw, 3=both (default 0)\n")

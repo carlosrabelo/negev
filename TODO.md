@@ -13,10 +13,10 @@ VLAN automation for Cisco IOS switches over Telnet/SSH. MAC-based assignment wit
 - [x] YAML config loading with global → switch merge: `debugf` helper for conditional debug output
 - [x] Backward compat: `vendor` → `platform`, `LegacyPlatform`/`LegacyVendor` fallback
 - [x] `NormalizeMAC`: strips `:` and `.`, lowercases to 12 hex chars
-- [x] MAC prefix = first 6 chars of normalized MAC
+- [x] MAC prefix = even-length hex 2–12 with longest-prefix match (12→2)
 - [x] Config path resolution: `./config.yaml`, `~/.config/negev/`, `/etc/negev/` (Linux); `%APPDATA%`, `%ProgramData%` (Windows)
 - [x] `NoDataVlan` field (optional quarantine VLAN for link-up access ports with no learned MAC; omit to leave those ports unchanged)
-- [x] Config validation: required fields (`default_vlan`, `username`, `password`, `enable_password`), optional `no_data_vlan`, VLAN range 1–4094, platform enum (`ios`/`dmos`/`auto`), transport enum (`telnet`/`ssh`)
+- [x] Config validation: required `default_vlan` + `username`; optional passwords; VLAN 1–4094; platforms `ios`/`nxos`/`dmswitch`/`dm1200`/`comware`/`auto` (`dmos`→`dmswitch`); transport `telnet`/`ssh`
 - [x] `mergeStringSlices`: generic merge with dedup and optional per-element validation
 - [x] Per-switch `ExcludeMacs` merge: global + switch, normalized to 12 hex
 - [x] Per-switch `MacToVlan` merge: switch-specific overrides global for same prefix; `"0"`/`"00"` VLAN ignored

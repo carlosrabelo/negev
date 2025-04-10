@@ -135,7 +135,7 @@ Referência por flag (exemplos, padrões, interações): [cli-pt/](cli-pt/) · E
 5. Ignora trunks, portas roteadas, `exclude_ports`, MACs excluídos.
 6. Resolve VLAN: maior prefixo de comprimento par em `mac_to_vlan` (12→2); senão `default_vlan`; portas vazias podem usar `no_data_vlan`.
 7. Portas multi-MAC: `ignore` (pula em silêncio), `alert` (avisa + pula), `priority` (maior prefixo explícito vence).
-8. `--create-vlans` opcional: cria allowed faltantes; remove não-allowed não-protegidas (1000–4094 sempre protegidas).
+8. `--create-vlans` opcional: cria allowed faltantes; remove não-allowed não-protegidas (VLAN 1 e 1000–4094 sempre protegidas; mais `default_vlan` / `no_data_vlan` / `protected_vlans` / SVIs L3 / VLANs ainda em portas ativas).
 9. Sandbox imprime `SIMULATE:`; `--write` executa e salva.
 10. Cada mudança de VLAN de porta (sucesso ou falha) anexa um registro JSONL quando `audit_log` / `--audit-log` está definido (modo `0644`, sync por entrada).
 

@@ -98,7 +98,7 @@ Vlan1                  unassigned      YES NVRAM  up                    up
 func TestRunTargetNotFound(t *testing.T) {
 	cfg := &config.Config{Switches: []entities.SwitchConfig{{Target: "10.0.0.1"}}}
 	svc := NewVLANApplicationService(cfg, "10.0.0.2")
-	if _, err := svc.Run(true, 0, false, BackupOpts{}); err == nil {
+	if _, err := svc.Run(true, 0, false, BackupOpts{}, AuditOpts{}); err == nil {
 		t.Fatal("expected target not found error")
 	}
 }
@@ -112,7 +112,7 @@ func TestRunUnknownPlatform(t *testing.T) {
 	svc.newAdapter = func(sc entities.SwitchConfig) *transport.SwitchAdapter {
 		return transport.NewSwitchAdapterWithClient(sc, iosScriptedClient())
 	}
-	if _, err := svc.Run(true, 0, false, BackupOpts{}); err == nil {
+	if _, err := svc.Run(true, 0, false, BackupOpts{}, AuditOpts{}); err == nil {
 		t.Fatal("expected unknown platform error")
 	}
 }
@@ -129,7 +129,7 @@ func TestRunIOSSandboxSuccess(t *testing.T) {
 	svc.newAdapter = func(sc entities.SwitchConfig) *transport.SwitchAdapter {
 		return transport.NewSwitchAdapterWithClient(sc, cli)
 	}
-	result, err := svc.Run(true, 1, false, BackupOpts{})
+	result, err := svc.Run(true, 1, false, BackupOpts{}, AuditOpts{})
 	if err != nil {
 		t.Fatalf("Run failed: %v", err)
 	}
@@ -159,7 +159,7 @@ func TestRunAutoDetectSuccess(t *testing.T) {
 	svc.newAdapter = func(sc entities.SwitchConfig) *transport.SwitchAdapter {
 		return transport.NewSwitchAdapterWithClient(sc, cli)
 	}
-	if _, err := svc.Run(true, 0, false, BackupOpts{}); err != nil {
+	if _, err := svc.Run(true, 0, false, BackupOpts{}, AuditOpts{}); err != nil {
 		t.Fatalf("Run auto failed: %v", err)
 	}
 	if len(cli.prompts) == 0 || cli.prompts[0].WaitFor != "Username:" {
@@ -177,7 +177,7 @@ func TestRunAutoDetectConnectFailure(t *testing.T) {
 	svc.newAdapter = func(sc entities.SwitchConfig) *transport.SwitchAdapter {
 		return transport.NewSwitchAdapterWithClient(sc, cli)
 	}
-	if _, err := svc.Run(true, 0, false, BackupOpts{}); err == nil {
+	if _, err := svc.Run(true, 0, false, BackupOpts{}, AuditOpts{}); err == nil {
 		t.Fatal("expected auto-detect connect failure")
 	}
 }
@@ -215,7 +215,7 @@ func TestRunAutoDetectNoMatch(t *testing.T) {
 	svc.newAdapter = func(sc entities.SwitchConfig) *transport.SwitchAdapter {
 		return transport.NewSwitchAdapterWithClient(sc, cli)
 	}
-	if _, err := svc.Run(true, 0, false, BackupOpts{}); err == nil {
+	if _, err := svc.Run(true, 0, false, BackupOpts{}, AuditOpts{}); err == nil {
 		t.Fatal("expected platform detection failure")
 	}
 }

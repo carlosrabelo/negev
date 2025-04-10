@@ -7,6 +7,7 @@ import (
 
 	"github.com/carlosrabelo/negev/negev/internal/domain/entities"
 	domainServices "github.com/carlosrabelo/negev/negev/internal/domain/services"
+	"github.com/carlosrabelo/negev/negev/internal/infrastructure/audit"
 	"github.com/carlosrabelo/negev/negev/internal/infrastructure/config"
 	"github.com/carlosrabelo/negev/negev/internal/infrastructure/transport"
 	"github.com/carlosrabelo/negev/negev/internal/platform"
@@ -18,7 +19,7 @@ type AskPassFunc func() (password, enable string, err error)
 
 // RunTarget loads configuration and runs VLAN automation for a switch.
 // When askPass is non-nil, prompted credentials override YAML/env for the target switch.
-func RunTarget(target, configPath string, write bool, verbose int, createVLANs bool, askPass AskPassFunc, backup BackupOpts) (entities.RunResult, error) {
+func RunTarget(target, configPath string, write bool, verbose int, createVLANs bool, askPass AskPassFunc, backup BackupOpts, auditOpts AuditOpts) (entities.RunResult, error) {
 	var result entities.RunResult
 	if verbose < 0 || verbose > 3 {
 		return result, fmt.Errorf("--verbose must be 0-3")
@@ -57,7 +58,7 @@ func RunTarget(target, configPath string, write bool, verbose int, createVLANs b
 
 	defer transport.CloseAll()
 
-	return NewVLANApplicationService(cfg, target).Run(!write, verbose, createVLANs, backup)
+	return NewVLANApplicationService(cfg, target).Run(!write, verbose, createVLANs, backup, auditOpts)
 }
 
 func applyAskPass(cfg *config.Config, target, password, enable string) {
@@ -87,7 +88,7 @@ func NewVLANApplicationService(cfg *config.Config, target string) *VLANApplicati
 	}
 }
 
-func (s *VLANApplicationService) Run(sandbox bool, verbosity int, createVLANs bool, backup BackupOpts) (entities.RunResult, error) {
+func (s *VLANApplicationService) Run(sandbox bool, verbosity int, createVLANs bool, backup BackupOpts, auditOpts AuditOpts) (entities.RunResult, error) {
 	var result entities.RunResult
 
 	var switchCfg *entities.SwitchConfig
@@ -145,5 +146,12 @@ func (s *VLANApplicationService) Run(sandbox bool, verbosity int, createVLANs bo
 
 	driver.ClearCache()
 	svc := domainServices.NewVLANService(adapter, *switchCfg, driver)
+	if path := auditOpts.Resolve(s.cfg.AuditLog); path != "" {
+		logger, err := audit.New(path)
+		if err != nil {
+			return result, fmt.Errorf("audit log: %w", err)
+		}
+		svc.SetAuditor(logger)
+	}
 	return svc.ProcessPorts()
 }

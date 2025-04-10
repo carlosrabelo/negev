@@ -18,7 +18,7 @@ type AskPassFunc func() (password, enable string, err error)
 
 // RunTarget loads configuration and runs VLAN automation for a switch.
 // When askPass is non-nil, prompted credentials override YAML/env for the target switch.
-func RunTarget(target, configPath string, write bool, verbose int, createVLANs bool, askPass AskPassFunc) (entities.RunResult, error) {
+func RunTarget(target, configPath string, write bool, verbose int, createVLANs bool, askPass AskPassFunc, backup BackupOpts) (entities.RunResult, error) {
 	var result entities.RunResult
 	if verbose < 0 || verbose > 3 {
 		return result, fmt.Errorf("--verbose must be 0-3")
@@ -57,7 +57,7 @@ func RunTarget(target, configPath string, write bool, verbose int, createVLANs b
 
 	defer transport.CloseAll()
 
-	return NewVLANApplicationService(cfg, target).Run(!write, verbose, createVLANs)
+	return NewVLANApplicationService(cfg, target).Run(!write, verbose, createVLANs, backup)
 }
 
 func applyAskPass(cfg *config.Config, target, password, enable string) {
@@ -87,7 +87,7 @@ func NewVLANApplicationService(cfg *config.Config, target string) *VLANApplicati
 	}
 }
 
-func (s *VLANApplicationService) Run(sandbox bool, verbosity int, createVLANs bool) (entities.RunResult, error) {
+func (s *VLANApplicationService) Run(sandbox bool, verbosity int, createVLANs bool, backup BackupOpts) (entities.RunResult, error) {
 	var result entities.RunResult
 
 	var switchCfg *entities.SwitchConfig
@@ -132,6 +132,15 @@ func (s *VLANApplicationService) Run(sandbox bool, verbosity int, createVLANs bo
 
 	if authCfg, ok := interface{}(adapter).(transport.AuthConfigurable); ok {
 		authCfg.SetAuthSequence(driver.GetAuthenticationSequence())
+	}
+
+	if backup.Required(!sandbox) {
+		dir := backup.ResolveDir(s.cfg.BackupDir)
+		path, err := takePreWriteBackup(adapter, driver, *switchCfg, dir)
+		if err != nil {
+			return result, fmt.Errorf("backup failed — aborting before write: %w", err)
+		}
+		slog.Info("Configuration backup saved", "path", path, "target", switchCfg.Target)
 	}
 
 	driver.ClearCache()

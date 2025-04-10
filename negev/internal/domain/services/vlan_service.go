@@ -16,6 +16,7 @@ type VLANServiceImpl struct {
 	repo   ports.SwitchRepository
 	config entities.SwitchConfig
 	driver platform.SwitchDriver
+	audit  ports.Auditor
 
 	l3Vlans        map[string]bool
 	portVlansInUse map[string]bool
@@ -23,6 +24,11 @@ type VLANServiceImpl struct {
 
 func NewVLANService(repo ports.SwitchRepository, config entities.SwitchConfig, driver platform.SwitchDriver) *VLANServiceImpl {
 	return &VLANServiceImpl{repo: repo, config: config, driver: driver}
+}
+
+// SetAuditor enables JSONL audit logging for port VLAN changes.
+func (s *VLANServiceImpl) SetAuditor(a ports.Auditor) {
+	s.audit = a
 }
 
 var _ ports.VLANService = (*VLANServiceImpl)(nil)
@@ -115,11 +121,13 @@ func (s *VLANServiceImpl) ProcessPorts() (entities.RunResult, error) {
 			continue
 		}
 
+		mac := primaryMAC(s.filterActiveMacs(devices, port.Interface))
 		changed, err := s.applyPortVlan(port, targetVlan, vlans)
 		if err != nil {
 			slog.Error("Port configuration failed — continuing", "port", port.Interface, "error", err, "target", s.config.Target)
 			result.PortsFailed++
 			result.Errors = append(result.Errors, err)
+			s.auditPortChange(port, mac, targetVlan, "FAILED")
 			continue
 		}
 		if changed {
@@ -130,6 +138,7 @@ func (s *VLANServiceImpl) ProcessPorts() (entities.RunResult, error) {
 			} else {
 				modified = true
 			}
+			s.auditPortChange(port, mac, targetVlan, "SUCCESS")
 		}
 	}
 
@@ -400,6 +409,41 @@ func (s *VLANServiceImpl) applyPortVlan(port entities.Port, targetVlan string, v
 		return false, fmt.Errorf("failed to configure VLAN on port %s: %v", port.Interface, err)
 	}
 	return true, nil
+}
+
+func (s *VLANServiceImpl) auditPortChange(port entities.Port, mac, newVlan, status string) {
+	if s.audit == nil {
+		return
+	}
+	entry := ports.PortVLANAudit{
+		Target:     s.config.Target,
+		SwitchName: s.config.Name,
+		Port:       port.Interface,
+		MAC:        mac,
+		OldVLAN:    vlanInt(port.Vlan),
+		NewVLAN:    vlanInt(newVlan),
+		Action:     "SET_PORT_VLAN",
+		Sandbox:    s.config.Sandbox,
+		Status:     status,
+	}
+	if err := s.audit.AppendPortVLAN(entry); err != nil {
+		slog.Warn("Failed to append audit log entry", "error", err, "port", port.Interface, "target", s.config.Target)
+	}
+}
+
+func primaryMAC(macs []entities.Device) string {
+	if len(macs) == 0 {
+		return ""
+	}
+	return macs[0].Mac
+}
+
+func vlanInt(vlan string) int {
+	n, err := strconv.Atoi(strings.TrimSpace(vlan))
+	if err != nil {
+		return 0
+	}
+	return n
 }
 
 func (s *VLANServiceImpl) saveConfiguration() error {

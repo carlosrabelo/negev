@@ -1,0 +1,10 @@
+host: "192.168.1.1"
+username: "admin"
+password: "sua_senha"
+enable_password: "sua_senha_enable"
+default_vlan: "10"  # VLAN padrão para Apple não mapeado
+mac_to_vlan:
+  "00:0b:82": "10"  # Grandstream
+  "78:8c:77": "30"  # Lexmark
+  "24:fd:0d": "32"  # Intelbras
+  "18:0d:2c": "32"  # Intelbras

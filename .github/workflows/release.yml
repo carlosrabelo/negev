@@ -1,0 +1,50 @@
+name: Release Negev Binaries
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+' # Apenas tags como v1.0.0, v2.3.4, etc.
+
+jobs:
+  build-and-release:
+    name: Build and Release ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        include:
+          - os: ubuntu-latest
+            goos: linux
+            goarch: amd64
+            binary_name: negev-linux-amd64
+            asset_name: negev-linux-amd64
+          - os: windows-latest
+            goos: windows
+            goarch: amd64
+            binary_name: negev-windows-amd64.exe
+            asset_name: negev-windows-amd64.exe
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21' # Ajuste para sua versão do Go
+
+      - name: Build binary
+        run: |
+          GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build -o ${{ matrix.binary_name }} -v
+        env:
+          CGO_ENABLED: 0
+
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: ${{ matrix.binary_name }}
+          name: "Negev ${{ github.ref_name }}"
+          draft: false # Torna a release pública imediatamente; use true para rascunho
+          prerelease: false # Marca como release oficial; use true para pré-release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

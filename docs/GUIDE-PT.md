@@ -181,3 +181,38 @@ VLANs são protegidas contra exclusão (ao executar com `--create-vlans`) sob du
 - **Proteção Explícita**: VLANs listadas em `protected_vlans` no arquivo de configuração.
 
 VLANs protegidas nunca são excluídas pelo Negev.
+
+---
+
+## Cenários Práticos
+
+Os walkthroughs que antes ficavam em um diretório `demos/` agora residem em `docs/`.
+
+Uma configuração de exemplo completa (apenas IPs de documentação) está em [`docs/examples/config.yaml`](examples/config.yaml).
+
+### Cenário 1: Implantação inicial de switch de acesso
+
+```bash
+negev --target 192.0.2.10 --config docs/examples/config.yaml
+# Revise a saída SIMULATE e então:
+negev --target 192.0.2.10 --config docs/examples/config.yaml --write
+```
+
+### Cenário 2: Sincronizar o banco de VLANs
+
+```bash
+negev --target 192.0.2.10 --config docs/examples/config.yaml --create-vlans
+negev --target 192.0.2.10 --config docs/examples/config.yaml --create-vlans --write
+```
+
+### Cenário 3: Segmentar portas de acesso não gerenciadas
+
+Mapeie prefixos OUI/MAC de departamento em `mac_to_vlan`, exclua uplinks com `exclude_ports`, pré-visualize no sandbox e aplique com `--write`.
+
+### Cenário 4: Diagnosticar prompts e pagers
+
+```bash
+negev --target 192.0.2.10 --config docs/examples/config.yaml --verbose 1   # debug
+negev --target 192.0.2.10 --config docs/examples/config.yaml --verbose 2   # I/O bruto
+negev --target 192.0.2.10 --config docs/examples/config.yaml --verbose 3   # ambos
+```

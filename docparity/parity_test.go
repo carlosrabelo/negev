@@ -57,7 +57,6 @@ func execLines(body string) []string {
 		if i := strings.Index(s, " #"); i >= 0 {
 			s = strings.TrimSpace(s[:i])
 		}
-		// YAML inline comments after values
 		if i := strings.Index(s, "  #"); i >= 0 {
 			s = strings.TrimSpace(s[:i])
 		}
@@ -66,6 +65,11 @@ func execLines(body string) []string {
 		}
 	}
 	return out
+}
+
+var cliFlags = []string{
+	"target", "all", "group", "concurrency", "config", "write", "verbose",
+	"create-vlans", "ask-pass", "backup", "backup-dir", "audit-log", "version",
 }
 
 func TestBilingualREADMEParity(t *testing.T) {
@@ -85,7 +89,10 @@ func TestBilingualREADMEParity(t *testing.T) {
 			t.Fatalf("README fence %d executable lines differ\nEN=%v\nPT=%v", i, ae, ap)
 		}
 	}
-	for _, flag := range []string{"--target", "--config", "--write", "--create-vlans", "--verbose", "--all", "--group", "--ask-pass", "--backup", "--audit-log"} {
+	if !strings.Contains(en, "docs/cli") || !strings.Contains(pt, "docs/cli") {
+		t.Fatal("README pair must link to docs/cli")
+	}
+	for _, flag := range []string{"--target", "--write", "--all"} {
 		if !strings.Contains(en, flag) || !strings.Contains(pt, flag) {
 			t.Fatalf("flag %s missing in README bilingual pair", flag)
 		}
@@ -119,5 +126,32 @@ func TestBilingualGUIDEParity(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(root, "demos")); !os.IsNotExist(err) {
 		t.Fatalf("demos/ must not exist: %v", err)
+	}
+}
+
+func TestCLIFlagPages(t *testing.T) {
+	root := repoRoot(t)
+	for _, flag := range cliFlags {
+		en := filepath.Join(root, "docs", "cli", flag+".md")
+		pt := filepath.Join(root, "docs", "cli-pt", flag+".md")
+		if _, err := os.Stat(en); err != nil {
+			t.Fatalf("missing %s: %v", en, err)
+		}
+		if _, err := os.Stat(pt); err != nil {
+			t.Fatalf("missing %s: %v", pt, err)
+		}
+	}
+	for _, idx := range []string{
+		filepath.Join(root, "docs", "cli", "README.md"),
+		filepath.Join(root, "docs", "cli-pt", "README.md"),
+		filepath.Join(root, "docs", "README.md"),
+		filepath.Join(root, "docs", "README-PT.md"),
+	} {
+		if _, err := os.Stat(idx); err != nil {
+			t.Fatalf("missing %s: %v", idx, err)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(root, "docs", "man")); !os.IsNotExist(err) {
+		t.Fatalf("docs/man/ must not exist: %v", err)
 	}
 }

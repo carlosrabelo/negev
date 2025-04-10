@@ -3,8 +3,8 @@ name: Release Negev Binaries
 on:
   push:
     tags:
-      - 'v[0-9]+.[0-9]+.[0-9]+' # Apenas tags como v1.0.0, v2.3.4, etc.
-  workflow_dispatch: # Adiciona a opção de execução manual
+      - 'v[0-9]+.[0-9]+.[0-9]+' # Aciona automaticamente em tags como v1.0.0
+  workflow_dispatch: # Permite execução manual
 
 jobs:
   build-and-release:
@@ -40,12 +40,20 @@ jobs:
         env:
           CGO_ENABLED: 0
 
+      - name: Set tag for manual run
+        if: github.event_name == 'workflow_dispatch'
+        run: echo "TAG=manual-${{ github.run_id }}" >> $GITHUB_ENV
+
+      - name: Set tag for push event
+        if: github.event_name == 'push'
+        run: echo "TAG=${{ github.ref_name }}" >> $GITHUB_ENV
+
       - name: Release
         uses: softprops/action-gh-release@v1
         with:
           files: ${{ matrix.binary_name }}
-          name: "Negev ${{ github.ref_name }}"
-          draft: false # Torna a release pública imediatamente; use true para rascunho
-          prerelease: false # Marca como release oficial; use true para pré-release
+          name: "Negev ${{ env.TAG }}"
+          tag_name: ${{ env.TAG }}
+          draft: ${{ github.event_name == 'workflow_dispatch' }} # Rascunho para manual, publicado para push
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

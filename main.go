@@ -24,6 +24,8 @@ type Config struct {
 	YamlFile       string            `yaml:"yaml_file"`
 	DefaultVlan    string            `yaml:"default_vlan"`
 	MacToVlan      map[string]string `yaml:"mac_to_vlan"`
+	ExcludeMacs    []string          `yaml:"exclude_macs"` // Lista de MACs a excluir
+	ReplaceVlan    string            // Controlado por -rv, formato "old,new"
 }
 
 // Device representa um dispositivo na tabela MAC
@@ -86,6 +88,28 @@ func NewCiscoSwitchManager(config Config) (*CiscoSwitchManager, error) {
 	// Sobrescrever o host do YAML com o valor da flag -h, se fornecido
 	if config.Host != "" {
 		yamlConfig.Host = config.Host
+	}
+	// Aplicar a substituição de VLAN, se fornecida via -rv
+	if config.ReplaceVlan != "" {
+		parts := strings.Split(config.ReplaceVlan, ",")
+		if len(parts) != 2 {
+			return nil, fmt.Errorf("formato inválido para -rv, use 'old,new' (ex.: '10,100')")
+		}
+		oldVlan, newVlan := parts[0], parts[1]
+		if yamlConfig.DefaultVlan == oldVlan {
+			yamlConfig.DefaultVlan = newVlan
+			if yamlConfig.Debug {
+				fmt.Printf("[DEBUG] Substituindo default_vlan %s por %s\n", oldVlan, newVlan)
+			}
+		}
+		for mac, vlan := range yamlConfig.MacToVlan {
+			if vlan == oldVlan {
+				yamlConfig.MacToVlan[mac] = newVlan
+				if yamlConfig.Debug {
+					fmt.Printf("[DEBUG] Substituindo VLAN %s por %s para MAC prefix %s\n", oldVlan, newVlan, mac)
+				}
+			}
+		}
 	}
 
 	if yamlConfig.Host == "" || yamlConfig.Username == "" || yamlConfig.Password == "" || yamlConfig.EnablePassword == "" {
@@ -313,6 +337,23 @@ func (m *CiscoSwitchManager) processDevices() {
 			continue // Silenciosamente ignorar portas trunk
 		}
 
+		// Verifica se o MAC completo está na lista de exclusão
+		excluded := false
+		for _, excludeMac := range m.config.ExcludeMacs {
+			normalizedExcludeMac := strings.ToLower(strings.ReplaceAll(excludeMac, ":", ""))
+			normalizedDeviceMac := strings.ToLower(strings.ReplaceAll(device.MacFull, ":", ""))
+			if normalizedExcludeMac == normalizedDeviceMac {
+				if m.config.Debug {
+					fmt.Printf("[DEBUG] MAC %s excluído de alterações\n", device.MacFull)
+				}
+				excluded = true
+				break
+			}
+		}
+		if excluded {
+			continue
+		}
+
 		macNoDots := strings.ReplaceAll(device.Mac, ".", "") // 24fd0d25d621
 		macPrefix := ""
 		for i := 0; i < 6; i += 2 {
@@ -354,15 +395,17 @@ func main() {
 	exec := flag.Bool("x", false, "Executa as configurações no switch (desativa sandbox)")
 	debug := flag.Bool("d", false, "Ativa saída de debug do switch")
 	host := flag.String("h", "", "Host do switch (sobrescreve o valor do YAML)")
+	replaceVlan := flag.String("rv", "", "Substitui uma VLAN por outra (formato 'old,new', ex.: '10,100')")
 
 	// Parsear flags
 	flag.Parse()
 
 	config := Config{
-		Sandbox:  !(*exec), // Sandbox é false se -x for fornecido
-		Debug:    *debug,
-		YamlFile: *yamlFile,
-		Host:     *host, // Valor inicial da flag -h, pode ser vazio
+		Sandbox:     !(*exec), // Sandbox é false se -x for fornecido
+		Debug:       *debug,
+		YamlFile:    *yamlFile,
+		Host:        *host,        // Valor inicial da flag -h, pode ser vazio
+		ReplaceVlan: *replaceVlan, // Valor inicial da flag -rv, pode ser vazio
 	}
 
 	manager, err := NewCiscoSwitchManager(config)

@@ -26,6 +26,7 @@ type MultiRunOptions struct {
 	CreateVLANs bool
 	Concurrency int
 	AskPass     AskPassFunc
+	Backup      BackupOpts
 	Stdout      io.Writer
 	Stderr      io.Writer
 	// Runner overrides per-switch execution (nil → RunTarget).
@@ -113,7 +114,7 @@ func RunMulti(switches []entities.SwitchConfig, opts MultiRunOptions) MultiRunRe
 	runner := opts.Runner
 	if runner == nil {
 		runner = func(sw entities.SwitchConfig, _, _ io.Writer) (entities.RunResult, error) {
-			return RunTarget(sw.Target, opts.ConfigPath, opts.Write, opts.Verbose, opts.CreateVLANs, opts.AskPass)
+			return RunTarget(sw.Target, opts.ConfigPath, opts.Write, opts.Verbose, opts.CreateVLANs, opts.AskPass, opts.Backup)
 		}
 	}
 

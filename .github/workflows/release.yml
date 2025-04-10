@@ -1,0 +1,94 @@
+name: Release Negev Binaries
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+' # Aciona automaticamente em tags como v1.0.0
+  workflow_dispatch: # Permite execução manual
+
+jobs:
+  build-linux:
+    name: Build Linux Binary
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21' # Ajuste para sua versão do Go
+
+      - name: Build binary
+        run: |
+          GOOS=linux GOARCH=amd64 go build -o negev-linux-amd64 -v
+        env:
+          CGO_ENABLED: 0
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: negev-linux-amd64
+          path: negev-linux-amd64
+
+  build-windows:
+    name: Build Windows Binary
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21' # Ajuste para sua versão do Go
+
+      - name: Build binary
+        shell: powershell
+        run: |
+          $env:GOOS = "windows"
+          $env:GOARCH = "amd64"
+          $env:CGO_ENABLED = "0"
+          go build -o negev-windows-amd64.exe -v
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: negev-windows-amd64.exe
+          path: negev-windows-amd64.exe
+
+  release:
+    name: Create Release
+    needs: [build-linux, build-windows] # Espera os builds concluírem
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Set tag for manual run
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          echo "TAG=manual-${{ github.run_id }}" >> $GITHUB_ENV
+          git tag ${{ env.TAG }}
+          git push origin ${{ env.TAG }}
+
+      - name: Set tag for push event
+        if: github.event_name == 'push'
+        run: echo "TAG=${{ github.ref_name }}" >> $GITHUB_ENV
+
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            artifacts/negev-linux-amd64/negev-linux-amd64
+            artifacts/negev-windows-amd64.exe/negev-windows-amd64.exe
+          name: "Negev ${{ env.TAG }}"
+          tag_name: ${{ env.TAG }}
+          draft: ${{ github.event_name == 'workflow_dispatch' }} # Rascunho para manual
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

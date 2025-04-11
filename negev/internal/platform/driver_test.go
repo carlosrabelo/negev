@@ -18,7 +18,7 @@ func (f *fakeDriver) Name() string { return f.name }
 func (f *fakeDriver) Detect(repo ports.SwitchRepository) (bool, error) {
 	return f.match, f.detectE
 }
-func (f *fakeDriver) GetSessionProfile() entities.SessionProfile { return entities.SessionProfile{} }
+func (f *fakeDriver) GetSessionProfile() entities.SessionProfile       { return entities.SessionProfile{} }
 func (f *fakeDriver) GetAuthenticationSequence() []entities.AuthPrompt { return nil }
 func (f *fakeDriver) GetVLANList(repo ports.SwitchRepository) ([]string, error) {
 	return nil, nil
@@ -34,6 +34,9 @@ func (f *fakeDriver) GetMacTable(repo ports.SwitchRepository) ([]entities.Device
 }
 func (f *fakeDriver) GetL3Interfaces(repo ports.SwitchRepository) ([]string, error) {
 	return nil, nil
+}
+func (f *fakeDriver) GetRunningConfig(repo ports.SwitchRepository) (string, error) {
+	return "", nil
 }
 func (f *fakeDriver) NormalizeInterface(name string) string { return name }
 func (f *fakeDriver) ConfigureAccessCommands(port entities.Port, vlan string) []string {

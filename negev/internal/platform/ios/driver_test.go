@@ -3,6 +3,7 @@ package ios
 import (
 	"errors"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/carlosrabelo/negev/negev/internal/domain/entities"
@@ -13,9 +14,9 @@ type mockRepo struct {
 	responses map[string]string
 }
 
-func (m *mockRepo) Connect() error    { return nil }
-func (m *mockRepo) Disconnect()       {}
-func (m *mockRepo) IsConnected() bool { return true }
+func (m *mockRepo) Connect() error                                    { return nil }
+func (m *mockRepo) Disconnect()                                       {}
+func (m *mockRepo) IsConnected() bool                                 { return true }
 func (m *mockRepo) SetSessionProfile(profile entities.SessionProfile) {}
 func (m *mockRepo) ExecuteCommand(cmd string) (string, error) {
 	if cmd == "show version" {
@@ -168,5 +169,18 @@ Vlan20                 10.0.0.1        YES NVRAM  up                    up
 	want := []string{"1", "10", "20"}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("GetL3Interfaces() = %v; expected %v", got, want)
+	}
+}
+
+func TestGetRunningConfig(t *testing.T) {
+	repo := &mockRepo{responses: map[string]string{
+		"show running-config": "version 15.2\nhostname sw1\n",
+	}}
+	got, err := (&Driver{}).GetRunningConfig(repo)
+	if err != nil {
+		t.Fatalf("GetRunningConfig: %v", err)
+	}
+	if !strings.Contains(got, "hostname sw1") {
+		t.Fatalf("unexpected config: %q", got)
 	}
 }

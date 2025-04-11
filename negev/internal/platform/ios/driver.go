@@ -272,6 +272,17 @@ func (d *Driver) DeleteVLANCommands(vlan string) []string {
 	}
 }
 
+func (d *Driver) GetRunningConfig(repo ports.SwitchRepository) (string, error) {
+	out, err := repo.ExecuteCommand("show running-config")
+	if err != nil {
+		return "", err
+	}
+	if d.IsCommandError(out) {
+		return "", fmt.Errorf("show running-config failed")
+	}
+	return out, nil
+}
+
 func (d *Driver) SaveCommands() []string {
 	return []string{"write memory"}
 }

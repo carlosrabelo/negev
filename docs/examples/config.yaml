@@ -1,8 +1,10 @@
+# Documentation example only — use RFC 5737 documentation addresses.
+# Copy and adapt; never commit production credentials.
 platform: auto
 transport: telnet
 username: admin
-password: cisco123
-enable_password: cisco123
+password: "changeme"
+enable_password: "changeme"
 default_vlan: "1"
 no_data_vlan: "999"
 allowed_vlans:
@@ -23,20 +25,24 @@ exclude_macs:
   - "0000.0000.0000"
 
 switches:
-  - target: 192.168.1.10
+  - name: access-a1
+    target: 192.0.2.10
     platform: ios
     transport: ssh
+    tags: [access, building-a]
     username: switchadmin
-    password: switchpass
-    enable_password: enablepass
+    password: "changeme"
+    enable_password: "changeme"
     mac_to_vlan:
       "001122": "30"
-      "00": ""
+      "112233": "0"
     exclude_macs:
       - "aaaa.bbbb.cccc"
 
-  - target: 192.168.1.20
+  - name: access-a2
+    target: 192.0.2.20
     platform: auto
+    tags: [access, building-a]
     default_vlan: "100"
     exclude_ports:
       - "Gi1/0/24"

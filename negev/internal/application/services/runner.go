@@ -137,11 +137,18 @@ func (s *VLANApplicationService) Run(sandbox bool, verbosity int, createVLANs bo
 
 	if backup.Required(!sandbox) {
 		dir := backup.ResolveDir(s.cfg.BackupDir)
-		path, err := takePreWriteBackup(adapter, driver, *switchCfg, dir)
-		if err != nil {
-			return result, fmt.Errorf("backup failed — aborting before write: %w", err)
+		if dir == "" {
+			if backup.Force {
+				return result, fmt.Errorf("backup requested but no directory configured (set backup_dir or --backup-dir)")
+			}
+			slog.Info("Skipping configuration backup (no backup_dir configured)", "target", switchCfg.Target)
+		} else {
+			path, err := takePreWriteBackup(adapter, driver, *switchCfg, dir)
+			if err != nil {
+				return result, fmt.Errorf("backup failed — aborting before write: %w", err)
+			}
+			slog.Info("Configuration backup saved", "path", path, "target", switchCfg.Target)
 		}
-		slog.Info("Configuration backup saved", "path", path, "target", switchCfg.Target)
 	}
 
 	driver.ClearCache()

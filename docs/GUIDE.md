@@ -29,7 +29,8 @@ verification (warns)—use only on trusted networks.
 
 ```bash
 make install          # ~/.local/bin/negev
-make install-system   # /usr/local/bin/negev
+make package          # .deb into dist/ (binary at /usr/bin)
+sudo dpkg -i dist/*.deb
 ```
 
 Or `go install github.com/carlosrabelo/negev/negev/cmd/negev@latest`.
@@ -129,7 +130,7 @@ Per-flag reference (examples, defaults, interactions): [cli/](cli/) · Portugues
 
 1. Resolve selected switches (`ResolveTargets`).
 2. Per switch (concurrent pool): load credentials, detect/get driver, set session profile + auth sequence.
-3. If `--write` or `--backup`: download running-config and write `<name-or-ip>_<UTC>.cfg` mode `0600` under `--backup-dir` / `backup_dir` / `./backups`. Backup failure aborts before any mutating command.
+3. If `--write` or `--backup` and a directory is set (`--backup-dir` or YAML `backup_dir`): download running-config and write `<name-or-ip>_<UTC>.cfg` mode `0600` there (directory created only then). No configured directory → skip backup on `--write`; `--backup` without a directory errors. Backup failure aborts before any mutating command.
 4. Collect VLANs, trunks, L3/SVI interfaces, active ports, MAC table.
 5. Skip trunks, routed ports, `exclude_ports`, excluded MACs.
 6. Resolve VLAN: longest even-length prefix in `mac_to_vlan` (12→2); else `default_vlan`; empty ports may use `no_data_vlan`.
@@ -147,6 +148,8 @@ Per-flag reference (examples, defaults, interactions): [cli/](cli/) · Portugues
 | `priority` | Among explicit `mac_to_vlan` hits, pick the longest prefix; if none, skip |
 
 ## Backup and audit
+
+Backups run only when a directory is configured (`backup_dir` in YAML or `--backup-dir`). There is no default `./backups` folder.
 
 ```bash
 negev --target 192.0.2.10 --config docs/examples/config.yaml --write --backup-dir ./backups

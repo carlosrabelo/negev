@@ -30,7 +30,8 @@ Telnet envia credenciais em claro (avisa). SSH usa PTY e ignora verificação de
 
 ```bash
 make install          # ~/.local/bin/negev
-make install-system   # /usr/local/bin/negev
+make package          # .deb em dist/ (binário em /usr/bin)
+sudo dpkg -i dist/*.deb
 ```
 
 Ou `go install github.com/carlosrabelo/negev/negev/cmd/negev@latest`.
@@ -130,7 +131,7 @@ Referência por flag (exemplos, padrões, interações): [cli-pt/](cli-pt/) · E
 
 1. Resolve os switches selecionados (`ResolveTargets`).
 2. Por switch (pool concorrente): carrega credenciais, detecta/obtém driver, aplica session profile + sequência de auth.
-3. Se `--write` ou `--backup`: baixa o running-config e grava `<nome-ou-ip>_<UTC>.cfg` modo `0600` em `--backup-dir` / `backup_dir` / `./backups`. Falha de backup aborta antes de qualquer comando mutável.
+3. Se `--write` ou `--backup` e um diretório estiver definido (`--backup-dir` ou YAML `backup_dir`): baixa o running-config e grava `<nome-ou-ip>_<UTC>.cfg` modo `0600` nele (diretório criado só então). Sem diretório → omite backup com `--write`; `--backup` sem diretório resulta em erro. Falha de backup aborta antes de qualquer comando mutável.
 4. Coleta VLANs, trunks, interfaces L3/SVI, portas ativas, tabela MAC.
 5. Ignora trunks, portas roteadas, `exclude_ports`, MACs excluídos.
 6. Resolve VLAN: maior prefixo de comprimento par em `mac_to_vlan` (12→2); senão `default_vlan`; portas vazias podem usar `no_data_vlan`.
@@ -148,6 +149,8 @@ Referência por flag (exemplos, padrões, interações): [cli-pt/](cli-pt/) · E
 | `priority` | Entre hits explícitos de `mac_to_vlan`, escolhe o prefixo mais longo; se nenhum, pula |
 
 ## Backup e auditoria
+
+Backups só ocorrem quando um diretório está configurado (`backup_dir` no YAML ou `--backup-dir`). Não há pasta padrão `./backups`.
 
 ```bash
 negev --target 192.0.2.10 --config docs/examples/config.yaml --write --backup-dir ./backups

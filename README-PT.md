@@ -1,15 +1,19 @@
 # Negev
 
-Automatiza atribuições de VLAN em switches de acesso a partir de prefixos de endereços MAC.
+CLI que automatiza atribuições de VLAN em switches de acesso a partir de prefixos MAC.
+Conecta via Telnet ou SSH, lê a tabela MAC e configura portas de acesso com política YAML.
+A arquitetura segue limites hexagonais / DDD
+(`domain` → `application` → `infrastructure` / drivers `platform`).
 
 ## Destaques
 
-- Conecta a switches via Telnet ou SSH com detecção automática de plataforma
-- Lê tabelas MAC e mapeia prefixos para VLANs a partir de um YAML de configuração
-- Atribui VLANs de acesso às portas do switch com base no MAC do dispositivo conectado
-- Modo sandbox mostra alterações sem aplicar — use `--write` para executar
-- Cria e exclui VLANs para igualar a uma lista permitida com proteção de VLANs
-- Suporta Cisco IOS e Datacom DmOS através de um sistema de drivers modular
+- Drivers multi-vendor: Cisco IOS, Cisco NX-OS, Datacom DmSwitch 3000, Datacom DM1200E, 3Com/H3C Comware (detecção `auto`)
+- Seguro por padrão: simulação sandbox sem `--write`; VLANs protegidas (incluindo 1000–4094)
+- Transporte dual: SSH (preferencial) e Telnet com cache de clientes
+- Segredos fora do YAML: expansão `${ENV}`, `password_command` e `--ask-pass`
+- Execução multi-switch: nomes, tags, `--all` / `--group`, `--concurrency` limitado
+- Matching `mac_to_vlan` por prefixo mais longo e `multi_mac_policy` configurável
+- Backup do running-config antes de writes e auditoria JSONL
 
 ## Pré-requisitos
 
@@ -42,76 +46,91 @@ go install github.com/carlosrabelo/negev/negev/cmd/negev@latest
 
 ## Uso
 
+Sandbox primeiro (apenas IPs de documentação):
+
 ```bash
-negev --target 192.168.1.10                   # sandbox (simular)
-negev --target 192.168.1.10 --write           # aplicar alterações
-negev --target 192.168.1.10 --create-vlans --write # sincronizar VLANs e aplicar
+negev --target 192.0.2.10 --config docs/examples/config.yaml
+negev --target 192.0.2.10 --config docs/examples/config.yaml --write
+negev --target 192.0.2.10 --config docs/examples/config.yaml --create-vlans --write
+negev --all --config docs/examples/config.yaml --concurrency 4
+negev --group access --config docs/examples/config.yaml
 ```
+
+Códigos de saída: `0` sucesso / sem mudanças pendentes no sandbox, `1` erro, `2` mudanças simuladas no sandbox.
 
 ### Flags
 
 | Flag | Descrição |
 |------|-----------|
-| `--target <ip>` | Endereço IP do switch (obrigatório, deve existir na configuração) |
-| `--config <path>` | Caminho do arquivo YAML de configuração (padrão: config.yaml) |
+| `--target <ip\|name>[,...]` | IP(s) e/ou nome(s) configurados, separados por vírgula |
+| `--all` | Executa contra todos os switches da configuração |
+| `--group <tag>` | Executa contra switches que incluem a tag |
+| `--concurrency <n>` | Máximo de execuções concorrentes (padrão 4) |
+| `--config <path>` | Caminho do YAML (busca padrão: `./config.yaml`, caminhos de usuário/sistema) |
 | `--write` | Aplica alterações (sandbox/dry-run por padrão) |
-| `--verbose <0-3>` | Nível de verbosidade: 0=nenhum, 1=debug, 2=saída raw, 3=ambos |
-| `--create-vlans` | Criar/excluir VLANs para igualar à lista permitida |
+| `--verbose <0-3>` | 0=nenhum, 1=debug, 2=I/O bruto do switch, 3=ambos |
+| `--create-vlans` | Cria VLANs faltantes / remove extras vs `allowed_vlans` |
+| `--ask-pass` | Solicita senhas de switch / enable interativamente |
+| `--backup` | Faz backup do running-config mesmo no sandbox |
+| `--backup-dir <dir>` | Diretório de backups (padrão `./backups` ou YAML `backup_dir`) |
+| `--audit-log <path>` | Anexa registros JSONL de auditoria (sobrescreve YAML `audit_log`) |
 | `--version` | Exibe a versão |
+
+Guias completos: [docs/GUIDE.md](docs/GUIDE.md) · [docs/GUIDE-PT.md](docs/GUIDE-PT.md)
 
 ## Configuração
 
-Crie `config.yaml` no diretório atual. O Negev também procura em `~/.config/negev/` e `/etc/negev/` (Linux), ou `%APPDATA%\negev\` e `%ProgramData%\negev\` (Windows).
+Exemplo mínimo (veja também [`docs/examples/config.yaml`](docs/examples/config.yaml)):
 
 ```yaml
 platform: auto
-transport: telnet
-username: admin
-password: cisco123
-enable_password: cisco123
+transport: ssh
+username: "${SWITCH_USER}"
+password_command: "pass show lab/access"
+enable_password: "${SWITCH_ENABLE}"
 default_vlan: "1"
 no_data_vlan: "999"
-allowed_vlans:
-  - "10"
-  - "20"
-  - "30"
-protected_vlans:
-  - "100"
-exclude_macs:
-  - "00:11:22:33:44:55"
+multi_mac_policy: ignore
+backup_dir: ./backups
+audit_log: ./audit/negev.jsonl
+allowed_vlans: ["10", "20", "30"]
+protected_vlans: ["999"]
 mac_to_vlan:
   "aabbcc": "10"
-  "001122": "20"
-
+  "aabbccddeeff": "15"   # prefixo mais longo vence
 switches:
-  - target: 192.168.1.10
+  - name: access-a1
+    target: 192.0.2.10
     platform: ios
-  - target: 192.168.1.20
-    platform: dmos
+    tags: [access, building-a]
+  - name: access-a2
+    target: 192.0.2.20
+    platform: nxos
     transport: ssh
-    exclude_ports:
-      - "ethernet 1/1"
+    tags: [access]
 ```
+
+Valores de `platform` suportados: `ios`, `nxos`, `dmswitch` (alias legado `dmos`), `dm1200`, `comware`, `auto`.
 
 ## Estrutura do Projeto
 
 ```
 negev/cmd/negev/                 # Ponto de entrada CLI
-negev/internal/domain/           # Entidades, interfaces e lógica de negócio
-negev/internal/application/      # Orquestração de serviços (runner)
-negev/internal/infrastructure/   # Carregamento de configuração, transporte (Telnet/SSH), cache de clientes
-negev/internal/platform/         # Drivers de plataforma (ios, dmos) e registros
+negev/internal/domain/           # Entidades, ports, serviço de VLAN
+negev/internal/application/      # RunTarget, multi-runner, backup
+negev/internal/infrastructure/   # Config, transporte, logger de auditoria
+negev/internal/platform/         # Drivers: ios, nxos, dmswitch, dm1200, comware
+docs/                            # GUIDE + exemplos
 bin/                             # Binários compilados (git-ignored)
 .make/                           # Scripts de build e instalação
-docs/examples/                   # Arquivos de configuração de exemplo
 ```
 
 ## Desenvolvimento
 
 ```bash
 make build             # Compila o binário em bin/negev
-make test              # Executa todos os testes
-make quality           # Formata, vet e lint
+make test              # Executa todos os testes (.gocache local)
+make quality           # Formata e executa vet
 make install           # Instala o binário em ~/.local/bin
 make install-system    # Instala o binário em /usr/local/bin
 make uninstall         # Remove de ~/.local/bin

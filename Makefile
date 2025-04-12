@@ -1,52 +1,52 @@
-# Makefile para o projeto Negev
+# Makefile for the Negev project
 
-# Variáveis
+# Variables
 BINARY_NAME = negev
 CONFIG_FILE = config.yaml
 GO = go
 GOFLAGS = -v
 
-# Alvos padrão
+# Default targets
 .PHONY: all build run clean deps help
 
-# Alvo padrão: compila o binário
+# Default target: builds the binary
 all: build
 
-# Compila o binário
+# Builds the binary
 build:
 	$(GO) build $(GOFLAGS) -o $(BINARY_NAME)
 
-# Executa o programa em modo sandbox com o arquivo de configuração padrão
+# Runs the program in sandbox mode with the default configuration file
 run:
 	$(GO) run . -y $(CONFIG_FILE)
 
-# Executa o programa em modo execução (sem sandbox)
+# Runs the program in execution mode (without sandbox)
 run-execute:
 	$(GO) run . -x -y $(CONFIG_FILE)
 
-# Executa o programa com depuração ativada
+# Runs the program with debugging enabled
 run-debug:
 	$(GO) run . -d -y $(CONFIG_FILE)
 
-# Instala as dependências
+# Installs dependencies
 deps:
 	$(GO) get github.com/ziutek/telnet
 	$(GO) get gopkg.in/yaml.v3
 
-# Limpa arquivos gerados
+# Cleans generated files
 clean:
 	rm -f $(BINARY_NAME)
 
-# Exibe ajuda
+# Displays help
 help:
-	@echo "Makefile para Negev"
+	@echo "Makefile for Negev"
 	@echo ""
-	@echo "Uso:"
-	@echo "  make           # Compila o binário (equivalente a 'make build')"
-	@echo "  make build     # Compila o binário"
-	@echo "  make run       # Executa em modo sandbox com config.yaml"
-	@echo "  make run-execute  # Executa em modo execução com config.yaml"
-	@echo "  make run-debug # Executa com depuração e config.yaml"
-	@echo "  make deps      # Instala as dependências"
-	@echo "  make clean     # Remove o binário gerado"
-	@echo "  make help      # Exibe esta ajuda"
+	@echo "Usage:"
+	@echo "  make           # Builds the binary (equivalent to 'make build')"
+	@echo "  make build     # Builds the binary"
+	@echo "  make run       # Runs in sandbox mode with config.yaml"
+	@echo "  make run-execute  # Runs in execution mode with config.yaml"
+	@echo "  make run-debug # Runs with debugging and config.yaml"
+	@echo "  make deps      # Installs dependencies"
+	@echo "  make clean     # Removes the generated binary"
+	@echo "  make help      # Displays this help"

@@ -2,24 +2,22 @@
 
 [![Go Report Card](https://goreportcard.com/badge/github.com/carlosrabelo/negev)](https://goreportcard.com/report/github.com/carlosrabelo/negev)
 
-**Negev** é uma ferramenta de automação de VLANs em switches Cisco via Telnet. Atribui dinamicamente VLANs com base em prefixos de MAC, usando um modelo flexível e de fácil configuração.
+**Negev** is a VLAN automation tool for Cisco switches via Telnet. It dynamically assigns VLANs based on MAC address prefixes, offering a flexible and easy-to-configure solution.
 
----
+## 🚀 Features
 
-## 🚀 Principais Funcionalidades
+- Telnet connection to Cisco switches
+- Device identification using the dynamic MAC address table
+- Automatic VLAN assignment based on MAC prefixes
+- Sandbox mode for safe simulation
+- Configuration persistence with write memory
+- Dynamic VLAN replacement via CLI
+- Exclusion of specific MAC addresses from reconfiguration
+- Automatic detection and exclusion of trunk interfaces
 
-- Conexão via Telnet com switches Cisco
-- Identificação de dispositivos pela tabela de MAC dinâmica
-- Atribuição automática de VLANs com base em prefixos de MAC
-- Modo **sandbox** para simulação segura
-- Persistência das configurações com `write memory`
-- Substituição dinâmica de VLANs via CLI
-- Exclusão de MACs específicos da reconfiguração
-- Detecção e exclusão automática de interfaces trunk
+## 🔧 Installation
 
----
-
-## 🔧 Instalação
+Clone the repository and build the tool using the following commands
 
 ```bash
 git clone https://github.com/carlosrabelo/negev.git
@@ -27,9 +25,8 @@ cd negev
 go build -o negev main.go
 ```
 
-## 📂 Estrutura do YAML de Configuração
-
-Este é o arquivo que define o comportamento do Negev, incluindo VLAN padrão, mapeamentos por prefixo MAC e exclusões.
+## 📂 Configuration
+The configuration is defined in a YAML file, specifying the default VLAN, MAC-to-VLAN mappings, and exclusions. Below is an example:
 
 ```bash
 host: "192.168.1.1"
@@ -48,52 +45,34 @@ exclude_macs:
   - "ac:16:2d:34:bb:da"
 ```
 
-Campos obrigatórios:
+## 📌 Examples:
 
-- host: IP do switch Cisco
-- username/password/enable_password: credenciais Telnet e do modo privilegiado
-- default_vlan: usada para MACs não mapeados
-- mac_to_vlan: mapeamento de prefixos MAC (3 primeiros bytes) para VLANs
-- exclude_macs: MACs completos a serem ignorados
+Run in sandbox mode:
 
-## 📌 Exemplos de Uso
+`negev -y example.yaml`
 
-```bash
-negev -y example.yaml
-```
+Apply configurations to the switch:
 
-## 🚀 Execução Real (Aplicar Configurações no Switch)
+`negev -y example.yaml -x`
 
-```bash
-negev -y example.yaml -x
-```
+Replace VLANs dynamically (e.g., VLAN 10 to 100):
 
-Aplica as VLANs configuradas e salva com write memory.
+ `negev -y example.yaml -x -r 10,100`
 
-## 🔄 Substituir VLAN Dinamicamente
+Run with debug output:
 
-```bash
-negev -y example.yaml -x -rv 10,100
-```
+`negev -y example.yaml -x -d`
 
-## 🐞 Modo Execução com Saída de Debug
+Override the YAML host:
 
-```bash
-negev -y example.yaml -x -d
-```
+`negev -y example.yaml -h 10.0.0.1`
 
-## 💻 Sobrescrever Host do YAML
+## ⚠️ Security
 
-```bash
-./negev -y example.yaml -rv 10,99
-```
+- Telnet is insecure; use only on trusted networks
+- Negev applies changes without confirmation
+- Test in sandbox mode (default) before using -x
 
-## ⚠️ Aviso de Segurança
+## 📎 Contributing
 
-- Telnet é um protocolo inseguro; use apenas em redes confiáveis.
-- O Negev não solicita confirmação antes de aplicar mudanças.
-- Utilize o modo sandbox (default) para testar antes de usar **-x**.
-
-## 📎 Contribuindo
-
-Pull requests são bem-vindos. Sugestões para suporte a SSH, autenticação 802.1X ou interfaces web são encorajadas.
+Contributions are welcome

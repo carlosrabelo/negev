@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -43,6 +44,9 @@ type SwitchManager struct {
 	conn   *telnet.Conn
 }
 
+// loadConfig loads the configuration from a YAML file and applies overrides.
+// It validates required fields, VLAN numbers, and applies VLAN replacements if specified.
+// Returns the parsed Config and an error if any validation fails.
 func loadConfig(yamlFile string, overrideHost string, sandbox bool, debug bool, replaceVlan string) (*Config, error) {
 	data, err := os.ReadFile(yamlFile)
 	if err != nil {
@@ -62,12 +66,44 @@ func loadConfig(yamlFile string, overrideHost string, sandbox bool, debug bool, 
 	if cfg.Host == "" || cfg.Username == "" || cfg.Password == "" || cfg.EnablePassword == "" {
 		return nil, fmt.Errorf("host, username, password, and enable_password are required")
 	}
+
+	// Validate VLAN numbers (must be between 1 and 4094)
+	validateVLAN := func(vlan string, context string) error {
+		vlanNum, err := strconv.Atoi(vlan)
+		if err != nil {
+			return fmt.Errorf("invalid VLAN number in %s: %s must be a number", context, vlan)
+		}
+		if vlanNum < 1 || vlanNum > 4094 {
+			return fmt.Errorf("invalid VLAN number in %s: %s must be between 1 and 4094", context, vlan)
+		}
+		return nil
+	}
+
+	// Validate default_vlan
+	if err := validateVLAN(cfg.DefaultVlan, "default_vlan"); err != nil {
+		return nil, err
+	}
+
+	// Validate VLANs in mac_to_vlan
+	for mac, vlan := range cfg.MacToVlan {
+		if err := validateVLAN(vlan, fmt.Sprintf("mac_to_vlan for MAC %s", mac)); err != nil {
+			return nil, err
+		}
+	}
+
 	if cfg.ReplaceVlan != "" {
 		parts := strings.Split(cfg.ReplaceVlan, ",")
 		if len(parts) != 2 {
-			return nil, fmt.Errorf("invalid -rv format, expected 'old,new'")
+			return nil, fmt.Errorf("invalid -r format, expected 'old,new'")
 		}
 		oldVlan, newVlan := parts[0], parts[1]
+		// Validate old and new VLANs in -r
+		if err := validateVLAN(oldVlan, "-r old VLAN"); err != nil {
+			return nil, err
+		}
+		if err := validateVLAN(newVlan, "-r new VLAN"); err != nil {
+			return nil, err
+		}
 		if cfg.DefaultVlan == oldVlan {
 			cfg.DefaultVlan = newVlan
 			if cfg.Debug {
@@ -176,6 +212,29 @@ func (sm *SwitchManager) executeCommand(cmd string) (string, error) {
 	return output, nil
 }
 
+// getVlanList retrieves the list of existing VLANs on the switch using "show vlan brief".
+// It returns a map where the key is the VLAN ID and the value is true if the VLAN exists.
+// Returns an error if the command fails or the output cannot be parsed.
+func (sm *SwitchManager) getVlanList() (map[string]bool, error) {
+	output, err := sm.executeCommand("show vlan brief")
+	if err != nil {
+		return nil, fmt.Errorf("failed to get VLAN list: %v", err)
+	}
+	// Regex to match VLAN IDs (e.g., "1", "10", "100") at the start of each line
+	re := regexp.MustCompile(`^(\d+)\s+`)
+	matches := re.FindAllStringSubmatch(output, -1)
+	vlans := make(map[string]bool)
+	for _, match := range matches {
+		if len(match) > 1 {
+			vlans[match[1]] = true
+		}
+	}
+	if sm.config.Debug {
+		fmt.Printf("DEBUG: Existing VLANs: %v\n", vlans)
+	}
+	return vlans, nil
+}
+
 func (sm *SwitchManager) getTrunkInterfaces() (map[string]bool, error) {
 	output, err := sm.executeCommand("show interfaces trunk")
 	if err != nil {
@@ -275,12 +334,22 @@ func (sm *SwitchManager) configureVlan(iface, vlan string) []string {
 	return commands
 }
 
+// processPorts processes active ports and configures VLANs based on MAC addresses.
+// It skips trunk interfaces, excluded MACs, and validates VLANs before applying changes.
+// Returns an error if any step fails.
 func (sm *SwitchManager) processPorts() error {
 	err := sm.connect()
 	if err != nil {
 		return err
 	}
 	defer sm.disconnect()
+
+	// Get the list of existing VLANs on the switch
+	existingVLANs, err := sm.getVlanList()
+	if err != nil {
+		return err
+	}
+
 	trunks, err := sm.getTrunkInterfaces()
 	if err != nil {
 		return err
@@ -346,6 +415,13 @@ func (sm *SwitchManager) processPorts() error {
 				fmt.Printf("DEBUG: No VLAN mapping for %s on %s, using default %s\n", dev.MacFull, port.Interface, targetVlan)
 			}
 		}
+
+		// Validate the target VLAN exists on the switch
+		if !existingVLANs[targetVlan] {
+			log.Printf("Error: VLAN %s does not exist on the switch, skipping port %s\n", targetVlan, port.Interface)
+			continue
+		}
+
 		if targetVlan != port.Vlan {
 			if sm.config.Debug {
 				fmt.Printf("DEBUG: Changing %s from VLAN %s to %s\n", port.Interface, port.Vlan, targetVlan)

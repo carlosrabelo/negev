@@ -91,7 +91,7 @@ Override the YAML host:
 - Negev applies changes without confirmation
 - Test in sandbox mode (default) before using -w
 
-📋 Limitations
+## 📋 Limitations
 
 - Uses Telnet (insecure); SSH support is planned.
 - Supports only one switch per execution.

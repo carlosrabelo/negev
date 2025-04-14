@@ -25,6 +25,7 @@ type Config struct {
 	Sandbox        bool
 	Debug          bool
 	ReplaceVlan    string
+	SkipVlanCheck  bool
 }
 
 type Port struct {
@@ -44,10 +45,7 @@ type SwitchManager struct {
 	conn   *telnet.Conn
 }
 
-// loadConfig loads the configuration from a YAML file and applies overrides.
-// It validates required fields, VLAN numbers, and applies VLAN replacements if specified.
-// Returns the parsed Config and an error if any validation fails.
-func loadConfig(yamlFile string, overrideHost string, sandbox bool, debug bool, replaceVlan string) (*Config, error) {
+func loadConfig(yamlFile string, overrideHost string, sandbox bool, debug bool, replaceVlan string, skipVlanCheck bool) (*Config, error) {
 	data, err := os.ReadFile(yamlFile)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read YAML file %s: %v", yamlFile, err)
@@ -63,11 +61,11 @@ func loadConfig(yamlFile string, overrideHost string, sandbox bool, debug bool, 
 	cfg.Sandbox = sandbox
 	cfg.Debug = debug
 	cfg.ReplaceVlan = replaceVlan
+	cfg.SkipVlanCheck = skipVlanCheck
 	if cfg.Host == "" || cfg.Username == "" || cfg.Password == "" || cfg.EnablePassword == "" {
 		return nil, fmt.Errorf("host, username, password, and enable_password are required")
 	}
 
-	// Validate VLAN numbers (must be between 1 and 4094)
 	validateVLAN := func(vlan string, context string) error {
 		vlanNum, err := strconv.Atoi(vlan)
 		if err != nil {
@@ -79,12 +77,9 @@ func loadConfig(yamlFile string, overrideHost string, sandbox bool, debug bool, 
 		return nil
 	}
 
-	// Validate default_vlan
 	if err := validateVLAN(cfg.DefaultVlan, "default_vlan"); err != nil {
 		return nil, err
 	}
-
-	// Validate VLANs in mac_to_vlan
 	for mac, vlan := range cfg.MacToVlan {
 		if err := validateVLAN(vlan, fmt.Sprintf("mac_to_vlan for MAC %s", mac)); err != nil {
 			return nil, err
@@ -97,7 +92,6 @@ func loadConfig(yamlFile string, overrideHost string, sandbox bool, debug bool, 
 			return nil, fmt.Errorf("invalid -r format, expected 'old,new'")
 		}
 		oldVlan, newVlan := parts[0], parts[1]
-		// Validate old and new VLANs in -r
 		if err := validateVLAN(oldVlan, "-r old VLAN"); err != nil {
 			return nil, err
 		}
@@ -212,16 +206,15 @@ func (sm *SwitchManager) executeCommand(cmd string) (string, error) {
 	return output, nil
 }
 
-// getVlanList retrieves the list of existing VLANs on the switch using "show vlan brief".
-// It returns a map where the key is the VLAN ID and the value is true if the VLAN exists.
-// Returns an error if the command fails or the output cannot be parsed.
 func (sm *SwitchManager) getVlanList() (map[string]bool, error) {
 	output, err := sm.executeCommand("show vlan brief")
 	if err != nil {
 		return nil, fmt.Errorf("failed to get VLAN list: %v", err)
 	}
-	// Regex to match VLAN IDs (e.g., "1", "10", "100") at the start of each line
-	re := regexp.MustCompile(`^(\d+)\s+`)
+	if sm.config.Debug {
+		fmt.Printf("DEBUG: show vlan brief output:\n%s\n", output)
+	}
+	re := regexp.MustCompile(`(?m)^(\d+)\s+\S+`)
 	matches := re.FindAllStringSubmatch(output, -1)
 	vlans := make(map[string]bool)
 	for _, match := range matches {
@@ -231,6 +224,9 @@ func (sm *SwitchManager) getVlanList() (map[string]bool, error) {
 	}
 	if sm.config.Debug {
 		fmt.Printf("DEBUG: Existing VLANs: %v\n", vlans)
+	}
+	if len(vlans) == 0 {
+		fmt.Println("Warning: No VLANs found on the switch. You may need to create the required VLANs.")
 	}
 	return vlans, nil
 }
@@ -259,14 +255,17 @@ func (sm *SwitchManager) getActivePorts() ([]Port, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to get interfaces status: %v", err)
 	}
-	re := regexp.MustCompile(`(?m)^([A-Za-z]+\d+\/\d+)\s+\S+\s+(connected)\s+(\d+|trunk)`)
+	re := regexp.MustCompile(`(?m)^([A-Za-z]+\d+\/\d+(?:\/\d+)?)\s+(?:[^\s]*\s+)?connected\s+(\d+|trunk)\s+.*$`)
 	matches := re.FindAllStringSubmatch(output, -1)
 	var ports []Port
 	for _, match := range matches {
-		if len(match) > 3 && match[2] == "connected" {
+		if len(match) > 2 {
+			if sm.config.Debug {
+				fmt.Printf("DEBUG: Found active port %s with VLAN %s\n", match[1], match[2])
+			}
 			ports = append(ports, Port{
 				Interface: match[1],
-				Vlan:      match[3],
+				Vlan:      match[2],
 			})
 		}
 	}
@@ -334,9 +333,6 @@ func (sm *SwitchManager) configureVlan(iface, vlan string) []string {
 	return commands
 }
 
-// processPorts processes active ports and configures VLANs based on MAC addresses.
-// It skips trunk interfaces, excluded MACs, and validates VLANs before applying changes.
-// Returns an error if any step fails.
 func (sm *SwitchManager) processPorts() error {
 	err := sm.connect()
 	if err != nil {
@@ -344,7 +340,6 @@ func (sm *SwitchManager) processPorts() error {
 	}
 	defer sm.disconnect()
 
-	// Get the list of existing VLANs on the switch
 	existingVLANs, err := sm.getVlanList()
 	if err != nil {
 		return err
@@ -358,10 +353,20 @@ func (sm *SwitchManager) processPorts() error {
 	if err != nil {
 		return err
 	}
+	if len(activePorts) == 0 {
+		fmt.Println("No active ports found on the switch")
+		return nil
+	}
+
 	devices, err := sm.getMacTable()
 	if err != nil {
 		return err
 	}
+	if len(devices) == 0 {
+		fmt.Println("No devices found in the MAC address table")
+		return nil
+	}
+
 	var commands []string
 	changed := false
 	for _, port := range activePorts {
@@ -416,8 +421,7 @@ func (sm *SwitchManager) processPorts() error {
 			}
 		}
 
-		// Validate the target VLAN exists on the switch
-		if !existingVLANs[targetVlan] {
+		if !sm.config.SkipVlanCheck && !existingVLANs[targetVlan] {
 			log.Printf("Error: VLAN %s does not exist on the switch, skipping port %s\n", targetVlan, port.Interface)
 			continue
 		}
@@ -438,21 +442,25 @@ func (sm *SwitchManager) processPorts() error {
 		} else {
 			fmt.Println("Configuration saved")
 		}
+	} else if !changed {
+		fmt.Println("No changes were needed")
 	}
 	return nil
 }
 
 func main() {
 	yamlFile := flag.String("y", "config.yaml", "YAML configuration file")
-	execute := flag.Bool("x", false, "Apply changes (disable sandbox)")
+	write := flag.Bool("w", false, "Write changes (disable sandbox)")
 	debug := flag.Bool("d", false, "Enable debug logging")
 	host := flag.String("h", "", "Switch host (overrides YAML)")
 	replaceVlan := flag.String("r", "", "Replace VLAN (format: old,new)")
+	skipVlanCheck := flag.Bool("s", false, "Skip VLAN check (use with caution)")
 	flag.Parse()
-	cfg, err := loadConfig(*yamlFile, *host, !*execute, *debug, *replaceVlan)
+	cfg, err := loadConfig(*yamlFile, *host, !*write, *debug, *replaceVlan, *skipVlanCheck)
 	if err != nil {
 		log.Fatal(err)
 	}
+	fmt.Printf("Starting Negev for switch %s\n", cfg.Host)
 	sm := &SwitchManager{config: *cfg}
 	err = sm.processPorts()
 	if err != nil {

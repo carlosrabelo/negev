@@ -26,6 +26,7 @@ type Config struct {
 	Debug          bool
 	ReplaceVlan    string
 	SkipVlanCheck  bool
+	CreateVLANs    bool
 }
 
 type Port struct {
@@ -45,7 +46,7 @@ type SwitchManager struct {
 	conn   *telnet.Conn
 }
 
-func loadConfig(yamlFile string, overrideHost string, sandbox bool, debug bool, replaceVlan string, skipVlanCheck bool) (*Config, error) {
+func loadConfig(yamlFile string, overrideHost string, sandbox bool, debug bool, replaceVlan string, skipVlanCheck bool, createVLANs bool) (*Config, error) {
 	data, err := os.ReadFile(yamlFile)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read YAML file %s: %v", yamlFile, err)
@@ -62,6 +63,7 @@ func loadConfig(yamlFile string, overrideHost string, sandbox bool, debug bool, 
 	cfg.Debug = debug
 	cfg.ReplaceVlan = replaceVlan
 	cfg.SkipVlanCheck = skipVlanCheck
+	cfg.CreateVLANs = createVLANs
 	if cfg.Host == "" || cfg.Username == "" || cfg.Password == "" || cfg.EnablePassword == "" {
 		return nil, fmt.Errorf("host, username, password, and enable_password are required")
 	}
@@ -333,6 +335,34 @@ func (sm *SwitchManager) configureVlan(iface, vlan string) []string {
 	return commands
 }
 
+func (sm *SwitchManager) createVLAN(vlan string) error {
+	commands := []string{
+		"configure terminal",
+		fmt.Sprintf("vlan %s", vlan),
+		fmt.Sprintf("name VLAN_%s", vlan),
+		"end",
+	}
+	for _, cmd := range commands {
+		_, err := sm.executeCommand(cmd)
+		if err != nil {
+			return fmt.Errorf("failed to create VLAN %s: %v", vlan, err)
+		}
+	}
+	if sm.config.Debug {
+		fmt.Printf("DEBUG: Created VLAN %s\n", vlan)
+	}
+	return nil
+}
+
+func (sm *SwitchManager) getRequiredVLANs() map[string]bool {
+	requiredVLANs := make(map[string]bool)
+	requiredVLANs[sm.config.DefaultVlan] = true
+	for _, vlan := range sm.config.MacToVlan {
+		requiredVLANs[vlan] = true
+	}
+	return requiredVLANs
+}
+
 func (sm *SwitchManager) processPorts() error {
 	err := sm.connect()
 	if err != nil {
@@ -343,6 +373,19 @@ func (sm *SwitchManager) processPorts() error {
 	existingVLANs, err := sm.getVlanList()
 	if err != nil {
 		return err
+	}
+
+	if sm.config.CreateVLANs {
+		requiredVLANs := sm.getRequiredVLANs()
+		for vlan := range requiredVLANs {
+			if !existingVLANs[vlan] {
+				fmt.Printf("Creating VLAN %s on the switch\n", vlan)
+				if err := sm.createVLAN(vlan); err != nil {
+					return err
+				}
+				existingVLANs[vlan] = true
+			}
+		}
 	}
 
 	trunks, err := sm.getTrunkInterfaces()
@@ -455,8 +498,9 @@ func main() {
 	host := flag.String("h", "", "Switch host (overrides YAML)")
 	replaceVlan := flag.String("r", "", "Replace VLAN (format: old,new)")
 	skipVlanCheck := flag.Bool("s", false, "Skip VLAN check (use with caution)")
+	createVLANs := flag.Bool("c", false, "Create missing VLANs on the switch")
 	flag.Parse()
-	cfg, err := loadConfig(*yamlFile, *host, !*write, *debug, *replaceVlan, *skipVlanCheck)
+	cfg, err := loadConfig(*yamlFile, *host, !*write, *debug, *replaceVlan, *skipVlanCheck, *createVLANs)
 	if err != nil {
 		log.Fatal(err)
 	}

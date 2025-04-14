@@ -14,6 +14,7 @@
 - Dynamic VLAN replacement via CLI
 - Exclusion of specific MAC addresses from reconfiguration
 - Automatic detection and exclusion of trunk interfaces
+- Automatic creation of missing VLANs on the switch
 
 ## 🔧 Installation
 
@@ -26,6 +27,7 @@ go build -o negev main.go
 ```
 
 ## 📂 Configuration
+
 The configuration is defined in a YAML file, specifying the default VLAN, MAC-to-VLAN mappings, and exclusions. Below is an example:
 
 ```bash
@@ -45,6 +47,14 @@ exclude_macs:
   - "ac:16:2d:34:bb:da"
 ```
 
+Required fields:
+
+- **host** (IP address of the Cisco switch)
+- **username**/**password**/**enable_password** (Telnet and privileged mode credentials)
+- **default_vlan** (used for unmapped MACs)
+- **mac_to_vlan** (mapping of MAC prefixes, first 3 bytes, to VLANs)
+- **exclude_macs** (full MAC addresses to ignore)
+
 ## 📌 Examples:
 
 Run in sandbox mode:
@@ -63,6 +73,14 @@ Run with debug output:
 
 `negev -y example.yaml -x -d`
 
+Skip VLAN validation:
+
+`negev -y example.yaml -w -s`
+
+Create missing VLANs:
+
+`negev -y example.yaml -w -c`
+
 Override the YAML host:
 
 `negev -y example.yaml -h 10.0.0.1`
@@ -71,7 +89,7 @@ Override the YAML host:
 
 - Telnet is insecure; use only on trusted networks
 - Negev applies changes without confirmation
-- Test in sandbox mode (default) before using -x
+- Test in sandbox mode (default) before using -w
 
 ## 📎 Contributing
 

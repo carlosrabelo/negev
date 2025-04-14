@@ -27,6 +27,7 @@ type Config struct {
 	ProtectedVlans        []string                `yaml:"protected_vlans"`
 	MultiMacPolicy        string                  `yaml:"multi_mac_policy"`
 	BackupDir             string                  `yaml:"backup_dir"`
+	AuditLog              string                  `yaml:"audit_log"`
 	Switches              []entities.SwitchConfig `yaml:"switches"`
 }
 

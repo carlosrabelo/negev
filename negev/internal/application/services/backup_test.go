@@ -49,7 +49,7 @@ func TestBackupCreationBeforeWrite(t *testing.T) {
 	}
 
 	// sandbox=false → write mode → backup required before mutations
-	if _, err := svc.Run(false, 0, false, BackupOpts{Dir: dir}); err != nil {
+	if _, err := svc.Run(false, 0, false, BackupOpts{Dir: dir}, AuditOpts{}); err != nil {
 		t.Fatalf("Run: %v", err)
 	}
 
@@ -98,7 +98,7 @@ func TestBackupFailureAbortsWrite(t *testing.T) {
 		return transport.NewSwitchAdapterWithClient(sc, cli)
 	}
 
-	_, err := svc.Run(false, 0, false, BackupOpts{Dir: dir})
+	_, err := svc.Run(false, 0, false, BackupOpts{Dir: dir}, AuditOpts{})
 	if err == nil || !strings.Contains(err.Error(), "backup failed") {
 		t.Fatalf("expected backup abort, got %v", err)
 	}
@@ -128,7 +128,7 @@ func TestBackupSkippedInSandboxWithoutForce(t *testing.T) {
 	svc.newAdapter = func(sc entities.SwitchConfig) *transport.SwitchAdapter {
 		return transport.NewSwitchAdapterWithClient(sc, cli)
 	}
-	if _, err := svc.Run(true, 0, false, BackupOpts{Dir: dir}); err != nil {
+	if _, err := svc.Run(true, 0, false, BackupOpts{Dir: dir}, AuditOpts{}); err != nil {
 		t.Fatalf("Run: %v", err)
 	}
 	for _, cmd := range cli.executed {

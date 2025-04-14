@@ -20,6 +20,19 @@ type BackupOpts struct {
 	Dir   string // --backup-dir (overrides YAML backup_dir)
 }
 
+// AuditOpts selects the audit JSONL path (CLI overrides YAML audit_log).
+type AuditOpts struct {
+	Path string
+}
+
+// Resolve returns the CLI path if set, otherwise the YAML value.
+func (o AuditOpts) Resolve(yamlPath string) string {
+	if strings.TrimSpace(o.Path) != "" {
+		return o.Path
+	}
+	return strings.TrimSpace(yamlPath)
+}
+
 // Required reports whether a backup must run for this invocation.
 func (o BackupOpts) Required(write bool) bool {
 	return write || o.Force

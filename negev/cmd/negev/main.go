@@ -40,6 +40,7 @@ func run(args []string) int {
 	askPass := fs.Bool("ask-pass", false, "Prompt interactively for switch passwords")
 	backup := fs.Bool("backup", false, "Backup running-config even in sandbox mode")
 	backupDir := fs.String("backup-dir", "", "Directory for configuration backups (default: ./backups or YAML backup_dir)")
+	auditLog := fs.String("audit-log", "", "Path to JSONL audit log (overrides YAML audit_log)")
 	showVersion := fs.Bool("version", false, "Show version and exit")
 	fs.Usage = func() { printUsage(fs) }
 
@@ -107,6 +108,7 @@ func run(args []string) int {
 			Force: *backup,
 			Dir:   *backupDir,
 		},
+		Audit: services.AuditOpts{Path: *auditLog},
 	})
 	return result.ExitCode(*write)
 }
@@ -137,5 +139,6 @@ func printUsage(fs *flag.FlagSet) {
 	fmt.Fprintf(os.Stderr, "  --ask-pass\n        Prompt interactively for switch passwords\n")
 	fmt.Fprintf(os.Stderr, "  --backup\n        Backup running-config even in sandbox mode\n")
 	fmt.Fprintf(os.Stderr, "  --backup-dir <dir>\n        Directory for configuration backups (default: ./backups)\n")
+	fmt.Fprintf(os.Stderr, "  --audit-log <path>\n        Append JSONL audit records for port VLAN changes\n")
 	fmt.Fprintf(os.Stderr, "  --version\n        Show version and exit\n")
 }

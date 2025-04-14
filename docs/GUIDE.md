@@ -181,3 +181,38 @@ VLANs are protected from deletion (when running with `--create-vlans`) under two
 - **Explicit protection**: VLANs listed in `protected_vlans` in the configuration file.
 
 Protected VLANs are never deleted by Negev.
+
+---
+
+## Practical Scenarios
+
+Walkthroughs formerly kept under a standalone `demos/` directory now live under `docs/`.
+
+A complete sample configuration (documentation IPs only) is available at [`docs/examples/config.yaml`](examples/config.yaml).
+
+### Scenario 1: Initial access-switch deployment
+
+```bash
+negev --target 192.0.2.10 --config docs/examples/config.yaml
+# Review SIMULATE output, then:
+negev --target 192.0.2.10 --config docs/examples/config.yaml --write
+```
+
+### Scenario 2: Synchronize the VLAN database
+
+```bash
+negev --target 192.0.2.10 --config docs/examples/config.yaml --create-vlans
+negev --target 192.0.2.10 --config docs/examples/config.yaml --create-vlans --write
+```
+
+### Scenario 3: Segment unmanaged access ports
+
+Map department OUI/MAC prefixes in `mac_to_vlan`, exclude uplink ports with `exclude_ports`, preview in sandbox, then apply with `--write`.
+
+### Scenario 4: Troubleshoot prompts and pagers
+
+```bash
+negev --target 192.0.2.10 --config docs/examples/config.yaml --verbose 1   # debug
+negev --target 192.0.2.10 --config docs/examples/config.yaml --verbose 2   # raw I/O
+negev --target 192.0.2.10 --config docs/examples/config.yaml --verbose 3   # both
+```

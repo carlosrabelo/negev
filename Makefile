@@ -1,39 +1,55 @@
 MAKEFLAGS += --no-print-directory
 
-.PHONY: build test lint fmt clean install uninstall help
+.DEFAULT_GOAL := help
+
+.PHONY: build clean deps fmt help info install lint quality run test uninstall version
 
 BINARY_NAME := negev
+VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
+BUILD_TIME := $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
 
-build:
-	./.make/build.sh
+build: ## Build binary for current platform
+	@BINARY_NAME=$(BINARY_NAME) VERSION=$(VERSION) BUILD_TIME=$(BUILD_TIME) ./.make/build.sh
 
-test:
-	./.make/test.sh
+clean: ## Clean build artifacts
+	@./.make/clean.sh
 
-lint:
-	go vet ./...
+deps: ## Download Go dependencies
+	@go mod download
 
-fmt:
-	go fmt ./...
+fmt: ## Format source code
+	@go fmt ./...
 
-clean:
-	go clean
-	rm -rf bin/
-
-install: build
-	./.make/install.sh
-
-uninstall:
-	./.make/uninstall.sh
-
-help:
-	@echo "Usage: make <target>"
+help: ## Show available targets
+	@echo "NEGEV - VLAN Automation Tool"
 	@echo ""
-	@echo "Targets:"
-	@echo "  build      Build the binary"
-	@echo "  test       Run tests"
-	@echo "  lint       Run linter"
-	@echo "  fmt        Format code"
-	@echo "  clean      Remove build artifacts"
-	@echo "  install    Install to ~/.local/bin"
-	@echo "  uninstall  Remove from ~/.local/bin"
+	@grep -E '^[a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*## "} {printf "  %-15s %s\n", $$1, $$2}'
+
+info: ## Show project information
+	@echo "Negev - VLAN Automation Tool"
+	@echo "===================="
+	@echo "Binary: $(BINARY_NAME)"
+	@echo "Version: $(VERSION)"
+	@echo "Build Time: $(BUILD_TIME)"
+	@echo "Go Version: $(shell go version)"
+	@echo "Platform: $(shell go env GOOS)/$(shell go env GOARCH)"
+
+install: build ## Install binary
+	@BINARY_NAME=$(BINARY_NAME) ./.make/install.sh
+
+lint: ## Check code quality
+	@go vet ./...
+
+quality: fmt lint ## Run all quality checks
+
+run: build ## Run compiled binary
+	@BINARY_NAME=$(BINARY_NAME) ./.make/run.sh
+
+test: ## Run project tests
+	@./.make/test.sh
+
+uninstall: ## Uninstall binary
+	@BINARY_NAME=$(BINARY_NAME) ./.make/uninstall.sh
+
+version: ## Show current version
+	@echo "$(BINARY_NAME) version $(VERSION) (built $(BUILD_TIME))"

@@ -6,10 +6,10 @@ VLAN automation for Cisco IOS switches over Telnet/SSH. MAC-based assignment wit
 
 ## Foundation
 
-- [ ] Go module layout (`cmd/negev/` + `internal/`) with hexagonal architecture (domain/ports/services → application → infrastructure → platform)
-- [ ] Build system: Makefile with `build`, `test`, `fmt`, `lint`, `quality`, `install`, `uninstall`, `run`, `clean`, `deps`, `info`, `version`, `help`
-- [ ] Build scripts in `make/`: `build.sh`, `test.sh`, `install.sh`, `uninstall.sh`, `run.sh`, `clean.sh`
-- [ ] Go 1.26.1 toolchain via `GOTOOLCHAIN`, local `GOCACHE=.gocache`, ldflags injection for `version` and `buildTime`
+- [x] Go module layout (`negev/cmd/` + `negev/internal/`) with hexagonal architecture (domain/ports/services → application → infrastructure → platform)
+- [x] Build system: Makefile with `build`, `test`, `fmt`, `lint`, `quality`, `install`, `uninstall`, `run`, `clean`, `deps`, `info`, `version`, `help`
+- [x] Build scripts in `.make/`: `build.sh`, `test.sh`, `install.sh`, `uninstall.sh`, `run.sh`, `clean.sh`
+- [x] Go 1.22 toolchain, local `GOCACHE=.gocache`, ldflags injection for `version` and `buildTime`
 - [ ] YAML config loading with global → switch merge: `debugf` helper for conditional debug output
 - [ ] Backward compat: `vendor` → `platform`, `LegacyPlatform`/`LegacyVendor` fallback
 - [ ] `NormalizeMAC`: strips `:` and `.`, lowercases to 12 hex chars

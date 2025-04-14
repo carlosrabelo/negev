@@ -91,6 +91,14 @@ Override the YAML host:
 - Negev applies changes without confirmation
 - Test in sandbox mode (default) before using -w
 
+📋 Limitations
+
+- Uses Telnet (insecure); SSH support is planned.
+- Supports only one switch per execution.
+- Does not revert changes in case of failure.
+- Assumes a single MAC address per port to avoid ambiguity in VLAN assignment. If multiple MACs are detected on a port, the port is skipped with a warning.
+- Parsing of switch commands may fail with unexpected output formats.
+
 ## 📎 Contributing
 
-Contributions are welcome
+Contributions are welcome! Please submit issues or pull requests to the GitHub repository.

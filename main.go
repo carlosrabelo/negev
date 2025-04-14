@@ -14,6 +14,16 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+const (
+	DefaultTimeout    = 30 * time.Second
+	BufferSize        = 4096
+	PromptUsername    = "Username:"
+	PromptPassword    = "Password:"
+	PromptEnable      = ">"
+	PromptPrivileged  = "#"
+	TerminalLengthCmd = "terminal length 0\n"
+)
+
 type Config struct {
 	Host           string            `yaml:"host"`
 	Username       string            `yaml:"username"`
@@ -46,7 +56,19 @@ type SwitchManager struct {
 	conn   *telnet.Conn
 }
 
-func loadConfig(yamlFile string, overrideHost string, sandbox bool, debug bool, replaceVlan string, skipVlanCheck bool, createVLANs bool) (*Config, error) {
+func normalizeMac(mac string) string {
+	return strings.ToLower(strings.ReplaceAll(strings.ReplaceAll(mac, ":", ""), ".", ""))
+}
+
+func getMacList(devices []Device) []string {
+	var macs []string
+	for _, d := range devices {
+		macs = append(macs, d.MacFull)
+	}
+	return macs
+}
+
+func loadConfig(yamlFile string, overrideHost string, sandbox, debug bool, replaceVlan string, skipVlanCheck, createVLANs bool) (*Config, error) {
 	data, err := os.ReadFile(yamlFile)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read YAML file %s: %v", yamlFile, err)
@@ -82,10 +104,19 @@ func loadConfig(yamlFile string, overrideHost string, sandbox bool, debug bool, 
 	if err := validateVLAN(cfg.DefaultVlan, "default_vlan"); err != nil {
 		return nil, err
 	}
+
+	newMacToVlan := make(map[string]string)
 	for mac, vlan := range cfg.MacToVlan {
 		if err := validateVLAN(vlan, fmt.Sprintf("mac_to_vlan for MAC %s", mac)); err != nil {
 			return nil, err
 		}
+		normalizedMac := normalizeMac(mac)
+		newMacToVlan[normalizedMac[:6]] = vlan
+	}
+	cfg.MacToVlan = newMacToVlan
+
+	for i, mac := range cfg.ExcludeMacs {
+		cfg.ExcludeMacs[i] = normalizeMac(mac)
 	}
 
 	if cfg.ReplaceVlan != "" {
@@ -124,8 +155,8 @@ func (sm *SwitchManager) connect() error {
 		return fmt.Errorf("failed to connect to %s: %v", sm.config.Host, err)
 	}
 	sm.conn = conn
-	sm.conn.SetReadDeadline(time.Now().Add(30 * time.Second))
-	sm.conn.SetWriteDeadline(time.Now().Add(30 * time.Second))
+	sm.conn.SetReadDeadline(time.Now().Add(DefaultTimeout))
+	sm.conn.SetWriteDeadline(time.Now().Add(DefaultTimeout))
 	if sm.config.Debug {
 		fmt.Printf("DEBUG: Connected to %s\n", sm.config.Host)
 	}
@@ -133,15 +164,15 @@ func (sm *SwitchManager) connect() error {
 		prompt string
 		input  string
 	}{
-		{"Username:", sm.config.Username + "\n"},
-		{"Password:", sm.config.Password + "\n"},
-		{">", "enable\n"},
-		{"Password:", sm.config.EnablePassword + "\n"},
-		{"#", "terminal length 0\n"},
-		{"#", ""},
+		{PromptUsername, sm.config.Username + "\n"},
+		{PromptPassword, sm.config.Password + "\n"},
+		{PromptEnable, "enable\n"},
+		{PromptPassword, sm.config.EnablePassword + "\n"},
+		{PromptPrivileged, TerminalLengthCmd},
+		{PromptPrivileged, ""},
 	}
 	for _, p := range prompts {
-		output, err := sm.readUntil(p.prompt, 30*time.Second)
+		output, err := sm.readUntil(p.prompt, DefaultTimeout)
 		if err != nil {
 			return fmt.Errorf("failed waiting for %s: %v, output: %s", p.prompt, err, output)
 		}
@@ -156,8 +187,9 @@ func (sm *SwitchManager) connect() error {
 }
 
 func (sm *SwitchManager) readUntil(pattern string, timeout time.Duration) (string, error) {
-	buffer := make([]byte, 4096)
+	buffer := make([]byte, BufferSize)
 	var output strings.Builder
+	output.Grow(BufferSize)
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
 		n, err := sm.conn.Read(buffer)
@@ -192,7 +224,7 @@ func (sm *SwitchManager) executeCommand(cmd string) (string, error) {
 		fmt.Printf("DEBUG: Executing: %s\n", cmd)
 	}
 	sm.conn.Write([]byte(cmd + "\n"))
-	output, err := sm.readUntil("#", 30*time.Second)
+	output, err := sm.readUntil(PromptPrivileged, DefaultTimeout)
 	if err != nil {
 		return "", fmt.Errorf("error executing %s: %v", cmd, err)
 	}
@@ -261,15 +293,17 @@ func (sm *SwitchManager) getActivePorts() ([]Port, error) {
 	matches := re.FindAllStringSubmatch(output, -1)
 	var ports []Port
 	for _, match := range matches {
-		if len(match) > 2 {
-			if sm.config.Debug {
-				fmt.Printf("DEBUG: Found active port %s with VLAN %s\n", match[1], match[2])
-			}
-			ports = append(ports, Port{
-				Interface: match[1],
-				Vlan:      match[2],
-			})
+		if len(match) < 3 {
+			log.Printf("Warning: Skipping malformed interface line: %s", match[0])
+			continue
 		}
+		if sm.config.Debug {
+			fmt.Printf("DEBUG: Found active port %s with VLAN %s\n", match[1], match[2])
+		}
+		ports = append(ports, Port{
+			Interface: match[1],
+			Vlan:      match[2],
+		})
 	}
 	if sm.config.Debug {
 		fmt.Printf("DEBUG: Found %d active ports\n", len(ports))
@@ -286,6 +320,10 @@ func (sm *SwitchManager) getMacTable() ([]Device, error) {
 	matches := re.FindAllStringSubmatch(output, -1)
 	var devices []Device
 	for _, match := range matches {
+		if len(match) < 4 {
+			log.Printf("Warning: Skipping malformed MAC table line: %s", match[0])
+			continue
+		}
 		vlan := match[1]
 		mac := match[2]
 		iface := match[3]
@@ -419,24 +457,28 @@ func (sm *SwitchManager) processPorts() error {
 			}
 			continue
 		}
-		var dev *Device
+		var portDevices []Device
 		for _, d := range devices {
 			if d.Interface == port.Interface {
-				dev = &d
-				break
+				portDevices = append(portDevices, d)
 			}
 		}
-		if dev == nil {
+		if len(portDevices) == 0 {
 			if sm.config.Debug {
 				fmt.Printf("DEBUG: Skipping port %s with no active device\n", port.Interface)
 			}
 			continue
 		}
+		if len(portDevices) > 1 {
+			log.Printf("Warning: Multiple MACs detected on port %s: %v. Skipping port to avoid ambiguity.",
+				port.Interface, getMacList(portDevices))
+			continue
+		}
+		dev := portDevices[0]
+		normDevMac := normalizeMac(dev.MacFull)
 		excluded := false
 		for _, excludeMac := range sm.config.ExcludeMacs {
-			normExclude := strings.ToLower(strings.ReplaceAll(excludeMac, ":", ""))
-			normDevMac := strings.ToLower(strings.ReplaceAll(dev.MacFull, ":", ""))
-			if normExclude == normDevMac {
+			if normDevMac == excludeMac {
 				excluded = true
 				if sm.config.Debug {
 					fmt.Printf("DEBUG: Skipping port %s due to excluded MAC %s\n", port.Interface, dev.MacFull)
@@ -447,16 +489,8 @@ func (sm *SwitchManager) processPorts() error {
 		if excluded {
 			continue
 		}
-		macPrefix := strings.ReplaceAll(dev.Mac, ".", "")
-		macPrefix = macPrefix[:6]
-		var formattedPrefix strings.Builder
-		for i := 0; i < len(macPrefix); i += 2 {
-			if i > 0 {
-				formattedPrefix.WriteString(":")
-			}
-			formattedPrefix.WriteString(macPrefix[i : i+2])
-		}
-		targetVlan := sm.config.MacToVlan[formattedPrefix.String()]
+		macPrefix := normDevMac[:6]
+		targetVlan := sm.config.MacToVlan[macPrefix]
 		if targetVlan == "" {
 			targetVlan = sm.config.DefaultVlan
 			if sm.config.Debug {

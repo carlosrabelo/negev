@@ -167,6 +167,19 @@ func Load(yamlFile, target string, sandbox bool, verbosityLevel int, createVLANs
 		if sw.EnablePassword == "" {
 			sw.EnablePassword = cfg.EnablePassword
 		}
+
+		normalizedExclude := make(map[string]bool)
+		for _, mac := range cfg.ExcludeMacs {
+			normalizedExclude[NormalizeMAC(mac)] = true
+		}
+		for _, mac := range sw.ExcludeMacs {
+			normalizedExclude[NormalizeMAC(mac)] = true
+		}
+		sw.ExcludeMacs = make([]string, 0, len(normalizedExclude))
+		for mac := range normalizedExclude {
+			sw.ExcludeMacs = append(sw.ExcludeMacs, mac)
+		}
+		debugf(verbose, "DEBUG: Merged exclude_macs for %s: %v\n", sw.Target, sw.ExcludeMacs)
 		if sw.DefaultVlan == "" {
 			sw.DefaultVlan = cfg.DefaultVlan
 		}

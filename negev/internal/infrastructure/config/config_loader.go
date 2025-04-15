@@ -207,6 +207,22 @@ func Load(yamlFile, target string, sandbox bool, verbosityLevel int, createVLANs
 		sw.MacToVlan = mergedMacToVlan
 		debugf(verbose, "DEBUG: Merged mac_to_vlan for %s: %v\n", sw.Target, sw.MacToVlan)
 
+		if len(sw.ExcludePorts) > 0 {
+			normalizedPorts := make(map[string]struct{})
+			for _, port := range sw.ExcludePorts {
+				trimmed := strings.TrimSpace(port)
+				if trimmed == "" {
+					continue
+				}
+				normalizedPorts[strings.ToLower(trimmed)] = struct{}{}
+			}
+			sw.ExcludePorts = make([]string, 0, len(normalizedPorts))
+			for port := range normalizedPorts {
+				sw.ExcludePorts = append(sw.ExcludePorts, port)
+			}
+			debugf(verbose, "DEBUG: Normalized exclude_ports for %s: %v\n", sw.Target, sw.ExcludePorts)
+		}
+
 		if sw.DefaultVlan == "" {
 			sw.DefaultVlan = cfg.DefaultVlan
 		}

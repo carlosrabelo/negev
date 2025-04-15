@@ -32,7 +32,7 @@ func debugf(verbose bool, format string, args ...any) {
 	}
 }
 
-func mergeStringSlices(global, local []string) []string {
+func mergeStringSlices(global, local []string, validate func(string) error) ([]string, error) {
 	seen := make(map[string]bool)
 	var result []string
 	for _, v := range global {
@@ -42,12 +42,17 @@ func mergeStringSlices(global, local []string) []string {
 		}
 	}
 	for _, v := range local {
+		if validate != nil {
+			if err := validate(v); err != nil {
+				return nil, err
+			}
+		}
 		if !seen[v] {
 			seen[v] = true
 			result = append(result, v)
 		}
 	}
-	return result
+	return result, nil
 }
 
 func NormalizeMAC(mac string) string {
@@ -175,8 +180,15 @@ func Load(yamlFile, target string, sandbox bool, verbosityLevel int, createVLANs
 			return nil, err
 		}
 
-		sw.AllowedVlans = mergeStringSlices(cfg.AllowedVlans, sw.AllowedVlans)
-		sw.ProtectedVlans = mergeStringSlices(cfg.ProtectedVlans, sw.ProtectedVlans)
+		var err error
+		sw.AllowedVlans, err = mergeStringSlices(cfg.AllowedVlans, sw.AllowedVlans, nil)
+		if err != nil {
+			return nil, err
+		}
+		sw.ProtectedVlans, err = mergeStringSlices(cfg.ProtectedVlans, sw.ProtectedVlans, nil)
+		if err != nil {
+			return nil, err
+		}
 
 		sw.Sandbox = !sandbox
 		sw.VerbosityLevel = verbosityLevel

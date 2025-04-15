@@ -15,8 +15,8 @@ VLAN automation for Cisco IOS switches over Telnet/SSH. MAC-based assignment wit
 - [x] `NormalizeMAC`: strips `:` and `.`, lowercases to 12 hex chars
 - [x] MAC prefix = first 6 chars of normalized MAC
 - [x] Config path resolution: `./config.yaml`, `~/.config/negev/`, `/etc/negev/` (Linux); `%APPDATA%`, `%ProgramData%` (Windows)
-- [ ] `NoDataVlan` field (quarantine VLAN, reserved)
-- [ ] Config validation: required fields (`default_vlan`, `no_data_vlan`, `username`, `password`, `enable_password`), VLAN range 1–4094, platform enum (`ios`/`dmos`/`auto`), transport enum (`telnet`/`ssh`)
+- [x] `NoDataVlan` field (quarantine VLAN, reserved)
+- [x] Config validation: required fields (`default_vlan`, `no_data_vlan`, `username`, `password`, `enable_password`), VLAN range 1–4094, platform enum (`ios`/`dmos`/`auto`), transport enum (`telnet`/`ssh`)
 - [ ] `mergeStringSlices`: generic merge with dedup and optional per-element validation
 - [ ] Per-switch `ExcludeMacs` merge: global + switch, normalized to 12 hex
 - [ ] Per-switch `MacToVlan` merge: switch-specific overrides global for same prefix; `"0"`/`"00"` VLAN ignored

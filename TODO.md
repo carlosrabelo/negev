@@ -36,8 +36,8 @@ VLAN automation for Cisco IOS switches over Telnet/SSH. MAC-based assignment wit
 
 ## Domain ports (interfaces)
 
-- [ ] `VLANService` interface: `ProcessPorts()`, `GetVlanList()`, `GetTrunkInterfaces()`, `GetActivePorts()`, `GetMacTable()`, `ConfigureVlan()`, `CreateVLAN()`, `DeleteVLAN()`
-- [ ] `SwitchRepository` interface: `Connect()`, `Disconnect()`, `ExecuteCommand()`, `IsConnected()`
+- [x] `VLANService` interface: `ProcessPorts()`, `GetVlanList()`, `GetTrunkInterfaces()`, `GetActivePorts()`, `GetMacTable()`, `ConfigureVlan()`, `CreateVLAN()`, `DeleteVLAN()`
+- [x] `SwitchRepository` interface: `Connect()`, `Disconnect()`, `ExecuteCommand()`, `IsConnected()`
 
 ## Parse utilities (`internal/platform/parseutil/`)
 

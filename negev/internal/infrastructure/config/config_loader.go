@@ -132,6 +132,10 @@ func Load(yamlFile, target string, sandbox bool, verbosityLevel int, createVLANs
 
 	for i := range cfg.Switches {
 		sw := &cfg.Switches[i]
+		swVerbose := verbose
+		if target != "" && sw.Target != target {
+			swVerbose = false
+		}
 		if sw.Target == "" {
 			return nil, fmt.Errorf("target is required for switch %d", i)
 		}
@@ -179,78 +183,10 @@ func Load(yamlFile, target string, sandbox bool, verbosityLevel int, createVLANs
 		for mac := range normalizedExclude {
 			sw.ExcludeMacs = append(sw.ExcludeMacs, mac)
 		}
-		debugf(verbose, "DEBUG: Merged exclude_macs for %s: %v\n", sw.Target, sw.ExcludeMacs)
-
-		mergedMacToVlan := make(map[string]string)
-		for mac, vlan := range sw.MacToVlan {
-			if vlan == "0" || vlan == "00" {
-				continue
-			}
-			prefix := NormalizeMAC(mac)
-			if len(prefix) < 6 {
-				continue
-			}
-			mergedMacToVlan[prefix[:6]] = vlan
-		}
-		for mac, vlan := range cfg.MacToVlan {
-			if vlan == "0" || vlan == "00" {
-				continue
-			}
-			prefix := NormalizeMAC(mac)
-			if len(prefix) < 6 {
-				continue
-			}
-			if _, exists := mergedMacToVlan[prefix[:6]]; !exists {
-				mergedMacToVlan[prefix[:6]] = vlan
-			}
-		}
-		sw.MacToVlan = mergedMacToVlan
-		debugf(verbose, "DEBUG: Merged mac_to_vlan for %s: %v\n", sw.Target, sw.MacToVlan)
-
-		if len(sw.ExcludePorts) > 0 {
-			normalizedPorts := make(map[string]struct{})
-			for _, port := range sw.ExcludePorts {
-				trimmed := strings.TrimSpace(port)
-				if trimmed == "" {
-					continue
-				}
-				normalizedPorts[strings.ToLower(trimmed)] = struct{}{}
-			}
-			sw.ExcludePorts = make([]string, 0, len(normalizedPorts))
-			for port := range normalizedPorts {
-				sw.ExcludePorts = append(sw.ExcludePorts, port)
-			}
-			debugf(verbose, "DEBUG: Normalized exclude_ports for %s: %v\n", sw.Target, sw.ExcludePorts)
-		}
-
-		if sw.DefaultVlan == "" {
-			sw.DefaultVlan = cfg.DefaultVlan
-		}
-		if err := validateVLAN(sw.DefaultVlan, fmt.Sprintf("default_vlan for switch %s", sw.Target)); err != nil {
-			return nil, err
-		}
-		if sw.NoDataVlan == "" {
-			sw.NoDataVlan = cfg.NoDataVlan
-		}
-		if err := validateVLAN(sw.NoDataVlan, fmt.Sprintf("no_data_vlan for switch %s", sw.Target)); err != nil {
-			return nil, err
-		}
-
-		var err error
-		sw.AllowedVlans, err = mergeStringSlices(cfg.AllowedVlans, sw.AllowedVlans, nil)
-		if err != nil {
-			return nil, err
-		}
-		sw.ProtectedVlans, err = mergeStringSlices(cfg.ProtectedVlans, sw.ProtectedVlans, nil)
-		if err != nil {
-			return nil, err
-		}
-
-		sw.Sandbox = !sandbox
-		sw.VerbosityLevel = verbosityLevel
-		sw.CreateVLANs = createVLANs
-
-		debugf(verbose, "DEBUG: Switch %s: Platform=%s, Transport=%s, DefaultVlan=%s\n",
+		debugf(swVerbose, "DEBUG: Merged exclude_macs for %s: %v\n", sw.Target, sw.ExcludeMacs)
+		debugf(swVerbose, "DEBUG: Merged mac_to_vlan for %s: %v\n", sw.Target, sw.MacToVlan)
+			debugf(swVerbose, "DEBUG: Normalized exclude_ports for %s: %v\n", sw.Target, sw.ExcludePorts)
+		debugf(swVerbose, "DEBUG: Switch %s: Platform=%s, Transport=%s, DefaultVlan=%s\n",
 			sw.Target, sw.Platform, sw.Transport, sw.DefaultVlan)
 	}
 

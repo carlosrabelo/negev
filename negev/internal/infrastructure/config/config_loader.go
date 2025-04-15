@@ -180,6 +180,33 @@ func Load(yamlFile, target string, sandbox bool, verbosityLevel int, createVLANs
 			sw.ExcludeMacs = append(sw.ExcludeMacs, mac)
 		}
 		debugf(verbose, "DEBUG: Merged exclude_macs for %s: %v\n", sw.Target, sw.ExcludeMacs)
+
+		mergedMacToVlan := make(map[string]string)
+		for mac, vlan := range sw.MacToVlan {
+			if vlan == "0" || vlan == "00" {
+				continue
+			}
+			prefix := NormalizeMAC(mac)
+			if len(prefix) < 6 {
+				continue
+			}
+			mergedMacToVlan[prefix[:6]] = vlan
+		}
+		for mac, vlan := range cfg.MacToVlan {
+			if vlan == "0" || vlan == "00" {
+				continue
+			}
+			prefix := NormalizeMAC(mac)
+			if len(prefix) < 6 {
+				continue
+			}
+			if _, exists := mergedMacToVlan[prefix[:6]]; !exists {
+				mergedMacToVlan[prefix[:6]] = vlan
+			}
+		}
+		sw.MacToVlan = mergedMacToVlan
+		debugf(verbose, "DEBUG: Merged mac_to_vlan for %s: %v\n", sw.Target, sw.MacToVlan)
+
 		if sw.DefaultVlan == "" {
 			sw.DefaultVlan = cfg.DefaultVlan
 		}

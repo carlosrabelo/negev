@@ -13,11 +13,11 @@ type mockCacheRepo struct {
 	lastCommand string
 }
 
-func (m *mockCacheRepo) Connect() error    { return nil }
-func (m *mockCacheRepo) Disconnect()       {}
-func (m *mockCacheRepo) IsConnected() bool { return true }
+func (m *mockCacheRepo) Connect() error                                    { return nil }
+func (m *mockCacheRepo) Disconnect()                                       {}
+func (m *mockCacheRepo) IsConnected() bool                                 { return true }
 func (m *mockCacheRepo) SetSessionProfile(profile entities.SessionProfile) {}
-func (m *mockCacheRepo) GetTarget() string { return m.target }
+func (m *mockCacheRepo) GetTarget() string                                 { return m.target }
 func (m *mockCacheRepo) ExecuteCommand(cmd string) (string, error) {
 	m.cmdCount++
 	m.lastCommand = cmd

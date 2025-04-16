@@ -7,17 +7,17 @@ import (
 	"github.com/carlosrabelo/negev/negev/internal/domain/entities"
 )
 
-func TestShouldSkipSSHEnableStep(t *testing.T) {
-	if !shouldSkipSSHEnableStep(true, ">", "enable\n", "secret") {
+func TestShouldSkipEnableStep(t *testing.T) {
+	if !shouldSkipEnableStep(true, ">", "enable\n", "secret") {
 		t.Fatal("expected enable prompt to be skipped when already privileged")
 	}
-	if !shouldSkipSSHEnableStep(true, "Password:", "secret\n", "secret") {
+	if !shouldSkipEnableStep(true, "Password:", "secret\n", "secret") {
 		t.Fatal("expected enable password to be skipped when already privileged")
 	}
-	if shouldSkipSSHEnableStep(true, "#", "terminal length 0\n", "secret") {
+	if shouldSkipEnableStep(true, "#", "terminal length 0\n", "secret") {
 		t.Fatal("must still send terminal length at privileged prompt")
 	}
-	if shouldSkipSSHEnableStep(false, ">", "enable\n", "secret") {
+	if shouldSkipEnableStep(false, ">", "enable\n", "secret") {
 		t.Fatal("must not skip enable when still in user exec")
 	}
 }

@@ -119,16 +119,54 @@ func (tc *TelnetClient) defaultAuthenticate() error {
 }
 
 func (tc *TelnetClient) runAuthSequence(prompts []entities.AuthPrompt) error {
+	alreadyPrivileged := false
+	sentEnable := false
+	currentOutput := ""
 	for _, p := range prompts {
 		cmd := p.SendCmd
 		cmd = strings.ReplaceAll(cmd, "USERNAME_PLACEHOLDER", tc.config.Username)
 		cmd = strings.ReplaceAll(cmd, "ENABLE_PASSWORD_PLACEHOLDER", tc.config.EnablePassword)
 		cmd = strings.ReplaceAll(cmd, "PASSWORD_PLACEHOLDER", tc.config.Password)
 
+		if shouldSkipEnableStep(alreadyPrivileged, p.WaitFor, cmd, tc.config.EnablePassword) {
+			continue
+		}
+
 		if p.WaitFor != "" {
-			output, err := tc.readUntil(p.WaitFor, DefaultTimeout)
-			if err != nil {
-				return fmt.Errorf("failed to wait for %s: %v, output: %s", p.WaitFor, err, output)
+			switch {
+			case p.WaitFor == PromptEnable && strings.TrimSpace(cmd) == "enable":
+				if !strings.Contains(currentOutput, PromptEnable) && !strings.Contains(currentOutput, PromptPrivileged) {
+					var err error
+					currentOutput, err = tc.readUntilAny([]string{PromptEnable, PromptPrivileged}, DefaultTimeout)
+					if err != nil {
+						return fmt.Errorf("failed to wait for %s: %v, output: %s", p.WaitFor, err, currentOutput)
+					}
+				}
+				if strings.Contains(currentOutput, PromptPrivileged) {
+					alreadyPrivileged = true
+					continue
+				}
+			case p.WaitFor == PromptPassword && sentEnable:
+				// enable may elevate straight to # with no password prompt
+				if !strings.Contains(currentOutput, PromptPassword) && !strings.Contains(currentOutput, PromptPrivileged) {
+					var err error
+					currentOutput, err = tc.readUntilAny([]string{PromptPassword, PromptPrivileged}, DefaultTimeout)
+					if err != nil {
+						return fmt.Errorf("failed to wait for %s: %v, output: %s", p.WaitFor, err, currentOutput)
+					}
+				}
+				if strings.Contains(currentOutput, PromptPrivileged) && !strings.Contains(currentOutput, PromptPassword) {
+					alreadyPrivileged = true
+					continue
+				}
+			default:
+				if !strings.Contains(currentOutput, p.WaitFor) {
+					var err error
+					currentOutput, err = tc.readUntil(p.WaitFor, DefaultTimeout)
+					if err != nil {
+						return fmt.Errorf("failed to wait for %s: %v, output: %s", p.WaitFor, err, currentOutput)
+					}
+				}
 			}
 		}
 		if cmd != "" {
@@ -143,6 +181,10 @@ func (tc *TelnetClient) runAuthSequence(prompts []entities.AuthPrompt) error {
 				}
 				fmt.Fprintf(os.Stderr, "DEBUG: Sent %s for prompt %s\n", displayCmd, p.WaitFor)
 			}
+			if strings.TrimSpace(cmd) == "enable" {
+				sentEnable = true
+			}
+			currentOutput = ""
 		}
 	}
 	return nil

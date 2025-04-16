@@ -79,6 +79,25 @@ Datacom
 	if match {
 		t.Fatal("Detect(bare datacom) = true; expected false")
 	}
+
+	systemOnly := &mockRepo{
+		version: "% 30: Invalid input detected at '^' marker.",
+		responses: map[string]string{
+			"show system": `
+Product
+-------
+ Model:               DmSwitch3324F2
+ System capabilities: Bridge, Router
+`,
+		},
+	}
+	match, err = d.Detect(systemOnly)
+	if err != nil {
+		t.Fatalf("Detect(show system fallback) error: %v", err)
+	}
+	if !match {
+		t.Fatal("Detect via show system = false; expected true")
+	}
 }
 
 func TestAuthenticationSequence(t *testing.T) {

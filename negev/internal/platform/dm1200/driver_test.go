@@ -248,8 +248,8 @@ func TestDeleteVLANCommands(t *testing.T) {
 func TestSaveCommands(t *testing.T) {
 	got := (&Driver{}).SaveCommands()
 	want := []string{
-		"copy system:running-config nvram:startup-config",
-		"write memory",
+		"copy system:running-config nvram:startup-config\ny",
+		"write memory\ny",
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("SaveCommands() = %v; expected %v", got, want)

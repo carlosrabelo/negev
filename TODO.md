@@ -48,17 +48,17 @@ VLAN automation for Cisco IOS switches over Telnet/SSH. MAC-based assignment wit
 
 ### Telnet (`internal/infrastructure/transport/telnet.go`)
 
-- [ ] Raw Telnet client on port 23
-- [ ] Security warning: "credentials are transmitted in cleartext"
-- [ ] Constants: `DefaultTimeout = 120s`, `BufferSize = 4096`, `PromptUsername = "Username:"`, `PromptPassword = "Password:"`, `PromptEnable = ">"`, `PromptPrivileged = "#"`, `TerminalLengthCmd = "terminal length 0\n"`
-- [ ] Custom authentication sequence via `SetAuthSequence`
-- [ ] Default IOS auth sequence when none set (Username → Password → enable → Password → terminal length 0 → #)
-- [ ] `Connect`: dials TCP, reads prompts and sends auth commands
-- [ ] `readUntil(pattern, timeout)`: reads chunks, sleeps 100ms between reads, checks for pattern match
-- [ ] `ExecuteCommand`: sends command + `\n`, reads until `#`, strips echo line and trailing prompt line
-- [ ] `Disconnect`: closes connection, sets conn to nil
-- [ ] `IsConnected`: checks `conn != nil`
-- [ ] Raw output display when `IsRawOutputEnabled`
+- [x] Raw Telnet client on port 23
+- [x] Security warning: "credentials are transmitted in cleartext"
+- [x] Constants: `DefaultTimeout = 120s`, `BufferSize = 4096`, `PromptUsername = "Username:"`, `PromptPassword = "Password:"`, `PromptEnable = ">"`, `PromptPrivileged = "#"`, `TerminalLengthCmd = "terminal length 0\n"`
+- [x] Custom authentication sequence via `SetAuthSequence`
+- [x] Default IOS auth sequence when none set (Username → Password → enable → Password → terminal length 0 → #)
+- [x] `Connect`: dials TCP, reads prompts and sends auth commands
+- [x] `readUntil(pattern, timeout)`: reads chunks, sleeps 100ms between reads, checks for pattern match
+- [x] `ExecuteCommand`: sends command + `\n`, reads until `#`, strips echo line and trailing prompt line
+- [x] `Disconnect`: closes connection, sets conn to nil
+- [x] `IsConnected`: checks `conn != nil`
+- [x] Raw output display when `IsRawOutputEnabled`
 
 ### SSH (`internal/infrastructure/transport/ssh.go`)
 

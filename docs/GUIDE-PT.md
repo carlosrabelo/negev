@@ -1,200 +1,185 @@
 # Guia do Usuário Negev
 
-O Negev é uma ferramenta CLI para automatizar atribuições de VLAN em switches de acesso de rede com base em prefixos de endereços MAC. Ele se conecta aos switches via Telnet ou SSH, lê a tabela de endereços MAC, mapeia os dispositivos conectados às suas respectivas VLANs de destino e configura as portas do switch adequadamente.
+O Negev é uma CLI para automatizar atribuições de VLAN em switches de acesso a partir
+de prefixos MAC. Conecta via Telnet ou SSH, lê a tabela MAC, resolve VLANs-alvo pela
+política YAML e configura portas de acesso. A organização hexagonal / DDD mantém a
+lógica de domínio livre de I/O de socket; drivers de plataforma e adaptadores de
+transporte ficam nas bordas.
+
+O inglês é a fonte da verdade técnica: [GUIDE.md](GUIDE.md).
+
+## Arquitetura
+
+| Camada | Caminho | Papel |
+|---|---|---|
+| CLI | `negev/cmd/negev` | Flags, códigos de saída, `--ask-pass` |
+| Application | `negev/internal/application` | `RunTarget`, multi-runner, orquestração de backup |
+| Domain | `negev/internal/domain` | Entidades, ports, serviço VLAN plan-then-apply |
+| Infrastructure | `negev/internal/infrastructure` | Loader YAML, Telnet/SSH, auditoria JSONL |
+| Platform | `negev/internal/platform` | Registry + IOS / NX-OS / DmSwitch / DM1200 / Comware |
+
+Fluxo por alvo: carregar/mesclar config → resolver driver (`auto` usa `show version` /
+equivalente) → backup pré-write opcional → `ProcessPorts()` → save opcional → append
+de auditoria por mudança de porta.
+
+Clientes de transporte são cacheados por SHA-256 de `{Transport, Target, Username, Password, EnablePassword}`.
+Telnet envia credenciais em claro (avisa). SSH usa PTY e ignora verificação de host key
+(avisa)—use apenas em redes confiáveis.
 
 ## Instalação
 
-Para compilar e instalar o binário a partir do código-fonte, execute:
-
 ```bash
-make install
+make install          # ~/.local/bin/negev
+make install-system   # /usr/local/bin/negev
 ```
 
-Isso instala o binário em `~/.local/bin/negev` (Linux) ou `/usr/local/bin/negev`.
+Ou `go install github.com/carlosrabelo/negev/negev/cmd/negev@latest`.
 
 ## Configuração
 
-O Negev utiliza um arquivo de configuração YAML. Por padrão, ele procura por `config.yaml` no diretório atual, mas também recorre aos seguintes caminhos do sistema:
+Ordem de busca quando `--config` é omitido e o nome é `config.yaml`:
 
 - `./config.yaml`
-- `~/.config/negev/config.yaml` (Linux)
+- `~/.config/negev/config.yaml` (Linux/macOS via diretório de config do usuário)
 - `/etc/negev/config.yaml` (Linux)
-- `%APPDATA%\negev\config.yaml` (Windows)
-- `%ProgramData%\negev\config.yaml` (Windows)
+- `%APPDATA%\negev\config.yaml` / `%ProgramData%\negev\config.yaml` (Windows)
 
-### Esquema de Configuração
+Sobrescreva a raiz de busca em testes com `XDG_CONFIG_HOME` / `HOME` / `APPDATA` conforme necessário.
+Os campos YAML opcionais `backup_dir` e `audit_log` são globais.
 
-A estrutura de configuração suporta definições globais que podem ser sobrescritas individualmente para cada switch.
-
-#### Configurações Globais
-
-Estas configurações se aplicam a todos os switches, a menos que sejam sobrescritas:
+### Esquema YAML (global + switch)
 
 ```yaml
-# Suportado: auto, ios, dmos. "auto" executa 'show version' para detectar a plataforma.
-platform: auto
-
-# Suportado: telnet, ssh
-transport: telnet
-
-# Credenciais globais de autenticação
-username: admin
-password: cisco123
-enable_password: cisco123
-
-# VLAN padrão para portas ativas com endereços MAC não reconhecidos
-default_vlan: "1"
-
-# VLAN de quarentena opcional para portas de acesso com link up e sem MAC aprendido.
-# Omita para não alterar essas portas. Aging de dispositivos quietos pode isolá-los.
-no_data_vlan: "999"
-
-# Lista global de VLANs permitidas que o Negev tem permissão para criar ou modificar
-allowed_vlans:
-  - "10"
-  - "20"
-  - "30"
-
-# Lista global de VLANs protegidas que nunca devem ser excluídas
-protected_vlans:
-  - "100"
-
-# Endereços MAC globais a serem ignorados (correspondências exatas, normalizados)
-exclude_macs:
-  - "00:11:22:33:44:55"
-
-# Mapeamento global de prefixos MAC (primeiros 6 dígitos hexadecimais) para IDs de VLAN
+platform: auto                 # ios | nxos | dmswitch | dm1200 | comware | auto
+                               # alias legado: dmos → dmswitch
+transport: ssh                 # telnet | ssh
+username: "${SWITCH_USER}"     # ${VAR} expandido no Load; $${VAR} → literal ${VAR}
+password: ""                   # opcional se password_command / --ask-pass
+password_command: "pass show lab/sw"
+enable_password: ""
+enable_password_command: "pass show lab/enable"
+default_vlan: "1"              # obrigatório
+no_data_vlan: "999"            # quarentena opcional para portas up sem MAC
+multi_mac_policy: ignore       # ignore | alert | priority
+backup_dir: ./backups
+audit_log: ./audit/negev.jsonl
+allowed_vlans: ["10", "20", "30"]
+protected_vlans: ["999"]
+exclude_macs: ["00:11:22:33:44:55"]
 mac_to_vlan:
-  "aabbcc": "10"
-  "001122": "20"
-```
+  "aabbcc": "10"               # prefixos hex de comprimento par, 2..12
+  "aabbccddeeff": "15"         # match mais longo vence
 
-#### Configurações por Switch e Sobrescritas
-
-Você pode definir switches individuais no bloco `switches`. Cada switch pode sobrescrever credenciais, transporte, VLANs e mapeamentos de MAC para VLAN:
-
-```yaml
 switches:
-  - target: 192.168.1.10
+  - name: access-a1            # opcional, único
+    target: 192.0.2.10         # obrigatório
+    tags: [access, building-a]
     platform: ios
-    transport: telnet
-    mac_to_vlan:
-      "001122": "30" # Sobrescreve o mapeamento global para o prefixo 001122
-
-  - target: 192.168.1.20
-    platform: dmos
     transport: ssh
-    username: operator
-    password: senha_segura
-    # Desativa a herança de um mapeamento de prefixo MAC global definindo-o como "0", "00" ou ""
+    # sobrescritas por switch: credenciais, VLANs, mac_to_vlan, exclude_*, multi_mac_policy
+    exclude_ports: ["Gi1/0/24"]
     mac_to_vlan:
-      "aabbcc": "0" 
-    exclude_ports:
-      - "ethernet 1/1"
-      - "ethernet 1/2"
+      "aabbcc": "0"            # remove prefixo herdado neste switch
 ```
 
-### Regras de Mesclagem de Configuração
+### Regras de mescla
 
-1. **Mapa MacToVlan**: Os mapeamentos de prefixo globais são mesclados com os mapeamentos específicos de cada switch. Mapeamentos do switch sobrescrevem os globais para o mesmo prefixo. Se um mapeamento do switch definir a VLAN de um prefixo como `"0"`, `"00"` ou `""`, esse mapeamento é removido inteiramente para aquele switch.
-2. **Lista ExcludeMacs**: Os MACs excluídos globais e do switch são mesclados, normalizados e duplicatas são removidas.
-3. **Lista ExcludePorts**: Definida apenas no nível do switch. Portas nesta lista são completamente ignoradas durante a atribuição de VLAN.
-4. **AllowedVlans e ProtectedVlans**: As listas específicas de cada switch são mescladas com as listas globais e duplicatas são removidas.
+1. **mac_to_vlan**: global + switch; switch vence na mesma chave; VLAN `"0"` / `"00"` / `""` remove a chave no nível do switch.
+2. **exclude_macs**: união, normalizada, deduplicada (MACs completos de 12 hex).
+3. **exclude_ports**: só no switch; trim, lowercase, dedupe.
+4. **allowed_vlans / protected_vlans**: listas mescladas, VLANs canônicas.
+5. **multi_mac_policy**: switch herda o global; padrão `ignore`.
+6. **Credenciais**: campos vazios do switch herdam o global (após expansão e password commands).
 
----
+Arquivo de exemplo: [`docs/examples/config.yaml`](examples/config.yaml).
 
-## Uso
+### Segredos
+
+- `${VAR}` em `username` / `password` / `enable_password` (variável ausente → erro no Load).
+- `password_command` / `enable_password_command` quando a senha está vazia: `/bin/sh -c` (ou `cmd /C`), timeout 5s, ambiente mínimo, trim de `\r\n` finais.
+- `--ask-pass` pergunta uma vez e sobrescreve YAML/env para o(s) alvo(s) selecionado(s).
+
+## Referência da CLI
 
 ```bash
-negev --target <ip_do_switch> [flags]
+negev (--target <ref>[,...] | --all | --group <tag>) [flags]
 ```
 
-### Flags
+`--target`, `--all` e `--group` são mutuamente exclusivos.
 
 | Flag | Descrição |
 |---|---|
-| `--target <ip>` | Endereço IP do switch para se conectar (obrigatório, deve existir na configuração) |
-| `--config <path>` | Caminho do arquivo de configuração YAML |
-| `--write` | Aplica as alterações no switch (o modo sandbox/dry-run está ativo por padrão) |
-| `--verbose <0-3>` | Nível de verbosidade: `0` = nenhum, `1` = logs de debug, `2` = comunicação de rede raw com o switch, `3` = ambos |
-| `--create-vlans` | Cria automaticamente VLANs permitidas ausentes e exclui as não autorizadas (requer `--write` para aplicar) |
-| `--version` | Exibe a versão e hora da compilação |
+| `--target <ip\|name>[,...]` | IP(s) e/ou `name`(s) de switch |
+| `--all` | Todos os switches do arquivo |
+| `--group <tag>` | Switches cujas `tags` contêm `<tag>` |
+| `--concurrency <n>` | Tamanho do pool de workers (padrão 4) |
+| `--config <path>` | Caminho do YAML |
+| `--write` | Aplica mudanças (padrão = sandbox) |
+| `--verbose <0-3>` | 0 nenhum, 1 debug, 2 I/O bruto, 3 ambos |
+| `--create-vlans` | Sincroniza VLANs com `allowed_vlans` |
+| `--ask-pass` | Senhas interativas |
+| `--backup` | Backup do running-config mesmo no sandbox |
+| `--backup-dir <dir>` | Diretório de backup |
+| `--audit-log <path>` | Caminho JSONL de auditoria (sobrescreve YAML) |
+| `--version` | String de versão |
 
----
+Códigos de saída: `0` OK / sem mudanças pendentes no sandbox, `1` erro em qualquer alvo, `2` mudanças simuladas no sandbox sem falhas.
 
-## Funcionamento
+A saída multi-run é bufferizada por alvo e liberada com prefixo `[label]`; uma tabela-resumo é impressa ao final.
 
-1. **Conexão e Resolução do Driver**: O Negev se conecta ao switch usando o transporte configurado (Telnet ou SSH). Se a plataforma estiver definida como `auto`, ele executa o comando `show version` e detecta se é um switch Cisco IOS ou Datacom DmOS.
-2. **Segurança e Cache de Clientes**: 
-   - **Telnet**: Transmite credenciais em texto claro (gera um aviso no log).
-   - **SSH**: Utiliza emulação de PTY VT100 com eco suprimido. Desativa a validação do host-key (gera um aviso no log).
-   - **Cache**: Os switches reutilizam conexões de rede do cache caso compartilhem as mesmas credenciais, transporte e destino.
-3. **Coleta de Informações**: O Negev consulta o switch sobre VLANs ativas, portas de trunk, status das interfaces ativas e a tabela dinâmica de endereços MAC.
-   - **Cisco IOS**: Executa `show vlan brief`, `show interfaces trunk`, `show interfaces status` e `show mac address-table dynamic`.
-   - **Datacom DmOS**: Executa `show vlan table`, `show interfaces switchport` (caxeado por execução para evitar chamadas duplicadas), `show interfaces status` e `show mac-address-table`.
-4. **Exclusão de Portas Trunk**: Interfaces detectadas como portas trunk são ignoradas automaticamente para evitar interrupções de rede.
-5. **Lógica de Atribuição de VLAN**:
-   - Para cada porta de acesso, o Negev inspeciona o endereço MAC conectado.
-   - Se múltiplos endereços MAC forem detectados na mesma porta, um aviso de segurança é registrado e a porta é pulada.
-   - O endereço MAC é normalizado (removendo `:` e `.`, convertendo para minúsculas) e seu prefixo de 6 caracteres é verificado no mapa `mac_to_vlan`.
-   - Se um prefixo correspondente for encontrado, a VLAN de destino é atribuída.
-   - Se nenhum prefixo corresponder, a porta é atribuída à `default_vlan`.
-   - Se nenhum endereço MAC estiver ativo na porta e `no_data_vlan` estiver definida, a porta é atribuída a essa VLAN de quarentena. Só portas de acesso com link up entram no cálculo; portas `notconnect` não são alteradas. Omita `no_data_vlan` para deixar portas vazias como estão. Um dispositivo quieto cujo MAC saiu da tabela por aging pode ser movido para essa VLAN e isolado.
-   - Se a VLAN de destino não existir no switch, a atribuição é ignorada com uma mensagem de erro.
-6. **Sincronização de VLAN (`--create-vlans`)**:
-   - Compara as VLANs ativas do switch com a lista `allowed_vlans`.
-   - Cria qualquer VLAN definida em `allowed_vlans` que esteja ausente no switch.
-   - Exclui qualquer VLAN presente no switch que *não* esteja em `allowed_vlans` e *not* seja protegida.
-7. **Execução ou Simulação**: Se `--write` for omitido, o Negev exibe exatamente os comandos que enviaria. Se `--write` for especificado, os comandos são executados e a configuração é salva (`write memory` no IOS, `copy running-config startup-config` no DmOS).
+## Plataformas suportadas
 
----
+| Plataforma | YAML `platform` | Descoberta | VLAN de acesso | Save / dump de backup |
+|---|---|---|---|---|
+| Cisco IOS | `ios` | `show mac address-table`, `show interfaces status` | `switchport access vlan` | `write memory` / `show running-config` |
+| Cisco NX-OS | `nxos` | `show mac address-table`, `show interface status` | `switchport` depois `switchport access vlan` | `copy running-config startup-config` / `show running-config` |
+| Datacom DmSwitch 3000 | `dmswitch` (`dmos`) | `show mac-address-table`, status switchport | `set-member untagged` / native VLAN | `show running-config` |
+| Datacom DM1200E | `dm1200` | `show mac-addr-table` | `vlan database`, `switchport access vlan`, `vlan participation exclude 1` | `show running-config` |
+| 3Com / H3C Comware | `comware` | `display mac-address`, `display brief interface` | `port access vlan` | `save` / `display current-configuration` |
 
-## Modo Sandbox
+`platform: auto` sonda a saída de versão em ordem alfabética dos drivers registrados (Comware, DM1200, DmSwitch, IOS, NX-OS). A detecção IOS rejeita banners NX-OS.
 
-Por padrão, o Negev executa em um modo sandbox seguro, permitindo visualizar as alterações do switch antes de aplicá-las:
+## Como funciona
+
+1. Resolve os switches selecionados (`ResolveTargets`).
+2. Por switch (pool concorrente): carrega credenciais, detecta/obtém driver, aplica session profile + sequência de auth.
+3. Se `--write` ou `--backup`: baixa o running-config e grava `<nome-ou-ip>_<UTC>.cfg` modo `0600` em `--backup-dir` / `backup_dir` / `./backups`. Falha de backup aborta antes de qualquer comando mutável.
+4. Coleta VLANs, trunks, interfaces L3/SVI, portas ativas, tabela MAC.
+5. Ignora trunks, portas roteadas, `exclude_ports`, MACs excluídos.
+6. Resolve VLAN: maior prefixo de comprimento par em `mac_to_vlan` (12→2); senão `default_vlan`; portas vazias podem usar `no_data_vlan`.
+7. Portas multi-MAC: `ignore` (pula em silêncio), `alert` (avisa + pula), `priority` (maior prefixo explícito vence).
+8. `--create-vlans` opcional: cria allowed faltantes; remove não-allowed não-protegidas (1000–4094 sempre protegidas).
+9. Sandbox imprime `SIMULATE:`; `--write` executa e salva.
+10. Cada mudança de VLAN de porta (sucesso ou falha) anexa um registro JSONL quando `audit_log` / `--audit-log` está definido (modo `0644`, sync por entrada).
+
+## Política multi-MAC
+
+| Política | Comportamento |
+|---|---|
+| `ignore` (padrão) | Pula portas com mais de um MAC ativo; sem aviso |
+| `alert` | Pula e registra cada MAC com a VLAN resolvida |
+| `priority` | Entre hits explícitos de `mac_to_vlan`, escolhe o prefixo mais longo; se nenhum, pula |
+
+## Backup e auditoria
 
 ```bash
-# Visualizar alterações em um Cisco IOS
-negev --target 192.168.1.10
-
-# Aplicar alterações em um Datacom DmOS via SSH
-negev --target 192.168.1.20 --write
+negev --target 192.0.2.10 --config docs/examples/config.yaml --write --backup-dir ./backups
+negev --target 192.0.2.10 --config docs/examples/config.yaml --backup   # sandbox + forçar backup
+negev --target 192.0.2.10 --config docs/examples/config.yaml --write --audit-log ./audit/negev.jsonl
 ```
 
----
+Campos de auditoria: `timestamp`, `user`, `target`, `switch_name`, `port`, `mac`, `old_vlan`, `new_vlan`, `action` (`SET_PORT_VLAN`), `sandbox`, `status`.
 
-## Normalização de Endereço MAC
+## Normalização de MAC
 
-Endereços MAC são normalizados removendo os separadores (`:`, `.`) e convertendo os caracteres para minúsculas:
+Separadores `:`, `.`, `-` são removidos; letras em minúsculas. Chaves de prefixo em `mac_to_vlan` devem ter comprimento par 2–12 hex. Listas de exclusão exigem MAC completo de 12 caracteres após normalização.
 
-- `00:11:22:AA:BB:CC` → `001122aabbcc`
-- `0011.22aa.bbcc` → `001122aabbcc`
-
-A chave de busca no mapeamento `mac_to_vlan` são os primeiros 6 caracteres do MAC normalizado (ex: `001122`).
-
----
-
-## Proteção de VLAN
-
-VLANs são protegidas contra exclusão (ao executar com `--create-vlans`) sob duas condições:
-- **Auto-protection**: VLANs no intervalo de `1000` a `4094` são protegidas automaticamente.
-- **Proteção Explícita**: VLANs listadas em `protected_vlans` no arquivo de configuração.
-
-VLANs protegidas nunca são excluídas pelo Negev.
-
----
-
-## Cenários Práticos
-
-Os walkthroughs que antes ficavam em um diretório `demos/` agora residem em `docs/`.
-
-Uma configuração de exemplo completa (apenas IPs de documentação) está em [`docs/examples/config.yaml`](examples/config.yaml).
+## Cenários práticos
 
 ### Cenário 1: Implantação inicial de switch de acesso
 
 ```bash
 negev --target 192.0.2.10 --config docs/examples/config.yaml
-# Revise a saída SIMULATE e então:
 negev --target 192.0.2.10 --config docs/examples/config.yaml --write
 ```
 
@@ -207,12 +192,14 @@ negev --target 192.0.2.10 --config docs/examples/config.yaml --create-vlans --wr
 
 ### Cenário 3: Segmentar portas de acesso não gerenciadas
 
-Mapeie prefixos OUI/MAC de departamento em `mac_to_vlan`, exclua uplinks com `exclude_ports`, pré-visualize no sandbox e aplique com `--write`.
+Mapeie prefixos (e MACs exatos) de departamento em `mac_to_vlan`, liste uplinks em `exclude_ports`, configure `multi_mac_policy` para portas telefone+PC, pré-visualize e use `--write`.
 
 ### Cenário 4: Diagnosticar prompts e pagers
 
 ```bash
-negev --target 192.0.2.10 --config docs/examples/config.yaml --verbose 1   # debug
-negev --target 192.0.2.10 --config docs/examples/config.yaml --verbose 2   # I/O bruto
-negev --target 192.0.2.10 --config docs/examples/config.yaml --verbose 3   # ambos
+negev --target 192.0.2.10 --config docs/examples/config.yaml --verbose 1
+negev --target 192.0.2.10 --config docs/examples/config.yaml --verbose 2
+negev --target 192.0.2.10 --config docs/examples/config.yaml --verbose 3
 ```
+
+Use `--ask-pass` ou `password_command` quando as credenciais não devem ficar no YAML.

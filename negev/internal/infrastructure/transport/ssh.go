@@ -158,9 +158,10 @@ func (sc *SSHClient) Connect() error {
 			if shouldSkipEnableStep(alreadyPrivileged, p.WaitFor, p.SendCmd, sc.config.EnablePassword) {
 				continue
 			}
-			if !strings.Contains(currentOutput, p.WaitFor) {
+			patterns := authWaitPatterns(p.WaitFor)
+			if !outputContainsAny(currentOutput, patterns) {
 				var err error
-				currentOutput, err = sc.readUntil(p.WaitFor, DefaultTimeout)
+				currentOutput, err = sc.readUntilAny(patterns, DefaultTimeout)
 				if err != nil {
 					sc.Disconnect()
 					return fmt.Errorf("failed to wait for %s: %v, output: %s", p.WaitFor, err, currentOutput)
@@ -320,6 +321,23 @@ func shouldSkipEnableStep(alreadyPrivileged bool, waitFor, sendCmd, enablePasswo
 	}
 	if waitFor == PromptPassword && strings.TrimSpace(sendCmd) == strings.TrimSpace(enablePassword) {
 		return true
+	}
+	return false
+}
+
+// authWaitPatterns expands Username: to also accept Fastpath/Linux-style login banners.
+func authWaitPatterns(waitFor string) []string {
+	if waitFor == PromptUsername {
+		return []string{PromptUsername, "login:", "User:"}
+	}
+	return []string{waitFor}
+}
+
+func outputContainsAny(output string, patterns []string) bool {
+	for _, p := range patterns {
+		if p != "" && strings.Contains(output, p) {
+			return true
+		}
 	}
 	return false
 }

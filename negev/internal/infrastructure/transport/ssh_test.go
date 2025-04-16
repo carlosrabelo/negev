@@ -7,6 +7,25 @@ import (
 	"github.com/carlosrabelo/negev/negev/internal/domain/entities"
 )
 
+func TestAuthWaitPatternsUsername(t *testing.T) {
+	got := authWaitPatterns("Username:")
+	want := []string{"Username:", "login:", "User:"}
+	if len(got) != len(want) {
+		t.Fatalf("authWaitPatterns(Username:) = %v; want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("authWaitPatterns(Username:) = %v; want %v", got, want)
+		}
+	}
+	if !outputContainsAny("bg-sw-02 login: ", got) {
+		t.Fatal("expected login: banner to satisfy Username: wait")
+	}
+	if pats := authWaitPatterns("Password:"); len(pats) != 1 || pats[0] != "Password:" {
+		t.Fatalf("Password: patterns = %v", pats)
+	}
+}
+
 func TestShouldSkipEnableStep(t *testing.T) {
 	if !shouldSkipEnableStep(true, ">", "enable\n", "secret") {
 		t.Fatal("expected enable prompt to be skipped when already privileged")

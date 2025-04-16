@@ -56,6 +56,49 @@ func TestTelnetDialAddr(t *testing.T) {
 	}
 }
 
+func TestTelnetAuthAcceptsLoginBanner(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ln.Close()
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		conn, err := ln.Accept()
+		if err != nil {
+			return
+		}
+		defer conn.Close()
+		buf := make([]byte, 256)
+		_, _ = conn.Write([]byte("bg-sw-02 login: "))
+		_, _ = conn.Read(buf)
+		_, _ = conn.Write([]byte("Password: "))
+		_, _ = conn.Read(buf)
+		_, _ = conn.Write([]byte("\r\nbg-sw-02#"))
+		_, _ = conn.Read(buf) // terminal length
+		_, _ = conn.Write([]byte("\r\nbg-sw-02#"))
+	}()
+
+	tc := NewTelnetClient(entities.SwitchConfig{
+		Target:   ln.Addr().String(),
+		Username: "admin",
+		Password: "pass",
+	})
+	tc.SetAuthSequence([]entities.AuthPrompt{
+		{WaitFor: "Username:", SendCmd: "USERNAME_PLACEHOLDER\n"},
+		{WaitFor: "Password:", SendCmd: "PASSWORD_PLACEHOLDER\n"},
+		{WaitFor: "#", SendCmd: "terminal length 0\n"},
+		{WaitFor: "#", SendCmd: ""},
+	})
+	if err := tc.Connect(); err != nil {
+		t.Fatalf("Connect with login: banner: %v", err)
+	}
+	tc.Disconnect()
+	<-done
+}
+
 func TestTelnetAuthSkipsEnablePasswordWhenPrivilegedAfterEnable(t *testing.T) {
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {

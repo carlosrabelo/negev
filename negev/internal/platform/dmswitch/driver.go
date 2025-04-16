@@ -41,17 +41,38 @@ func (d *Driver) Detect(repo ports.SwitchRepository) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	lower := strings.ToLower(out)
-	if strings.Contains(lower, "dm1200") || strings.Contains(lower, "1200e") {
+	if match, reject := dmswitchDetectMatch(out); reject {
+		return false, nil
+	} else if match {
+		return true, nil
+	}
+	if !d.IsCommandError(out) {
 		return false, nil
 	}
+	// Older 3324F2 images reject "show version"; "show system" carries Model: DmSwitch…
+	out, err = repo.ExecuteCommand("show system")
+	if err != nil {
+		return false, err
+	}
+	match, reject := dmswitchDetectMatch(out)
+	if reject {
+		return false, nil
+	}
+	return match, nil
+}
+
+func dmswitchDetectMatch(out string) (match bool, reject bool) {
+	lower := strings.ToLower(out)
+	if strings.Contains(lower, "dm1200") || strings.Contains(lower, "1200e") {
+		return false, true
+	}
 	if strings.Contains(lower, "dmswitch") {
-		return true, nil
+		return true, false
 	}
 	if strings.Contains(lower, "datacom") && (strings.Contains(lower, "3324") || strings.Contains(lower, "3224")) {
-		return true, nil
+		return true, false
 	}
-	return false, nil
+	return false, false
 }
 
 func (d *Driver) GetAuthenticationSequence() []entities.AuthPrompt {

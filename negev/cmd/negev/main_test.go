@@ -1,6 +1,10 @@
 package main
 
 import (
+	"io"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/carlosrabelo/negev/negev/internal/application/services"
@@ -51,6 +55,42 @@ func TestRunConfigError(t *testing.T) {
 	code := run([]string{"--target", "10.0.0.1", "--config", "/nonexistent/negev-config.yaml"})
 	if code != 1 {
 		t.Fatalf("run(bad config) = %d; want 1", code)
+	}
+}
+
+func TestRunAnnouncesConfigPath(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "config.yaml")
+	content := []byte(`username: admin
+password: secret
+switches:
+  - target: 192.0.2.10
+    platform: ios
+`)
+	if err := os.WriteFile(cfgPath, content, 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("pipe: %v", err)
+	}
+	old := os.Stderr
+	os.Stderr = w
+	code := run([]string{"--config", cfgPath})
+	_ = w.Close()
+	os.Stderr = old
+	out, err := io.ReadAll(r)
+	_ = r.Close()
+	if err != nil {
+		t.Fatalf("read stderr: %v", err)
+	}
+	if code != 1 {
+		t.Fatalf("run = %d; want 1 (missing target)", code)
+	}
+	want := "Using config: " + cfgPath
+	if !strings.Contains(string(out), want) {
+		t.Fatalf("stderr missing %q; got:\n%s", want, out)
 	}
 }
 

@@ -44,6 +44,7 @@ Ordem de busca quando `--config` é omitido e o nome é `config.yaml`:
 - `/etc/negev/config.yaml` (Linux)
 - `%APPDATA%\negev\config.yaml` / `%ProgramData%\negev\config.yaml` (Windows)
 
+Após resolver o caminho (via busca ou `--config`), o Negev sempre imprime `Using config: <path>` em stderr.
 Sobrescreva a raiz de busca em testes com `XDG_CONFIG_HOME` / `HOME` / `APPDATA` conforme necessário.
 Os campos YAML opcionais `backup_dir` e `audit_log` são globais.
 

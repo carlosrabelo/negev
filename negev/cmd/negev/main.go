@@ -68,6 +68,8 @@ func run(args []string) int {
 		}
 	}
 
+	fmt.Fprintf(os.Stderr, "Using config: %s\n", cfgPath)
+
 	cfg, err := config.Load(cfgPath, "", *verbose)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "ERROR: failed to load config: %v\n", err)

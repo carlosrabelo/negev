@@ -195,3 +195,13 @@ func formatMac(mac string) string {
 	}
 	return mac[0:2] + ":" + mac[2:4] + ":" + mac[4:6] + ":" + mac[6:8] + ":" + mac[8:10] + ":" + mac[10:12]
 }
+
+func (d *Driver) ConfigureAccessCommands(port entities.Port, vlan string) []string {
+	return []string{
+		"configure terminal",
+		"interface " + port.Interface,
+		"switchport mode access",
+		"switchport access vlan " + vlan,
+		"end",
+	}
+}

@@ -134,7 +134,7 @@ Per-flag reference (examples, defaults, interactions): [cli/](cli/) · Portugues
 5. Skip trunks, routed ports, `exclude_ports`, excluded MACs.
 6. Resolve VLAN: longest even-length prefix in `mac_to_vlan` (12→2); else `default_vlan`; empty ports may use `no_data_vlan`.
 7. Multi-MAC ports: `ignore` (skip quiet), `alert` (warn + skip), `priority` (longest explicit mapping wins).
-8. Optional `--create-vlans`: create missing allowed; delete non-allowed non-protected (1000–4094 always protected).
+8. Optional `--create-vlans`: create missing allowed; delete non-allowed non-protected (VLAN 1 and 1000–4094 always protected; plus `default_vlan` / `no_data_vlan` / `protected_vlans` / L3 SVIs / VLANs still on active ports).
 9. Sandbox prints `SIMULATE:`; `--write` executes and saves.
 10. Each successful or failed port VLAN change appends one JSONL audit record when `audit_log` / `--audit-log` is set (mode `0644`, sync per entry).
 

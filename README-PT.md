@@ -10,7 +10,7 @@ English: [README.md](README.md).
 ## Destaques
 
 - Drivers multi-vendor: Cisco IOS, Cisco NX-OS, Datacom DmSwitch 3000, Datacom DM1200E, 3Com/H3C Comware (detecção `auto`)
-- Seguro por padrão: sandbox sem `--write`; VLANs protegidas (incluindo 1000–4094)
+- Seguro por padrão: sandbox sem `--write`; VLANs protegidas (VLAN 1 e 1000–4094, mais config)
 - Transporte dual: SSH (preferencial) e Telnet com cache de clientes
 - Segredos fora do YAML: expansão `${ENV}`, `password_command` e `--ask-pass`
 - Execução multi-switch: nomes, tags, `--all` / `--group`, `--concurrency` limitado

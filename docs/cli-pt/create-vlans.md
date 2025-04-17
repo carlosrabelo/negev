@@ -4,7 +4,7 @@
 --create-vlans
 ```
 
-Sincroniza o banco de VLANs do switch com `allowed_vlans`: cria faltantes; remove não-allowed não-protegidas. A faixa 1000–4094 é sempre protegida; `protected_vlans` adiciona mais.
+Sincroniza o banco de VLANs do switch com `allowed_vlans`: cria faltantes; remove não-allowed não-protegidas. VLAN `1` e a faixa 1000–4094 são sempre protegidas; `default_vlan`, `no_data_vlan`, `protected_vlans`, SVIs L3 e VLANs ainda em portas ativas também.
 
 ## Exemplos
 

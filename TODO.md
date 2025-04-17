@@ -108,7 +108,7 @@ VLAN automation for Cisco IOS switches over Telnet/SSH. MAC-based assignment wit
 - [x] VLAN delete: `configure terminal`, `interface vlan <id>`, `shutdown`, `exit`, `no interface vlan <id>`, `exit`, `no vlan <id>`, `end`
 - [x] Save: `write memory`
 - [x] Command error detection (`isIOSCommandError`): "invalid input", "unknown command", "incomplete command", "ambiguous command", "unrecognized command", "invalid command", "syntax error", "cannot find command"
-- [ ] Raw output display when `IsRawOutputEnabled`
+- [x] Raw output display when `IsRawOutputEnabled` (via transport layer)
 
 ## VLAN service
 

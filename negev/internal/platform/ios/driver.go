@@ -9,6 +9,7 @@ import (
 )
 
 var vlanLineRegex = regexp.MustCompile(`^\s*(?:vlan\s+)?(\d{1,4})\b`)
+var interfaceRegex = regexp.MustCompile(`^[A-Za-z]+\d+(?:/\d+){0,2}$`)
 
 type Driver struct{}
 
@@ -62,4 +63,27 @@ func parseVLANs(output string) []string {
 		}
 	}
 	return vlans
+}
+
+func (d *Driver) GetTrunkInterfaces(repo ports.SwitchRepository) ([]string, error) {
+	out, err := repo.ExecuteCommand("show interfaces trunk")
+	if err != nil {
+		return nil, err
+	}
+	return parseTrunkInterfaces(out), nil
+}
+
+func parseTrunkInterfaces(output string) []string {
+	lines := strings.Split(output, "\n")
+	var ifaces []string
+	for _, line := range lines {
+		fields := strings.Fields(line)
+		if len(fields) == 0 {
+			continue
+		}
+		if interfaceRegex.MatchString(fields[0]) {
+			ifaces = append(ifaces, fields[0])
+		}
+	}
+	return ifaces
 }

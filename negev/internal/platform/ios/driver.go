@@ -216,3 +216,16 @@ func (d *Driver) CreateVLANCommands(vlan string) []string {
 		"end",
 	}
 }
+
+func (d *Driver) DeleteVLANCommands(vlan string) []string {
+	return []string{
+		"configure terminal",
+		"interface vlan " + vlan,
+		"shutdown",
+		"exit",
+		"no interface vlan " + vlan,
+		"exit",
+		"no vlan " + vlan,
+		"end",
+	}
+}

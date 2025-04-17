@@ -229,3 +229,7 @@ func (d *Driver) DeleteVLANCommands(vlan string) []string {
 		"end",
 	}
 }
+
+func (d *Driver) SaveCommands() []string {
+	return []string{"write memory"}
+}

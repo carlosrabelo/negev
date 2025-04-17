@@ -26,10 +26,10 @@ VLAN automation for Cisco IOS switches over Telnet/SSH. MAC-based assignment wit
 
 ## Domain entities
 
-- [ ] `SwitchConfig`: Platform, LegacyPlatform, Target, Transport, Username, Password, EnablePassword, MacToVlan, ExcludeMacs, ExcludePorts, DefaultVlan, NoDataVlan, AllowedVlans, ProtectedVlans, Sandbox, VerbosityLevel, CreateVLANs
-- [ ] `SwitchConfig.IsDebugEnabled()`: `VerbosityLevel == 1 || 3`
-- [ ] `SwitchConfig.IsRawOutputEnabled()`: `VerbosityLevel == 2 || 3`
-- [ ] `SwitchConfig.PlatformID()`: normalized platform, falls back to LegacyPlatform, default `"ios"`
+- [x] `SwitchConfig`: Platform, LegacyPlatform, Target, Transport, Username, Password, EnablePassword, MacToVlan, ExcludeMacs, ExcludePorts, DefaultVlan, NoDataVlan, AllowedVlans, ProtectedVlans, Sandbox, VerbosityLevel, CreateVLANs
+- [x] `SwitchConfig.IsDebugEnabled()`: `VerbosityLevel == 1 || 3`
+- [x] `SwitchConfig.IsRawOutputEnabled()`: `VerbosityLevel == 2 || 3`
+- [x] `SwitchConfig.PlatformID()`: normalized platform, falls back to LegacyPlatform, default `"ios"`
 - [x] `Device`: Vlan (string), Mac (12 hex lowercase), MacFull (`xx:xx:xx:xx:xx:xx`), Interface
 - [x] `Port`: Interface, Vlan (string)
 - [x] `AuthPrompt`: WaitFor (prompt to match), SendCmd (response to send)
@@ -83,9 +83,9 @@ VLAN automation for Cisco IOS switches over Telnet/SSH. MAC-based assignment wit
 
 ### SwitchAdapter (`internal/infrastructure/transport/switch_adapter.go`)
 
-- [ ] `Client` interface: `Connect()`, `Disconnect()`, `ExecuteCommand()`, `IsConnected()`
-- [ ] `AuthConfigurable` interface: `SetAuthSequence([]entities.AuthPrompt)`
-- [ ] `SwitchAdapter` wraps `Client` and implements `SwitchRepository`
+- [x] `Client` interface: `Connect()`, `Disconnect()`, `ExecuteCommand()`, `IsConnected()`
+- [x] `AuthConfigurable` interface: `SetAuthSequence([]entities.AuthPrompt)`
+- [x] `SwitchAdapter` wraps `Client` and implements `SwitchRepository`
 
 ## Platform driver interface
 

@@ -14,11 +14,11 @@ import (
 )
 
 var (
-	portPathRe          = regexp.MustCompile(`^(\d+)/(\d+)/(\d+)$`)
-	macTokenRe          = regexp.MustCompile(`(?i)\b([0-9a-f]{2}(?::[0-9a-f]{2}){5}|[0-9a-f]{2}(?:-[0-9a-f]{2}){5}|[0-9a-f]{4}\.[0-9a-f]{4}\.[0-9a-f]{4})\b`)
-	portTokenRe         = regexp.MustCompile(`\b(\d+/\d+/\d+)\b`)
-	vlanTokenRe         = regexp.MustCompile(`\b(\d{1,4})(?:-(\d{1,4}))?\b`)
-	sviNameRegex        = regexp.MustCompile(`(?i)^Vlan(?:-interface)?(\d+)$`)
+	portPathRe   = regexp.MustCompile(`^(\d+)/(\d+)/(\d+)$`)
+	macTokenRe   = regexp.MustCompile(`(?i)\b([0-9a-f]{2}(?::[0-9a-f]{2}){5}|[0-9a-f]{2}(?:-[0-9a-f]{2}){5}|[0-9a-f]{4}\.[0-9a-f]{4}\.[0-9a-f]{4})\b`)
+	portTokenRe  = regexp.MustCompile(`\b(\d+/\d+/\d+)\b`)
+	vlanTokenRe  = regexp.MustCompile(`\b(\d{1,4})(?:-(\d{1,4}))?\b`)
+	sviNameRegex = regexp.MustCompile(`(?i)^Vlan(?:-interface)?(\d+)$`)
 	// Hostname may be bare or parenthesized; Fastpath config modes append
 	// another parenthetical before the mode char, e.g. "(DM1200E) (Vlan)#".
 	dm1200PromptPattern = regexp.MustCompile(`(?m)^\(?[A-Za-z0-9_.-]+(?:-[A-Za-z0-9_.-]+)*\)?(?:\s+\([^)]+\))*\s*[>#]\s*$`)
@@ -446,9 +446,11 @@ func (d *Driver) GetRunningConfig(repo ports.SwitchRepository) (string, error) {
 }
 
 func (d *Driver) SaveCommands() []string {
+	// Fastpath prompts "Are you sure you want to save? (y/n)"; answer y in-band
+	// (same pattern as Comware save\ny), then ExecuteCommand appends a final \n.
 	return []string{
-		"copy system:running-config nvram:startup-config",
-		"write memory",
+		"copy system:running-config nvram:startup-config\ny",
+		"write memory\ny",
 	}
 }
 

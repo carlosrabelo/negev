@@ -125,8 +125,20 @@ Vlan    Mac Address       Type        Ports
 
 func TestGetSessionProfile(t *testing.T) {
 	p := (&Driver{}).GetSessionProfile()
-	if p.PromptPattern == nil || !p.PromptPattern.MatchString("Switch#\n") {
-		t.Fatal("expected IOS prompt pattern to match Switch#")
+	if p.PromptPattern == nil {
+		t.Fatal("PromptPattern is nil")
+	}
+	for _, sample := range []string{
+		"Switch#\n",
+		"ba-sw-01#\n",
+		"ba-sw-01>\n",
+		"ba-sw-01(config)#\n",
+		"ba-sw-01(config-if)#\n",
+		"ba-sw-01(config-vlan)#\n",
+	} {
+		if !p.PromptPattern.MatchString(sample) {
+			t.Fatalf("expected IOS prompt pattern to match %q", sample)
+		}
 	}
 	if p.PagerPattern == nil || !p.PagerPattern.MatchString("--More--") {
 		t.Fatal("expected IOS pager pattern to match --More--")

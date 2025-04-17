@@ -16,7 +16,8 @@ import (
 var vlanLineRegex = regexp.MustCompile(`^\s*(?:vlan\s+)?(\d{1,4})\b`)
 var macLineRegex = regexp.MustCompile(`(?i)^\s*[*+GC]?\s*(\d+)\s+([0-9a-f]{4}\.[0-9a-f]{4}\.[0-9a-f]{4})\s+(dynamic|static)\s+\S+\s+\S+\s+\S+\s+(\S+)`)
 var sviNameRegex = regexp.MustCompile(`(?i)^Vlan(\d+)$`)
-var nxosPromptPattern = regexp.MustCompile(`(?m)^[A-Za-z0-9_.-]+(?:-[A-Za-z0-9_.-]+)*[>#]\s*$`)
+// Matches exec and config-mode prompts, e.g. Nexus#, Nexus(config)#, Nexus(config-if)#.
+var nxosPromptPattern = regexp.MustCompile(`(?m)^[A-Za-z0-9_.-]+(?:-[A-Za-z0-9_.-]+)*(?:\([^)]*\))?[>#]\s*$`)
 var nxosPagerPattern = regexp.MustCompile(`(?m)--More--`)
 
 var statusTokens = map[string]bool{

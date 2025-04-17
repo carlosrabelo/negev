@@ -125,6 +125,13 @@ negev (--target <ref>[,...] | --all | --group <tag>) [flags]
 
 Exit codes: `0` OK / no pending sandbox changes, `1` error on any target, `2` sandbox simulated changes and no failures.
 
+```bash
+negev --all --config docs/examples/config.yaml --concurrency 4
+negev --group access --config docs/examples/config.yaml
+negev --target access-a --config docs/examples/config.yaml --ask-pass
+negev --version
+```
+
 Multi-run output is buffered per target and flushed with a `[label]` prefix; a summary table prints at the end.
 
 ## Supported platforms
@@ -200,6 +207,7 @@ Map department prefixes (and exact MACs) in `mac_to_vlan`, list uplinks in `excl
 negev --target 192.0.2.10 --config docs/examples/config.yaml --verbose 1
 negev --target 192.0.2.10 --config docs/examples/config.yaml --verbose 2
 negev --target 192.0.2.10 --config docs/examples/config.yaml --verbose 3
+negev --target 192.0.2.10 --config docs/examples/config.yaml --ask-pass --verbose 1
 ```
 
 Use `--ask-pass` or `password_command` when credentials must not sit in YAML.

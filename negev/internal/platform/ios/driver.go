@@ -11,6 +11,7 @@ import (
 
 var vlanLineRegex = regexp.MustCompile(`^\s*(?:vlan\s+)?(\d{1,4})\b`)
 var interfaceRegex = regexp.MustCompile(`^[A-Za-z]+\d+(?:/\d+){0,2}$`)
+var macTableRegex = regexp.MustCompile(`^\s*(\d+)\s+([0-9A-Fa-f]{4}\.[0-9A-Fa-f]{4}\.[0-9A-Fa-f]{4})\s+DYNAMIC\s+(\S+)`)
 
 type Driver struct{}
 
@@ -141,4 +142,56 @@ func isStatusKeyword(s string) bool {
 		}
 	}
 	return s == "notconnect"
+}
+
+func (d *Driver) GetMacTable(repo ports.SwitchRepository) ([]entities.Device, error) {
+	trunks, err := d.GetTrunkInterfaces(repo)
+	if err != nil {
+		return nil, err
+	}
+	trunkSet := make(map[string]bool, len(trunks))
+	for _, t := range trunks {
+		trunkSet[t] = true
+	}
+
+	out, err := repo.ExecuteCommand("show mac address-table dynamic")
+	if err != nil {
+		return nil, err
+	}
+	return parseMacTable(out, trunkSet), nil
+}
+
+func parseMacTable(output string, trunkSet map[string]bool) []entities.Device {
+	lines := strings.Split(output, "\n")
+	var devices []entities.Device
+	for _, line := range lines {
+		m := macTableRegex.FindStringSubmatch(line)
+		if m == nil {
+			continue
+		}
+		iface := m[3]
+		if trunkSet[iface] {
+			continue
+		}
+		if !interfaceRegex.MatchString(iface) {
+			continue
+		}
+		macDotted := m[2]
+		macPlain := strings.ReplaceAll(macDotted, ".", "")
+		macFull := formatMac(macPlain)
+		devices = append(devices, entities.Device{
+			Vlan:      m[1],
+			Mac:       macPlain,
+			MacFull:   macFull,
+			Interface: iface,
+		})
+	}
+	return devices
+}
+
+func formatMac(mac string) string {
+	if len(mac) != 12 {
+		return mac
+	}
+	return mac[0:2] + ":" + mac[2:4] + ":" + mac[4:6] + ":" + mac[6:8] + ":" + mac[8:10] + ":" + mac[10:12]
 }

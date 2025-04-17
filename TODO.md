@@ -101,8 +101,8 @@ VLAN automation for Cisco IOS switches over Telnet/SSH. MAC-based assignment wit
 - [x] VLAN list parser: `vlanLineRegex = ^\s*(?:vlan\s+)?(\d{1,4})\b`, skips separator lines and blanks
 - [x] Trunk interfaces: `show interfaces trunk`, first field matched against `interfaceRegex = ^[A-Za-z]+\d+(?:/\d+){0,2}$`
 - [x] Active ports: `show interfaces status`, status keywords: connected/up/forward/monitor/active/link-up, explicit `notconnect` exclusion, extracts VLAN from field after status, sorts by interface name
-- [ ] MAC table: `show mac address-table dynamic`, first fetches trunks to filter out
-- [ ] MAC table parser: `macTableRegex = ^\s*(\d+)\s+([0-9A-Fa-f]{4}\.[0-9A-Fa-f]{4}\.[0-9A-Fa-f]{4})\s+DYNAMIC\s+(\S+)`, validates MAC format, validates interface format, skips trunks
+- [x] MAC table: `show mac address-table dynamic`, first fetches trunks to filter out
+- [x] MAC table parser: `macTableRegex = ^\s*(\d+)\s+([0-9A-Fa-f]{4}\.[0-9A-Fa-f]{4}\.[0-9A-Fa-f]{4})\s+DYNAMIC\s+(\S+)`, validates MAC format, validates interface format, skips trunks
 - [ ] Config commands: `configure terminal`, `interface <iface>`, `switchport mode access`, `switchport access vlan <vlan>`, `end`
 - [ ] VLAN create: `configure terminal`, `vlan <id>`, `exit`, `interface vlan <id>`, `no shutdown`, `end`
 - [ ] VLAN delete: `configure terminal`, `interface vlan <id>`, `shutdown`, `exit`, `no interface vlan <id>`, `exit`, `no vlan <id>`, `end`

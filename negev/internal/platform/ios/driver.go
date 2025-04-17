@@ -233,3 +233,24 @@ func (d *Driver) DeleteVLANCommands(vlan string) []string {
 func (d *Driver) SaveCommands() []string {
 	return []string{"write memory"}
 }
+
+var iosErrorPatterns = []string{
+	"invalid input",
+	"unknown command",
+	"incomplete command",
+	"ambiguous command",
+	"unrecognized command",
+	"invalid command",
+	"syntax error",
+	"cannot find command",
+}
+
+func isIOSCommandError(output string) bool {
+	lower := strings.ToLower(output)
+	for _, pat := range iosErrorPatterns {
+		if strings.Contains(lower, pat) {
+			return true
+		}
+	}
+	return false
+}

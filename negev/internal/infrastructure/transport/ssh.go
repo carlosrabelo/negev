@@ -155,7 +155,7 @@ func (sc *SSHClient) Connect() error {
 		alreadyPrivileged := strings.Contains(initial, PromptPrivileged)
 		currentOutput := initial
 		for _, p := range prompts {
-			if shouldSkipSSHEnableStep(alreadyPrivileged, p.WaitFor, p.SendCmd, sc.config.EnablePassword) {
+			if shouldSkipEnableStep(alreadyPrivileged, p.WaitFor, p.SendCmd, sc.config.EnablePassword) {
 				continue
 			}
 			if !strings.Contains(currentOutput, p.WaitFor) {
@@ -311,7 +311,7 @@ func (sc *SSHClient) readUntilPrompt(profile entities.SessionProfile, timeout ti
 	}
 }
 
-func shouldSkipSSHEnableStep(alreadyPrivileged bool, waitFor, sendCmd, enablePassword string) bool {
+func shouldSkipEnableStep(alreadyPrivileged bool, waitFor, sendCmd, enablePassword string) bool {
 	if !alreadyPrivileged {
 		return false
 	}

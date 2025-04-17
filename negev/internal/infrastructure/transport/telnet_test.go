@@ -56,6 +56,140 @@ func TestTelnetDialAddr(t *testing.T) {
 	}
 }
 
+func TestTelnetAuthSkipsEnablePasswordWhenPrivilegedAfterEnable(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ln.Close()
+
+	got := make(chan []string, 1)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		conn, err := ln.Accept()
+		if err != nil {
+			return
+		}
+		defer conn.Close()
+		buf := make([]byte, 256)
+		var reads []string
+		_, _ = conn.Write([]byte("User:"))
+		n, _ := conn.Read(buf)
+		reads = append(reads, string(buf[:n]))
+		_, _ = conn.Write([]byte("Password:"))
+		n, _ = conn.Read(buf)
+		reads = append(reads, string(buf[:n]))
+		_, _ = conn.Write([]byte("\r\n(DM1200E) >"))
+		n, _ = conn.Read(buf)
+		reads = append(reads, string(buf[:n]))
+		_, _ = conn.Write([]byte("\r\n(DM1200E) #"))
+		n, _ = conn.Read(buf)
+		reads = append(reads, string(buf[:n]))
+		_, _ = conn.Write([]byte("\r\n(DM1200E) #"))
+		got <- reads
+	}()
+
+	tc := NewTelnetClient(entities.SwitchConfig{
+		Target:         ln.Addr().String(),
+		Username:       "admin",
+		Password:       "pass",
+		EnablePassword: "enable-secret",
+	})
+	tc.SetAuthSequence([]entities.AuthPrompt{
+		{WaitFor: "User:", SendCmd: "USERNAME_PLACEHOLDER\n"},
+		{WaitFor: "Password:", SendCmd: "PASSWORD_PLACEHOLDER\n"},
+		{WaitFor: ">", SendCmd: "enable\n"},
+		{WaitFor: "Password:", SendCmd: "ENABLE_PASSWORD_PLACEHOLDER\n"},
+		{WaitFor: "#", SendCmd: "terminal length 0\n"},
+		{WaitFor: "#", SendCmd: ""},
+	})
+	if err := tc.Connect(); err != nil {
+		t.Fatalf("Connect: %v", err)
+	}
+	tc.Disconnect()
+	<-done
+
+	select {
+	case reads := <-got:
+		if len(reads) < 4 {
+			t.Fatalf("expected at least 4 client writes, got %#v", reads)
+		}
+		if !strings.Contains(reads[2], "enable") {
+			t.Fatalf("expected enable, got %q", reads[2])
+		}
+		if strings.Contains(reads[3], "enable-secret") {
+			t.Fatalf("must not send enable password when already privileged; got %#v", reads)
+		}
+		if !strings.Contains(reads[3], "terminal length 0") {
+			t.Fatalf("expected terminal length 0 after enable; got %#v", reads)
+		}
+	default:
+		t.Fatal("server did not observe client commands")
+	}
+}
+
+func TestTelnetAuthSkipsEnableWhenAlreadyPrivileged(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ln.Close()
+
+	got := make(chan string, 1)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		conn, err := ln.Accept()
+		if err != nil {
+			return
+		}
+		defer conn.Close()
+		buf := make([]byte, 256)
+		_, _ = conn.Write([]byte("User:"))
+		n, _ := conn.Read(buf)
+		_, _ = conn.Write([]byte("Password:"))
+		n, _ = conn.Read(buf)
+		_, _ = conn.Write([]byte("\r\nDM1200E#"))
+		n, _ = conn.Read(buf)
+		got <- string(buf[:n])
+		_, _ = conn.Write([]byte("\r\nDM1200E#"))
+		_, _ = conn.Read(buf) // final empty wait may block until client closes
+	}()
+
+	tc := NewTelnetClient(entities.SwitchConfig{
+		Target:         ln.Addr().String(),
+		Username:       "admin",
+		Password:       "pass",
+		EnablePassword: "enable-secret",
+	})
+	tc.SetAuthSequence([]entities.AuthPrompt{
+		{WaitFor: "User:", SendCmd: "USERNAME_PLACEHOLDER\n"},
+		{WaitFor: "Password:", SendCmd: "PASSWORD_PLACEHOLDER\n"},
+		{WaitFor: ">", SendCmd: "enable\n"},
+		{WaitFor: "Password:", SendCmd: "ENABLE_PASSWORD_PLACEHOLDER\n"},
+		{WaitFor: "#", SendCmd: "terminal length 0\n"},
+		{WaitFor: "#", SendCmd: ""},
+	})
+	if err := tc.Connect(); err != nil {
+		t.Fatalf("Connect: %v", err)
+	}
+	tc.Disconnect()
+	<-done
+
+	select {
+	case cmd := <-got:
+		if strings.Contains(cmd, "enable") {
+			t.Fatalf("must not send enable when already privileged; got %q", cmd)
+		}
+		if !strings.Contains(cmd, "terminal length 0") {
+			t.Fatalf("expected terminal length 0; got %q", cmd)
+		}
+	default:
+		t.Fatal("server did not observe a post-login command")
+	}
+}
+
 func TestTelnetAuthFailureClearsConnection(t *testing.T) {
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {

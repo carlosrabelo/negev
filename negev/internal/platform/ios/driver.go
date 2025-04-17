@@ -205,3 +205,14 @@ func (d *Driver) ConfigureAccessCommands(port entities.Port, vlan string) []stri
 		"end",
 	}
 }
+
+func (d *Driver) CreateVLANCommands(vlan string) []string {
+	return []string{
+		"configure terminal",
+		"vlan " + vlan,
+		"exit",
+		"interface vlan " + vlan,
+		"no shutdown",
+		"end",
+	}
+}

@@ -27,15 +27,14 @@ func RunTarget(cfg *config.Config, target string, sandbox bool, verbosity int, c
 	switchCfg.VerbosityLevel = verbosity
 	switchCfg.CreateVLANs = createVLANs
 
+	adapter := transport.NewSwitchAdapter(*switchCfg)
+
 	var driver platform.SwitchDriver
 	platformID := switchCfg.PlatformID()
 	if platformID == "auto" {
-		adapter := transport.NewSwitchAdapter(*switchCfg)
 		if err := adapter.Connect(); err != nil {
 			return fmt.Errorf("failed to connect for auto-detection: %v", err)
 		}
-		defer adapter.Disconnect()
-
 		var err error
 		driver, err = platform.Detect(adapter)
 		if err != nil {
@@ -49,7 +48,6 @@ func RunTarget(cfg *config.Config, target string, sandbox bool, verbosity int, c
 		}
 	}
 
-	adapter := transport.NewSwitchAdapter(*switchCfg)
 	if authCfg, ok := interface{}(adapter).(transport.AuthConfigurable); ok {
 		authCfg.SetAuthSequence(driver.GetAuthenticationSequence())
 	}

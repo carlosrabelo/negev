@@ -114,26 +114,26 @@ VLAN automation for Cisco IOS switches over Telnet/SSH. MAC-based assignment wit
 
 - [x] `VLANServiceImpl` with compile-time interface check: `var _ ports.VLANService = (*VLANServiceImpl)(nil)`
 - [x] Constructor: `NewVLANService(switchRepo, config, driver)`
-- [ ] `ProcessPorts` flow: connect → get VLAN list → sync VLANs (if `--create-vlans`) → get trunks → get active ports → get MAC table → iterate ports → map MAC → configure → save
-- [ ] Multiple MACs on same port → `log.Printf` warning and skip (safety)
-- [ ] Malformed MAC (< 6 chars after normalization) → skip
-- [ ] Target VLAN fallback: `MacToVlan[macPrefix]` → if empty/`"0"`/`"00"` → `DefaultVlan`
-- [ ] Non-existent target VLAN on switch → error and skip port
-- [ ] Excluded MACs (exact match against normalized 12-char list) → skip port
-- [ ] Excluded ports (case-insensitive match) → skip port
-- [ ] Protected VLANs: user-defined `ProtectedVlans` list + extended range (1000–4094) auto-protected
-- [ ] Trunk interface skip: detected via driver, case-insensitive match
-- [ ] Sandbox mode: prints simulated commands, no execution
-- [ ] VLAN sync (`--create-vlans`): create missing from `AllowedVlans`, delete extras (skip protected)
-- [ ] VLAN iteration uses `sortedKeys` (deterministic alphabetical order)
-- [ ] `ConfigureVlan`: delegates to `driver.ConfigureAccessCommands`, sandbox or execute
-- [ ] `CreateVLAN` / `DeleteVLAN`: delegates to driver, sandbox or execute
-- [ ] `saveConfiguration`: tries each `driver.SaveCommands()`, returns last error if all fail
-- [ ] `getAllowedVLANs`: builds `map[string]bool` from `AllowedVlans`
-- [ ] `filterDevices`: case-insensitive port match
-- [ ] `deviceMacs`: extract MAC list from devices
-- [ ] `isExcluded`: exact MAC match against list
-- [ ] Summary messages: "No changes required", "Changes simulated (sandbox mode, use -w to apply)"
+- [x] `ProcessPorts` flow: connect → get VLAN list → sync VLANs (if `--create-vlans`) → get trunks → get active ports → get MAC table → iterate ports → map MAC → configure → save
+- [x] Multiple MACs on same port → `log.Printf` warning and skip (safety)
+- [x] Malformed MAC (< 6 chars after normalization) → skip
+- [x] Target VLAN fallback: `MacToVlan[macPrefix]` → if empty/`"0"`/`"00"` → `DefaultVlan`
+- [x] Non-existent target VLAN on switch → error and skip port
+- [x] Excluded MACs (exact match against normalized 12-char list) → skip port
+- [x] Excluded ports (case-insensitive match) → skip port
+- [x] Protected VLANs: user-defined `ProtectedVlans` list + extended range (1000–4094) auto-protected
+- [x] Trunk interface skip: detected via driver, case-insensitive match
+- [x] Sandbox mode: prints simulated commands, no execution
+- [x] VLAN sync (`--create-vlans`): create missing from `AllowedVlans`, delete extras (skip protected)
+- [x] VLAN iteration uses `sortedKeys` (deterministic alphabetical order)
+- [x] `ConfigureVlan`: delegates to `driver.ConfigureAccessCommands`, sandbox or execute
+- [x] `CreateVLAN` / `DeleteVLAN`: delegates to driver, sandbox or execute
+- [x] `saveConfiguration`: tries each `driver.SaveCommands()`, returns last error if all fail
+- [x] `getAllowedVLANs`: builds `map[string]bool` from `AllowedVlans`
+- [x] `filterDevices`: case-insensitive port match
+- [x] `deviceMacs`: extract MAC list from devices
+- [x] `isExcluded`: exact MAC match against list
+- [x] Summary messages: "No changes required", "Changes simulated (sandbox mode, use -w to apply)"
 
 ## Application orchestration
 

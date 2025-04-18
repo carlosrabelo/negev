@@ -1,12 +1,15 @@
-# Documentation example only — use RFC 5737 documentation addresses.
-# Copy and adapt; never commit production credentials.
-platform: auto
-transport: telnet
+# Documentation sample only (RFC 5737 addresses). Copy and adapt.
+# Prefer ${ENV}, password_command, or --ask-pass over plaintext secrets.
+platform: auto                 # ios | nxos | dmswitch | dm1200 | comware | auto
+transport: ssh                 # telnet | ssh
 username: admin
 password: "changeme"
 enable_password: "changeme"
 default_vlan: "1"
 no_data_vlan: "999"
+multi_mac_policy: ignore       # ignore | alert | priority
+backup_dir: ./backups
+audit_log: ./audit/negev.jsonl
 allowed_vlans:
   - "10"
   - "20"
@@ -17,7 +20,7 @@ allowed_vlans:
 protected_vlans:
   - "999"
 mac_to_vlan:
-  "aabbcc": "10"
+  "aabbcc": "10"               # even-length hex prefix (2..12)
   "112233": "20"
   "deadbe": "100"
 exclude_macs:
@@ -35,7 +38,7 @@ switches:
     enable_password: "changeme"
     mac_to_vlan:
       "001122": "30"
-      "112233": "0"
+      "112233": "0"             # drop inherited prefix on this switch
     exclude_macs:
       - "aaaa.bbbb.cccc"
 
@@ -44,6 +47,7 @@ switches:
     platform: auto
     tags: [access, building-a]
     default_vlan: "100"
+    multi_mac_policy: alert
     exclude_ports:
       - "Gi1/0/24"
       - "Gi1/0/23"

@@ -18,9 +18,9 @@ O inglês é a fonte da verdade técnica: [GUIDE.md](GUIDE.md).
 | Infrastructure | `negev/internal/infrastructure` | Loader YAML, Telnet/SSH, auditoria JSONL |
 | Platform | `negev/internal/platform` | Registry + IOS / NX-OS / DmSwitch / DM1200 / Comware |
 
-Fluxo por alvo: carregar/mesclar config → resolver driver (`auto` usa `show version` /
-equivalente) → backup pré-write opcional → `ProcessPorts()` → save opcional → append
-de auditoria por mudança de porta.
+Fluxo por alvo: carregar/mesclar config → resolver driver (`auto` sonda versão /
+saída de sistema por plataforma) → backup pré-write opcional → `ProcessPorts()` →
+save opcional → append de auditoria por mudança de porta.
 
 Clientes de transporte são cacheados por SHA-256 de `{Transport, Target, Username, Password, EnablePassword}`.
 Telnet envia credenciais em claro (avisa). SSH usa PTY e ignora verificação de host key
@@ -106,34 +106,13 @@ Arquivo de exemplo: [`docs/examples/config.yaml`](examples/config.yaml).
 negev (--target <ref>[,...] | --all | --group <tag>) [flags]
 ```
 
-`--target`, `--all` e `--group` são mutuamente exclusivos.
+`--target`, `--all` e `--group` são mutuamente exclusivos. Códigos de saída: `0` OK /
+sem mudanças pendentes no sandbox, `1` erro em qualquer alvo, `2` mudanças simuladas
+no sandbox sem falhas. A saída multi-run é bufferizada por alvo e liberada com
+prefixo `[label]`; uma tabela-resumo é impressa ao final.
 
-| Flag | Descrição |
-|---|---|
-| `--target <ip\|name>[,...]` | IP(s) e/ou `name`(s) de switch |
-| `--all` | Todos os switches do arquivo |
-| `--group <tag>` | Switches cujas `tags` contêm `<tag>` |
-| `--concurrency <n>` | Tamanho do pool de workers (padrão 4) |
-| `--config <path>` | Caminho do YAML |
-| `--write` | Aplica mudanças (padrão = sandbox) |
-| `--verbose <0-3>` | 0 nenhum, 1 debug, 2 I/O bruto, 3 ambos |
-| `--create-vlans` | Sincroniza VLANs com `allowed_vlans` |
-| `--ask-pass` | Senhas interativas |
-| `--backup` | Backup do running-config mesmo no sandbox |
-| `--backup-dir <dir>` | Diretório de backup |
-| `--audit-log <path>` | Caminho JSONL de auditoria (sobrescreve YAML) |
-| `--version` | String de versão |
-
-Códigos de saída: `0` OK / sem mudanças pendentes no sandbox, `1` erro em qualquer alvo, `2` mudanças simuladas no sandbox sem falhas.
-
-```bash
-negev --all --config docs/examples/config.yaml --concurrency 4
-negev --group access --config docs/examples/config.yaml
-negev --target access-a --config docs/examples/config.yaml --ask-pass
-negev --version
-```
-
-A saída multi-run é bufferizada por alvo e liberada com prefixo `[label]`; uma tabela-resumo é impressa ao final.
+Referência por flag (exemplos, padrões, interações): [cli-pt/](cli-pt/) · English
+[cli/](cli/) · índice da docs [README-PT.md](README-PT.md).
 
 ## Plataformas suportadas
 

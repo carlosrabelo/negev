@@ -4,7 +4,7 @@
 --backup-dir <dir>
 ```
 
-Directory for configuration backups. Overrides YAML `backup_dir`.
+Directory for configuration backups. Overrides YAML `backup_dir`. No default path: if neither this flag nor `backup_dir` is set, backups are skipped and no directory is created.
 
 ## Examples
 
@@ -15,8 +15,8 @@ negev --target 192.0.2.10 --config docs/examples/config.yaml --backup --backup-d
 
 ## Defaults
 
-Resolution order: `--backup-dir` → YAML `backup_dir` → `./backups`.
+Resolution order: `--backup-dir` → YAML `backup_dir`. Empty means backups disabled.
 
 ## Notes
 
-See also [`backup.md`](backup.md). Files are mode `0600` as `<name-or-ip>_<UTC>.cfg`.
+See also [`backup.md`](backup.md). Files are mode `0600` as `<name-or-ip>_<UTC>.cfg`. The directory is created only when a backup actually runs.

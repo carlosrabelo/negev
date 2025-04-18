@@ -2,16 +2,19 @@ MAKEFLAGS += --no-print-directory
 
 .DEFAULT_GOAL := help
 
-.PHONY: build build-static clean deps fmt help info install install-system lint quality run test uninstall uninstall-system version
+.PHONY: build build-static clean deb deps fmt help info install lint package quality run test uninstall version
 
 BINARY_NAME := negev
 VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 BUILD_TIME := $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
+DESCRIPTION := VLAN automation tool for access switches
 
 export BINARY_NAME
+export VERSION
+export DESCRIPTION
 
 help: ## Show available targets
-	@echo "NEGEV - VLAN Automation Tool"
+	@echo "negev - Available targets"
 	@echo ""
 	@grep -hE '^[a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) \
 		| sort \
@@ -52,14 +55,13 @@ info: ## Show project information
 install: ## Install to ~/.local/bin (requires prior make build)
 	@./.make/install.sh
 
-install-system: ## Install to /usr/local/bin (requires prior make build; sudo only for copy)
-	@SYSTEM=1 ./.make/install.sh
-
 uninstall: ## Remove from ~/.local/bin (sudo only if needed)
 	@./.make/uninstall.sh
 
-uninstall-system: ## Remove from /usr/local/bin (sudo only if needed)
-	@SYSTEM=1 ./.make/uninstall.sh
+package: ## Build a .deb into dist/ (requires prior make build)
+	@./.make/package.sh
+
+deb: package ## Alias for package
 
 run: ## Run compiled binary (requires prior make build)
 	@BINARY_NAME=$(BINARY_NAME) ./.make/run.sh

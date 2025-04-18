@@ -12,8 +12,6 @@ import (
 	"github.com/carlosrabelo/negev/negev/internal/platform"
 )
 
-const DefaultBackupDir = "backups"
-
 // BackupOpts controls pre-write running-config backups.
 type BackupOpts struct {
 	Force bool   // --backup: backup even in sandbox
@@ -38,15 +36,13 @@ func (o BackupOpts) Required(write bool) bool {
 	return write || o.Force
 }
 
-// ResolveDir picks --backup-dir, then YAML backup_dir, then ./backups.
+// ResolveDir picks --backup-dir, then YAML backup_dir.
+// Empty means backups are disabled (no default directory).
 func (o BackupOpts) ResolveDir(yamlDir string) string {
 	if strings.TrimSpace(o.Dir) != "" {
-		return o.Dir
+		return strings.TrimSpace(o.Dir)
 	}
-	if strings.TrimSpace(yamlDir) != "" {
-		return yamlDir
-	}
-	return DefaultBackupDir
+	return strings.TrimSpace(yamlDir)
 }
 
 // WriteRunningConfigBackup writes content to dir with mode 0600.

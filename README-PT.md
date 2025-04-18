@@ -22,15 +22,24 @@ English: [README.md](README.md).
 
 ## Instalação
 
+### Compilar a partir do código-fonte
+
 ```bash
 git clone https://github.com/carlosrabelo/negev.git
 cd negev
 make build
-make install              # ~/.local/bin
-# make install-system     # /usr/local/bin
 ```
 
-Ou:
+Instale em `~/.local/bin` (padrão), ou defina `PREFIX` para um prefixo customizado. Instalação system-wide via `.deb`:
+
+```bash
+make install
+make uninstall
+make package
+sudo dpkg -i dist/*.deb
+```
+
+### Usando go install
 
 ```bash
 go install github.com/carlosrabelo/negev/negev/cmd/negev@latest
@@ -76,20 +85,22 @@ switches:
 ```
 negev/cmd/negev/                 # Ponto de entrada CLI
 negev/internal/                  # domain, application, infrastructure, drivers
+negev/docparity/                 # Testes de paridade bilíngue README/GUIDE + flags
 docs/                            # GUIDE, cli/, cli-pt/, examples/
+bin/                             # Binários compilados (ignorados pelo git)
 .make/                           # Scripts de build e instalação
 ```
 
 ## Desenvolvimento
 
 ```bash
-make build             # Compila o binário em bin/negev
-make test              # Executa todos os testes (.gocache local)
-make quality           # Formata e executa vet
-make install           # Instala o binário em ~/.local/bin
-make install-system    # Instala o binário em /usr/local/bin
-make uninstall         # Remove de ~/.local/bin
-make uninstall-system  # Remove de /usr/local/bin
+make build           # Compila o binário em bin/negev
+make test            # Executa todos os testes
+make quality         # Formata, executa vet e lint
+make install         # Instala o binário em ~/.local/bin
+make uninstall       # Remove de ~/.local/bin
+make package         # Gera .deb em dist/ (binário em /usr/bin)
+make deb             # Alias de package
 ```
 
 ## Licença

@@ -14,11 +14,9 @@ user_home() {
   echo "${HOME}"
 }
 
-# SYSTEM=1 or PREFIX=… → system-wide; else ~/.local/bin
+# PREFIX=… → custom prefix; else ~/.local/bin (system-wide via .deb — see skeleton-deb)
 if [ -n "${PREFIX:-}" ]; then
   INSTALL_DIR="${PREFIX%/}/bin"
-elif [ "${SYSTEM:-0}" = "1" ]; then
-  INSTALL_DIR="/usr/local/bin"
 else
   INSTALL_DIR="$(user_home)/.local/bin"
 fi

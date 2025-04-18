@@ -20,9 +20,12 @@ credentials.json
 # Directories
 bin/*
 !bin/.gitkeep
+dist/
 .gocache
 
 # Files
+/negev
+!/negev/
 coverage.out
 coverage.html
 

@@ -11,16 +11,25 @@ import (
 	"github.com/carlosrabelo/negev/negev/internal/platform"
 )
 
-func RunTarget(cfg *config.Config, target string, sandbox bool, verbosity int, createVLANs bool) error {
+type VLANApplicationService struct {
+	cfg    *config.Config
+	target string
+}
+
+func NewVLANApplicationService(cfg *config.Config, target string) *VLANApplicationService {
+	return &VLANApplicationService{cfg: cfg, target: target}
+}
+
+func (s *VLANApplicationService) Run(sandbox bool, verbosity int, createVLANs bool) error {
 	var switchCfg *entities.SwitchConfig
-	for i, s := range cfg.Switches {
-		if s.Target == target {
-			switchCfg = &cfg.Switches[i]
+	for i, sc := range s.cfg.Switches {
+		if sc.Target == s.target {
+			switchCfg = &s.cfg.Switches[i]
 			break
 		}
 	}
 	if switchCfg == nil {
-		return fmt.Errorf("target %s not found in configuration", target)
+		return fmt.Errorf("target %s not found in configuration", s.target)
 	}
 
 	switchCfg.Sandbox = sandbox

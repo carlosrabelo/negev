@@ -142,8 +142,8 @@ VLAN automation for Cisco IOS switches over Telnet/SSH. MAC-based assignment wit
 - [x] `PlatformID()` resolves platform name, `"auto"` triggers `platform.Detect()` with actual connection
 - [x] Auto-detect path: create client → adapter → detect → set auth sequence → reuse client → create service → process
 - [x] Explicit platform path: `platform.Get(name)` → create client → set auth sequence → create service → process
-- [ ] `VLANApplicationService` facade: creates `SwitchAdapter` + `VLANServiceImpl`, delegates `ProcessPorts()`
-- [ ] Auth sequence injection per platform via `AuthConfigurable.SetAuthSequence()`
+- [x] `VLANApplicationService` facade: creates `SwitchAdapter` + `VLANServiceImpl`, delegates `ProcessPorts()`
+- [x] Auth sequence injection per platform via `AuthConfigurable.SetAuthSequence()`
 
 ## CLI
 

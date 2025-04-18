@@ -262,8 +262,17 @@ func TestIsNXOSCommandError(t *testing.T) {
 
 func TestGetSessionProfile(t *testing.T) {
 	p := (&Driver{}).GetSessionProfile()
-	if p.PromptPattern == nil || !p.PromptPattern.MatchString("Nexus#\n") {
-		t.Fatal("expected NX-OS prompt pattern to match Nexus#")
+	if p.PromptPattern == nil {
+		t.Fatal("PromptPattern is nil")
+	}
+	for _, sample := range []string{
+		"Nexus#\n",
+		"Nexus(config)#\n",
+		"Nexus(config-if)#\n",
+	} {
+		if !p.PromptPattern.MatchString(sample) {
+			t.Fatalf("expected NX-OS prompt pattern to match %q", sample)
+		}
 	}
 	if p.PagerPattern == nil || !p.PagerPattern.MatchString("--More--") {
 		t.Fatal("expected NX-OS pager pattern to match --More--")

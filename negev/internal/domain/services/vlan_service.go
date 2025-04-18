@@ -14,6 +14,10 @@ type VLANServiceImpl struct {
 	driver platform.SwitchDriver
 }
 
+func NewVLANService(repo ports.SwitchRepository, config entities.SwitchConfig, driver platform.SwitchDriver) *VLANServiceImpl {
+	return &VLANServiceImpl{repo: repo, config: config, driver: driver}
+}
+
 var _ ports.VLANService = (*VLANServiceImpl)(nil)
 
 func (s *VLANServiceImpl) ProcessPorts() error {

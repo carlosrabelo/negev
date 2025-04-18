@@ -147,16 +147,16 @@ VLAN automation for Cisco IOS switches over Telnet/SSH. MAC-based assignment wit
 
 ## CLI
 
-- [ ] `negev` entry point in `cmd/negev/main.go`
-- [ ] Global version/build output: `fmt.Printf("Negev %s (built %s)\n", version, buildTime)`
-- [ ] Flags: `--target <ip>` (required, validated against YAML), `--config <path>` (default `config.yaml`), `--write` (disables sandbox), `--verbose <0-3>` (0=none, 1=debug, 2=raw, 3=both), `--create-vlans` (sync VLANs)
-- [ ] `flag.Usage = printUsage` with flag descriptions
-- [ ] Validation: `--verbose` 0–3 range check, `--target` non-empty check
-- [ ] `defer transport.CloseAll()` on exit
-- [ ] Invalid arguments exit with usage text and os.Exit(1)
-- [ ] `FindPath` resolves config file location
-- [ ] `config.Load` validates and returns parsed `*Config`
-- [ ] `services.RunTarget` orchestrates the target switch processing
+- [x] `negev` entry point in `cmd/negev/main.go`
+- [x] Global version/build output: `fmt.Printf("Negev %s (built %s)\n", version, buildTime)`
+- [x] Flags: `--target <ip>` (required, validated against YAML), `--config <path>` (default `config.yaml`), `--write` (disables sandbox), `--verbose <0-3>` (0=none, 1=debug, 2=raw, 3=both), `--create-vlans` (sync VLANs)
+- [x] `flag.Usage = printUsage` with flag descriptions
+- [x] Validation: `--verbose` 0–3 range check, `--target` non-empty check
+- [x] `defer transport.CloseAll()` on exit
+- [x] Invalid arguments exit with usage text and os.Exit(1)
+- [x] `FindPath` resolves config file location
+- [x] `config.Load` validates and returns parsed `*Config`
+- [x] `services.RunTarget` orchestrates the target switch processing
 
 ## Project artifacts
 

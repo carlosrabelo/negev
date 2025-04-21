@@ -160,7 +160,7 @@ VLAN automation for Cisco IOS switches over Telnet/SSH. MAC-based assignment wit
 
 ## Project artifacts
 
-- [ ] Sample configuration (`demos/config.yaml`) with global defaults and per-switch overrides, MAC-to-VLAN mappings, exclude lists, protected VLANs
+- [x] Sample configuration (`demos/config.yaml`) with global defaults and per-switch overrides, MAC-to-VLAN mappings, exclude lists, protected VLANs
 
 ## Documentation
 

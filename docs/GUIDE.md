@@ -17,9 +17,9 @@ English is the source of truth for this guide. Portuguese: [GUIDE-PT.md](GUIDE-P
 | Infrastructure | `negev/internal/infrastructure` | YAML loader, Telnet/SSH, audit JSONL |
 | Platform | `negev/internal/platform` | Driver registry + IOS / NX-OS / DmSwitch / DM1200 / Comware |
 
-Flow for one target: load/merge config → resolve driver (`auto` uses `show version` /
-equivalent) → optional pre-write backup → `ProcessPorts()` → optional save → audit
-append per port change.
+Flow for one target: load/merge config → resolve driver (`auto` probes version /
+system output per platform) → optional pre-write backup → `ProcessPorts()` →
+optional save → audit append per port change.
 
 Transport clients are cached by SHA-256 of `{Transport, Target, Username, Password, EnablePassword}`.
 Telnet sends credentials in cleartext (warns). SSH uses a PTY and skips host-key
@@ -105,34 +105,13 @@ Sample file: [`docs/examples/config.yaml`](examples/config.yaml).
 negev (--target <ref>[,...] | --all | --group <tag>) [flags]
 ```
 
-`--target`, `--all`, and `--group` are mutually exclusive.
+`--target`, `--all`, and `--group` are mutually exclusive. Exit codes: `0` OK / no
+pending sandbox changes, `1` error on any target, `2` sandbox simulated changes and
+no failures. Multi-run output is buffered per target and flushed with a `[label]`
+prefix; a summary table prints at the end.
 
-| Flag | Description |
-|---|---|
-| `--target <ip\|name>[,...]` | IP(s) and/or switch `name`(s) |
-| `--all` | Every switch in the file |
-| `--group <tag>` | Switches whose `tags` contain `<tag>` |
-| `--concurrency <n>` | Worker pool size (default 4) |
-| `--config <path>` | YAML path |
-| `--write` | Apply changes (default = sandbox) |
-| `--verbose <0-3>` | 0 none, 1 debug, 2 raw I/O, 3 both |
-| `--create-vlans` | Sync VLANs to `allowed_vlans` |
-| `--ask-pass` | Interactive passwords |
-| `--backup` | Backup running-config even in sandbox |
-| `--backup-dir <dir>` | Backup directory |
-| `--audit-log <path>` | JSONL audit path (overrides YAML) |
-| `--version` | Version string |
-
-Exit codes: `0` OK / no pending sandbox changes, `1` error on any target, `2` sandbox simulated changes and no failures.
-
-```bash
-negev --all --config docs/examples/config.yaml --concurrency 4
-negev --group access --config docs/examples/config.yaml
-negev --target access-a --config docs/examples/config.yaml --ask-pass
-negev --version
-```
-
-Multi-run output is buffered per target and flushed with a `[label]` prefix; a summary table prints at the end.
+Per-flag reference (examples, defaults, interactions): [cli/](cli/) · Portuguese
+[cli-pt/](cli-pt/) · docs index [README.md](README.md).
 
 ## Supported platforms
 

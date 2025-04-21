@@ -200,7 +200,7 @@ Add support for Datacom DmOS switches.
 
 ## CI/CD
 
-- [ ] GitHub Actions: lint, test, build
+- [x] GitHub Actions: lint, test, build
 - [ ] GitHub Actions: release automation with goreleaser
 - [ ] Go Report Card badge
 - [ ] Code coverage tracking

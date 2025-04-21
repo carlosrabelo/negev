@@ -167,6 +167,13 @@ VLAN automation for Cisco IOS switches over Telnet/SSH. MAC-based assignment wit
 - [x] User Guide in English (`docs/GUIDE.md`)
 - [x] User Guide in Portuguese (`docs/GUIDE-PT.md`)
 
+## CI/CD
+
+- [x] GitHub Actions: lint, test, build
+- [x] GitHub Actions: release automation with goreleaser
+- [x] Go Report Card badge
+- [x] Code coverage tracking
+
 ---
 
 ## Second milestone
@@ -197,13 +204,6 @@ Add support for Datacom DmOS switches.
 - [ ] Raw output display when `IsRawOutputEnabled`
 
 ---
-
-## CI/CD
-
-- [x] GitHub Actions: lint, test, build
-- [x] GitHub Actions: release automation with goreleaser
-- [x] Go Report Card badge
-- [x] Code coverage tracking
 
 ## Enhancements
 

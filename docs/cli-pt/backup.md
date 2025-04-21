@@ -4,7 +4,7 @@
 --backup
 ```
 
-Força backup do running-config mesmo no sandbox (sem `--write`). Com `--write`, o backup já ocorre antes das mutações.
+Força backup do running-config mesmo no sandbox (sem `--write`). Com `--write`, o backup só ocorre antes das mutações quando um diretório está configurado (`backup_dir` ou `--backup-dir`). `--backup` sem diretório resulta em erro.
 
 ## Exemplos
 

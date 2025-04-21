@@ -22,15 +22,24 @@ Portuguese: [README-PT.md](README-PT.md).
 
 ## Installation
 
+### Build from Source
+
 ```bash
 git clone https://github.com/carlosrabelo/negev.git
 cd negev
 make build
-make install              # ~/.local/bin
-# make install-system     # /usr/local/bin
 ```
 
-Or:
+Install to `~/.local/bin` (default), or set `PREFIX` for a custom prefix. System-wide install is via a `.deb`:
+
+```bash
+make install
+make uninstall
+make package
+sudo dpkg -i dist/*.deb
+```
+
+### Using Go Install
 
 ```bash
 go install github.com/carlosrabelo/negev/negev/cmd/negev@latest
@@ -76,20 +85,22 @@ switches:
 ```
 negev/cmd/negev/                 # CLI entry point
 negev/internal/                  # domain, application, infrastructure, platform drivers
+negev/docparity/                 # Bilingual README/GUIDE + flag page parity tests
 docs/                            # GUIDE, cli/, cli-pt/, examples/
+bin/                             # Compiled binaries (git-ignored)
 .make/                           # Build and install scripts
 ```
 
 ## Development
 
 ```bash
-make build             # Compile binary to bin/negev
-make test              # Run all tests (local .gocache)
-make quality           # Format and vet
-make install           # Install binary to ~/.local/bin
-make install-system    # Install binary to /usr/local/bin
-make uninstall         # Remove from ~/.local/bin
-make uninstall-system  # Remove from /usr/local/bin
+make build           # Compile binary to bin/negev
+make test            # Run all tests
+make quality         # Format, vet, and lint
+make install         # Install binary to ~/.local/bin
+make uninstall       # Remove from ~/.local/bin
+make package         # Build .deb into dist/ (binary at /usr/bin)
+make deb             # Alias for package
 ```
 
 ## License

@@ -13,13 +13,10 @@ user_home() {
 }
 
 USER_LOCAL="$(user_home)/.local/bin/${BINARY_NAME}"
-SYSTEM_BIN="/usr/local/bin/${BINARY_NAME}"
 
 targets=()
 if [ -n "${PREFIX:-}" ]; then
   targets+=("${PREFIX%/}/bin/${BINARY_NAME}")
-elif [ "${SYSTEM:-0}" = "1" ]; then
-  targets+=("$SYSTEM_BIN")
 else
   targets+=("$USER_LOCAL")
 fi

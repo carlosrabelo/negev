@@ -141,3 +141,60 @@ func TestBackupSkippedInSandboxWithoutForce(t *testing.T) {
 		t.Fatalf("unexpected backups: %v", entries)
 	}
 }
+
+func TestBackupSkippedOnWriteWithoutDir(t *testing.T) {
+	cli := iosScriptedClient()
+	cli.responses["show running-config"] = "should-not-run\n"
+
+	cfg := &config.Config{Switches: []entities.SwitchConfig{{
+		Target:      "10.0.0.1",
+		Platform:    "ios",
+		DefaultVlan: "10",
+		MacToVlan:   map[string]string{"aabbcc": "10"},
+	}}}
+	svc := NewVLANApplicationService(cfg, "10.0.0.1")
+	svc.newAdapter = func(sc entities.SwitchConfig) *transport.SwitchAdapter {
+		return transport.NewSwitchAdapterWithClient(sc, cli)
+	}
+
+	if _, err := svc.Run(false, 0, false, BackupOpts{}, AuditOpts{}); err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	for _, cmd := range cli.executed {
+		if cmd == "show running-config" {
+			t.Fatal("write without backup_dir must not fetch running-config")
+		}
+	}
+}
+
+func TestBackupForceWithoutDirErrors(t *testing.T) {
+	cli := iosScriptedClient()
+
+	cfg := &config.Config{Switches: []entities.SwitchConfig{{
+		Target:      "10.0.0.1",
+		Platform:    "ios",
+		DefaultVlan: "10",
+		MacToVlan:   map[string]string{"aabbcc": "10"},
+	}}}
+	svc := NewVLANApplicationService(cfg, "10.0.0.1")
+	svc.newAdapter = func(sc entities.SwitchConfig) *transport.SwitchAdapter {
+		return transport.NewSwitchAdapterWithClient(sc, cli)
+	}
+
+	_, err := svc.Run(true, 0, false, BackupOpts{Force: true}, AuditOpts{})
+	if err == nil || !strings.Contains(err.Error(), "no directory configured") {
+		t.Fatalf("expected missing backup dir error, got %v", err)
+	}
+}
+
+func TestResolveDirNoDefault(t *testing.T) {
+	if got := (BackupOpts{}).ResolveDir(""); got != "" {
+		t.Fatalf("ResolveDir() = %q; want empty", got)
+	}
+	if got := (BackupOpts{Dir: " /tmp/b "}).ResolveDir("./ignored"); got != "/tmp/b" {
+		t.Fatalf("CLI dir = %q; want /tmp/b", got)
+	}
+	if got := (BackupOpts{}).ResolveDir(" ./cfg-backups "); got != "./cfg-backups" {
+		t.Fatalf("YAML dir = %q; want ./cfg-backups", got)
+	}
+}

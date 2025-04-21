@@ -20,4 +20,4 @@ negev --target 192.0.2.10 --config docs/examples/config.yaml --write
 ## Notas
 
 - Saída `2` no sandbox indica mudanças simuladas sem falhas.
-- `--write` dispara backup do running-config antes das mutações (falha de backup aborta).
+- `--write` dispara backup do running-config antes das mutações quando `backup_dir` ou `--backup-dir` está definido (falha de backup aborta).

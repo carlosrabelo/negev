@@ -17,3 +17,8 @@ jobs:
       - run: make quality
       - run: make build
       - run: make test
+      - run: go test ./... -coverprofile=coverage.out -covermode=atomic
+      - uses: codecov/codecov-action@v5
+        with:
+          file: ./coverage.out
+          fail_ci_if_error: false

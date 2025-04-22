@@ -283,7 +283,11 @@ func (d *Driver) CreateVLANCommands(vlan string) []string {
 }
 
 func (d *Driver) DeleteVLANCommands(vlan string) []string {
-	return nil
+	return []string{
+		"configure",
+		"no interface vlan " + vlan,
+		"end",
+	}
 }
 
 func (d *Driver) SaveCommands() []string {

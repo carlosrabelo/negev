@@ -198,7 +198,7 @@ Add support for Datacom DmOS switches.
 - [x] `normalizePort`: prepends `"ethernet "` prefix if missing
 - [x] Config commands: `configure`, `interface vlan <vlan>`, `set-member untagged <port>`, `exit`, `interface <port>`, `switchport native vlan <vlan>`, `switchport acceptable-frame-type all`, `exit`, `end`
 - [x] VLAN create: `configure`, `interface vlan <id>`, `exit`, `end` (DmOS creates VLAN implicitly)
-- [ ] VLAN delete: `configure`, `no interface vlan <id>`, `end`
+- [x] VLAN delete: `configure`, `no interface vlan <id>`, `end`
 - [ ] Save: `copy running-config startup-config` with fallback to `save`
 - [ ] Command error detection (`isDmOSCommandError`): "unknown command", "invalid", "incomplete", "syntax error"
 - [ ] Raw output display when `IsRawOutputEnabled`

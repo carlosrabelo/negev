@@ -2,6 +2,7 @@ package dmos
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/carlosrabelo/negev/negev/internal/domain/entities"
 	"github.com/carlosrabelo/negev/negev/internal/domain/ports"
@@ -19,7 +20,12 @@ func (d *Driver) Name() string {
 }
 
 func (d *Driver) Detect(repo ports.SwitchRepository) (bool, error) {
-	return false, fmt.Errorf("not implemented")
+	out, err := repo.ExecuteCommand("show version")
+	if err != nil {
+		return false, err
+	}
+	lower := strings.ToLower(out)
+	return strings.Contains(lower, "dmos") || strings.Contains(lower, "datacom"), nil
 }
 
 func (d *Driver) GetAuthenticationSequence() []entities.AuthPrompt {

@@ -291,7 +291,10 @@ func (d *Driver) DeleteVLANCommands(vlan string) []string {
 }
 
 func (d *Driver) SaveCommands() []string {
-	return nil
+	return []string{
+		"copy running-config startup-config",
+		"save",
+	}
 }
 
 func (d *Driver) ClearCache() {

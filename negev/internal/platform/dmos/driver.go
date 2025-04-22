@@ -70,7 +70,31 @@ func parseVLANs(output string) []string {
 }
 
 func (d *Driver) GetTrunkInterfaces(repo ports.SwitchRepository) ([]string, error) {
-	return nil, fmt.Errorf("not implemented")
+	out, err := repo.ExecuteCommand("show interfaces switchport")
+	if err != nil {
+		return nil, err
+	}
+	return parseDmOSTrunksFromSwitchport(out), nil
+}
+
+func parseDmOSTrunksFromSwitchport(output string) []string {
+	lines := strings.Split(output, "\n")
+	var trunks []string
+	var currentIface string
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(strings.ToLower(trimmed), "interface ethernet") {
+			parts := strings.Fields(trimmed)
+			if len(parts) >= 2 {
+				currentIface = parts[1]
+			}
+		} else if strings.HasPrefix(trimmed, "Allowed VLANs:") && strings.Contains(trimmed, "(t)") {
+			if currentIface != "" {
+				trunks = append(trunks, currentIface)
+			}
+		}
+	}
+	return trunks
 }
 
 func (d *Driver) GetActivePorts(repo ports.SwitchRepository) ([]entities.Port, error) {

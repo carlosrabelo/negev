@@ -260,7 +260,17 @@ func formatMAC(mac string) string {
 }
 
 func (d *Driver) ConfigureAccessCommands(port entities.Port, vlan string) []string {
-	return nil
+	return []string{
+		"configure",
+		"interface vlan " + vlan,
+		"set-member untagged " + port.Interface,
+		"exit",
+		"interface " + port.Interface,
+		"switchport native vlan " + vlan,
+		"switchport acceptable-frame-type all",
+		"exit",
+		"end",
+	}
 }
 
 func (d *Driver) CreateVLANCommands(vlan string) []string {

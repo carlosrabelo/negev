@@ -274,7 +274,12 @@ func (d *Driver) ConfigureAccessCommands(port entities.Port, vlan string) []stri
 }
 
 func (d *Driver) CreateVLANCommands(vlan string) []string {
-	return nil
+	return []string{
+		"configure",
+		"interface vlan " + vlan,
+		"exit",
+		"end",
+	}
 }
 
 func (d *Driver) DeleteVLANCommands(vlan string) []string {

@@ -1,0 +1,43 @@
+platform: auto
+transport: telnet
+username: admin
+password: cisco123
+enable_password: cisco123
+default_vlan: "1"
+no_data_vlan: "999"
+allowed_vlans:
+  - "10"
+  - "20"
+  - "30"
+  - "100"
+  - "200"
+  - "300"
+protected_vlans:
+  - "999"
+mac_to_vlan:
+  "aabbcc": "10"
+  "112233": "20"
+  "deadbe": "100"
+exclude_macs:
+  - "ffff.ffff.ffff"
+  - "0000.0000.0000"
+
+switches:
+  - target: 192.168.1.10
+    platform: ios
+    transport: ssh
+    username: switchadmin
+    password: switchpass
+    enable_password: enablepass
+    mac_to_vlan:
+      "001122": "30"
+      "00": ""
+    exclude_macs:
+      - "aaaa.bbbb.cccc"
+
+  - target: 192.168.1.20
+    platform: auto
+    default_vlan: "100"
+    exclude_ports:
+      - "Gi1/0/24"
+      - "Gi1/0/23"

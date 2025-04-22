@@ -1,7 +1,6 @@
 package dmos
 
 import (
-	"fmt"
 	"regexp"
 	"sort"
 	"strconv"
@@ -15,6 +14,7 @@ import (
 var vlanTableRegex = regexp.MustCompile(`^VLAN\s+(\d+)\s*(?:\[.*?\])?:\s*`)
 var dmosPortRegex = regexp.MustCompile(`^Ethernet\d+/\d+$`)
 var infoPortRegex = regexp.MustCompile(`^Information of Eth\s+(\d+/\d+)`)
+var macLineRegex = regexp.MustCompile(`^\s*\d+\s+\w*\s+(Eth\s+\d+/\d+)\s+([0-9A-F:]+)\s+(\d+)\s+.*Learned`)
 
 type Driver struct{}
 
@@ -196,7 +196,67 @@ func compareInterfaceNames(a, b string) bool {
 }
 
 func (d *Driver) GetMacTable(repo ports.SwitchRepository) ([]entities.Device, error) {
-	return nil, fmt.Errorf("not implemented")
+	trunks, err := d.GetTrunkInterfaces(repo)
+	if err != nil {
+		return nil, err
+	}
+	trunkSet := make(map[string]bool, len(trunks))
+	for _, t := range trunks {
+		trunkSet[strings.ToLower(t)] = true
+	}
+
+	out, err := repo.ExecuteCommand("show mac-address-table")
+	if err != nil {
+		return nil, err
+	}
+	return parseMacTable(out, trunkSet), nil
+}
+
+func normalizeMAC(mac string) string {
+	mac = strings.ToLower(mac)
+	mac = strings.NewReplacer(":", "", ".", "").Replace(mac)
+	return mac
+}
+
+func normalizePort(port string) string {
+	port = strings.ToLower(port)
+	if !strings.HasPrefix(port, "ethernet") {
+		port = "ethernet" + strings.TrimPrefix(port, "Eth")
+		port = strings.ReplaceAll(port, " ", "")
+	}
+	return strings.ReplaceAll(port, " ", "")
+}
+
+func parseMacTable(output string, trunkSet map[string]bool) []entities.Device {
+	lines := strings.Split(output, "\n")
+	var devices []entities.Device
+	for _, line := range lines {
+		m := macLineRegex.FindStringSubmatch(line)
+		if m == nil {
+			continue
+		}
+		port := normalizePort(m[1])
+		if trunkSet[port] {
+			continue
+		}
+		macRaw := m[2]
+		macPlain := normalizeMAC(macRaw)
+		macFull := formatMAC(macPlain)
+		devices = append(devices, entities.Device{
+			Vlan:      m[3],
+			Mac:       macPlain,
+			MacFull:   macFull,
+			Interface: port,
+		})
+	}
+	return devices
+}
+
+func formatMAC(mac string) string {
+	if len(mac) != 12 {
+		return mac
+	}
+	return mac[0:2] + ":" + mac[2:4] + ":" + mac[4:6] + ":" + mac[6:8] + ":" + mac[8:10] + ":" + mac[10:12]
 }
 
 func (d *Driver) ConfigureAccessCommands(port entities.Port, vlan string) []string {

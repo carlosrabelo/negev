@@ -239,6 +239,8 @@ func (d *Driver) SaveCommands() []string {
 	return []string{"write memory"}
 }
 
+func (d *Driver) ClearCache() {}
+
 var iosErrorPatterns = []string{
 	"invalid input",
 	"unknown command",

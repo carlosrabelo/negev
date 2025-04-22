@@ -19,6 +19,7 @@ type SwitchDriver interface {
 	CreateVLANCommands(vlan string) []string
 	DeleteVLANCommands(vlan string) []string
 	SaveCommands() []string
+	ClearCache()
 }
 
 var drivers []SwitchDriver

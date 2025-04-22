@@ -61,6 +61,7 @@ func (s *VLANApplicationService) Run(sandbox bool, verbosity int, createVLANs bo
 		authCfg.SetAuthSequence(driver.GetAuthenticationSequence())
 	}
 
+	driver.ClearCache()
 	svc := domainServices.NewVLANService(adapter, *switchCfg, driver)
 	return svc.ProcessPorts()
 }

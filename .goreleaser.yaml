@@ -1,0 +1,39 @@
+version: 2
+project_name: negev
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - main: ./negev/cmd/negev/
+    binary: negev
+    ldflags:
+      - -X main.version={{.Version}}
+      - -X main.buildTime={{.Date}}
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+
+archives:
+  - formats:
+      - tar.gz
+    format_overrides:
+      - goos: windows
+        format: zip
+    files:
+      - LICENSE
+      - README.md
+      - demos/config.yaml
+
+checksum:
+  name_template: "checksums.txt"
+
+changelog:
+  sort: asc

@@ -1,0 +1,11 @@
+ignore:
+  - "negev/cmd/**"
+
+coverage:
+  status:
+    project:
+      default:
+        target: auto
+    patch:
+      default:
+        target: 50%

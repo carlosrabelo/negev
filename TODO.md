@@ -201,7 +201,7 @@ Add support for Datacom DmOS switches.
 - [x] VLAN delete: `configure`, `no interface vlan <id>`, `end`
 - [x] Save: `copy running-config startup-config` with fallback to `save`
 - [x] Command error detection (`isDmOSCommandError`): "unknown command", "invalid", "incomplete", "syntax error"
-- [ ] Raw output display when `IsRawOutputEnabled`
+- [x] Raw output display when `IsRawOutputEnabled`
 
 ---
 

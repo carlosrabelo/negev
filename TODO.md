@@ -189,8 +189,8 @@ Add support for Datacom DmOS switches.
 - [x] VLAN list parser: `^VLAN\s+(\d+)\s*(?:\[.*?\])?:\s*` (e.g. `VLAN 1 [DefaultVlan]:`), fallback to `vlanPrefixRegex`
 - [x] Trunk interfaces: parsed from cached switchport output via `parseDmOSTrunksFromSwitchport`: looks for `(s,t)` tagged VLANs in "Allowed VLANs:" sections per interface
 - [x] Alternative trunk parser `parseDmOSTrunks`: column-split table format with `dmosPortRegex`
-- [ ] Active ports: `show interfaces status` + `show interfaces switchport`; parses `Information of Eth X/Y` + `Link status: Up/Down`; enriches with VLAN from switchport output via `parseDmOSSwitchportVLANs` (parses `Native VLAN: <id>`); sorts by numeric unit/port
-- [ ] `compareInterfaceNames`: extracts `X/Y` numbers, compares unit first then port
+- [x] Active ports: `show interfaces status` + `show interfaces switchport`; parses `Information of Eth X/Y` + `Link status: Up/Down`; enriches with VLAN from switchport output via `parseDmOSSwitchportVLANs` (parses `Native VLAN: <id>`); sorts by numeric unit/port
+- [x] `compareInterfaceNames`: extracts `X/Y` numbers, compares unit first then port
 - [ ] Switchport output cache: thread-safe with `sync.Mutex`, keyed by target, avoids duplicate `show interfaces switchport` calls
 - [ ] MAC table: `show mac-address-table`
 - [ ] MAC parser: `macLineRegex = ^\s*\d+\s+\w*\s+(Eth\s+\d+/\d+)\s+([0-9A-F:]+)\s+(\d+)\s+.*Learned`; normalizes port to `"ethernet X/Y"`; skips trunks

@@ -7,6 +7,7 @@ import (
 
 	"github.com/carlosrabelo/negev/negev/internal/domain/entities"
 	"github.com/carlosrabelo/negev/negev/internal/domain/ports"
+	"github.com/carlosrabelo/negev/negev/internal/platform"
 )
 
 var vlanLineRegex = regexp.MustCompile(`^\s*(?:vlan\s+)?(\d{1,4})\b`)
@@ -14,6 +15,10 @@ var interfaceRegex = regexp.MustCompile(`^[A-Za-z]+\d+(?:/\d+){0,2}$`)
 var macTableRegex = regexp.MustCompile(`^\s*(\d+)\s+([0-9A-Fa-f]{4}\.[0-9A-Fa-f]{4}\.[0-9A-Fa-f]{4})\s+DYNAMIC\s+(\S+)`)
 
 type Driver struct{}
+
+func init() {
+	platform.Register(&Driver{})
+}
 
 func (d *Driver) Name() string {
 	return "ios"

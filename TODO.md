@@ -188,7 +188,7 @@ Add support for Datacom DmOS switches.
 - [x] VLAN list: `show vlan table` with fallback to `show vlan`
 - [x] VLAN list parser: `^VLAN\s+(\d+)\s*(?:\[.*?\])?:\s*` (e.g. `VLAN 1 [DefaultVlan]:`), fallback to `vlanPrefixRegex`
 - [x] Trunk interfaces: parsed from cached switchport output via `parseDmOSTrunksFromSwitchport`: looks for `(s,t)` tagged VLANs in "Allowed VLANs:" sections per interface
-- [ ] Alternative trunk parser `parseDmOSTrunks`: column-split table format with `dmosPortRegex`
+- [x] Alternative trunk parser `parseDmOSTrunks`: column-split table format with `dmosPortRegex`
 - [ ] Active ports: `show interfaces status` + `show interfaces switchport`; parses `Information of Eth X/Y` + `Link status: Up/Down`; enriches with VLAN from switchport output via `parseDmOSSwitchportVLANs` (parses `Native VLAN: <id>`); sorts by numeric unit/port
 - [ ] `compareInterfaceNames`: extracts `X/Y` numbers, compares unit first then port
 - [ ] Switchport output cache: thread-safe with `sync.Mutex`, keyed by target, avoids duplicate `show interfaces switchport` calls

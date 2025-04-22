@@ -192,8 +192,8 @@ Add support for Datacom DmOS switches.
 - [x] Active ports: `show interfaces status` + `show interfaces switchport`; parses `Information of Eth X/Y` + `Link status: Up/Down`; enriches with VLAN from switchport output via `parseDmOSSwitchportVLANs` (parses `Native VLAN: <id>`); sorts by numeric unit/port
 - [x] `compareInterfaceNames`: extracts `X/Y` numbers, compares unit first then port
 - [x] Switchport output cache: thread-safe with `sync.Mutex`, keyed by target, avoids duplicate `show interfaces switchport` calls
-- [ ] MAC table: `show mac-address-table`
-- [ ] MAC parser: `macLineRegex = ^\s*\d+\s+\w*\s+(Eth\s+\d+/\d+)\s+([0-9A-F:]+)\s+(\d+)\s+.*Learned`; normalizes port to `"ethernet X/Y"`; skips trunks
+- [x] MAC table: `show mac-address-table`
+- [x] MAC parser: `macLineRegex = ^\s*\d+\s+\w*\s+(Eth\s+\d+/\d+)\s+([0-9A-F:]+)\s+(\d+)\s+.*Learned`; normalizes port to `"ethernet X/Y"`; skips trunks
 - [ ] `normalizeMac`: strips `.` and `:`, lowercases
 - [ ] `normalizePort`: prepends `"ethernet "` prefix if missing
 - [ ] Config commands: `configure`, `interface vlan <vlan>`, `set-member untagged <port>`, `exit`, `interface <port>`, `switchport native vlan <vlan>`, `switchport acceptable-frame-type all`, `exit`, `end`

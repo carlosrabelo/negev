@@ -183,7 +183,7 @@ Add support for Datacom DmOS switches.
 ## Datacom DmOS (`internal/platform/dmos/`)
 
 - [x] Driver name: `"dmos"`, registered in global registry
-- [ ] Auth sequence: `login:` → username, `Password:` → password, `#` → `terminal length 0`, `#` → `""` (no enable command needed)
+- [x] Auth sequence: `login:` → username, `Password:` → password, `#` → `terminal length 0`, `#` → `""` (no enable command needed)
 - [ ] Detection: `show version` output contains `"dmos"` or `"datacom"` (case-insensitive)
 - [ ] VLAN list: `show vlan table` with fallback to `show vlan`
 - [ ] VLAN list parser: `^VLAN\s+(\d+)\s*(?:\[.*?\])?:\s*` (e.g. `VLAN 1 [DefaultVlan]:`), fallback to `vlanPrefixRegex`

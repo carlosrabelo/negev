@@ -23,7 +23,12 @@ func (d *Driver) Detect(repo ports.SwitchRepository) (bool, error) {
 }
 
 func (d *Driver) GetAuthenticationSequence() []entities.AuthPrompt {
-	return nil
+	return []entities.AuthPrompt{
+		{WaitFor: "login:", SendCmd: "USERNAME_PLACEHOLDER\n"},
+		{WaitFor: "Password:", SendCmd: "PASSWORD_PLACEHOLDER\n"},
+		{WaitFor: "#", SendCmd: "terminal length 0\n"},
+		{WaitFor: "#", SendCmd: ""},
+	}
 }
 
 func (d *Driver) GetVLANList(repo ports.SwitchRepository) ([]string, error) {

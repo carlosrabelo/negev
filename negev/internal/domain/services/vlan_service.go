@@ -175,7 +175,7 @@ func (s *VLANServiceImpl) ConfigureVlan(iface, vlan string) error {
 		if err != nil {
 			return fmt.Errorf("command %q failed: %v", cmd, err)
 		}
-		if isIOSCommandError(out) {
+		if s.driver.IsCommandError(out) {
 			return fmt.Errorf("command %q returned error: %s", cmd, out)
 		}
 	}
@@ -195,7 +195,7 @@ func (s *VLANServiceImpl) CreateVLAN(vlan string) error {
 		if err != nil {
 			return fmt.Errorf("command %q failed: %v", cmd, err)
 		}
-		if isIOSCommandError(out) {
+		if s.driver.IsCommandError(out) {
 			return fmt.Errorf("command %q returned error: %s", cmd, out)
 		}
 	}
@@ -215,7 +215,7 @@ func (s *VLANServiceImpl) DeleteVLAN(vlan string) error {
 		if err != nil {
 			return fmt.Errorf("command %q failed: %v", cmd, err)
 		}
-		if isIOSCommandError(out) {
+		if s.driver.IsCommandError(out) {
 			return fmt.Errorf("command %q returned error: %s", cmd, out)
 		}
 	}
@@ -290,24 +290,4 @@ func sortedKeys(m map[string]bool) []string {
 	}
 	sort.Strings(keys)
 	return keys
-}
-
-func isIOSCommandError(output string) bool {
-	patterns := []string{
-		"invalid input",
-		"unknown command",
-		"incomplete command",
-		"ambiguous command",
-		"unrecognized command",
-		"invalid command",
-		"syntax error",
-		"cannot find command",
-	}
-	lower := strings.ToLower(output)
-	for _, pat := range patterns {
-		if strings.Contains(lower, pat) {
-			return true
-		}
-	}
-	return false
 }

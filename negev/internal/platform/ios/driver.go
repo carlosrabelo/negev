@@ -241,6 +241,10 @@ func (d *Driver) SaveCommands() []string {
 
 func (d *Driver) ClearCache() {}
 
+func (d *Driver) IsCommandError(output string) bool {
+	return isIOSCommandError(output)
+}
+
 var iosErrorPatterns = []string{
 	"invalid input",
 	"unknown command",

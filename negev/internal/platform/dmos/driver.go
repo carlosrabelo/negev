@@ -300,3 +300,24 @@ func (d *Driver) SaveCommands() []string {
 func (d *Driver) ClearCache() {
 	clearSwitchportCache()
 }
+
+var dmosErrorPatterns = []string{
+	"unknown command",
+	"invalid",
+	"incomplete",
+	"syntax error",
+}
+
+func isDmOSCommandError(output string) bool {
+	lower := strings.ToLower(output)
+	for _, pat := range dmosErrorPatterns {
+		if strings.Contains(lower, pat) {
+			return true
+		}
+	}
+	return false
+}
+
+func (d *Driver) IsCommandError(output string) bool {
+	return isDmOSCommandError(output)
+}

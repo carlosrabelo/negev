@@ -172,6 +172,37 @@ func Load(yamlFile, target string, sandbox bool, verbosityLevel int, createVLANs
 			sw.EnablePassword = cfg.EnablePassword
 		}
 
+		if sw.DefaultVlan == "" {
+			sw.DefaultVlan = cfg.DefaultVlan
+		} else {
+			if err := validateVLAN(sw.DefaultVlan, fmt.Sprintf("switch %s default_vlan", sw.Target)); err != nil {
+				return nil, err
+			}
+		}
+
+		if sw.NoDataVlan == "" {
+			sw.NoDataVlan = cfg.NoDataVlan
+		} else {
+			if err := validateVLAN(sw.NoDataVlan, fmt.Sprintf("switch %s no_data_vlan", sw.Target)); err != nil {
+				return nil, err
+			}
+		}
+
+		var err error
+		sw.AllowedVlans, err = mergeStringSlices(cfg.AllowedVlans, sw.AllowedVlans, func(v string) error {
+			return validateVLAN(v, fmt.Sprintf("switch %s allowed_vlans", sw.Target))
+		})
+		if err != nil {
+			return nil, err
+		}
+
+		sw.ProtectedVlans, err = mergeStringSlices(cfg.ProtectedVlans, sw.ProtectedVlans, func(v string) error {
+			return validateVLAN(v, fmt.Sprintf("switch %s protected_vlans", sw.Target))
+		})
+		if err != nil {
+			return nil, err
+		}
+
 		normalizedExclude := make(map[string]bool)
 		for _, mac := range cfg.ExcludeMacs {
 			normalizedExclude[NormalizeMAC(mac)] = true

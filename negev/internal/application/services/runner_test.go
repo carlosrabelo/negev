@@ -9,6 +9,7 @@ import (
 	"github.com/carlosrabelo/negev/negev/internal/infrastructure/config"
 	"github.com/carlosrabelo/negev/negev/internal/infrastructure/transport"
 
+	_ "github.com/carlosrabelo/negev/negev/internal/platform/dmos"
 	_ "github.com/carlosrabelo/negev/negev/internal/platform/ios"
 )
 

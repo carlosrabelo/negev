@@ -202,3 +202,29 @@ Add support for Datacom DmOS switches.
 - [x] Save: `copy running-config startup-config` with fallback to `save`
 - [x] Command error detection (`isDmOSCommandError`): "unknown command", "invalid", "incomplete", "syntax error"
 - [x] Raw output display when `IsRawOutputEnabled`
+
+---
+
+## Third milestone
+
+Core fixes, configuration merging, authentication refactoring, and test suite creation.
+
+## Foundation & Config Loader
+- [ ] Fix global-to-switch settings merge (DefaultVlan, NoDataVlan, AllowedVlans, ProtectedVlans) in config_loader.go
+- [ ] Implement switch-level MacToVlan merge (override global, skip "0"/"00" vlans)
+- [ ] Implement normalization and deduplication of ExcludePorts in config_loader.go
+
+## Core Service
+- [ ] Call saveConfiguration() in ProcessPorts() when actual changes are applied (non-sandbox)
+
+## Authentication Refactoring
+- [ ] Make SwitchAdapter implement AuthConfigurable to support sequence injection
+- [ ] Make SSHClient implement AuthConfigurable and accept authentication prompts sequence
+- [ ] Filter out interactive SSH credentials prompts in SSHClient since they are handled at handshake
+- [ ] Implement placeholder replacement (USERNAME_PLACEHOLDER, PASSWORD_PLACEHOLDER, ENABLE_PASSWORD_PLACEHOLDER) inside clients
+
+## Platform Parsers Fixes
+- [ ] Refactor DmOS platform parsers to capture correct slot/port info instead of just "ethernet" prefix
+- [ ] Refactor IOS parseActivePorts status detection to validate if next field is a valid VLAN or mode (trunk/routed), preventing false positives from port descriptions
+- [ ] Safeguard FormatPlainMac in parseutil against out of bounds index panics
+- [ ] Make switchportCache in dmos keyed by target (IP address) to avoid shared state

@@ -215,6 +215,18 @@ func Load(yamlFile, target string, sandbox bool, verbosityLevel int, createVLANs
 			sw.ExcludeMacs = append(sw.ExcludeMacs, mac)
 		}
 
+		// Normalizar ExcludePorts: trim, lowercase, dedup
+		seenPorts := make(map[string]bool)
+		var normalizedPorts []string
+		for _, p := range sw.ExcludePorts {
+			pNorm := strings.ToLower(strings.TrimSpace(p))
+			if pNorm != "" && !seenPorts[pNorm] {
+				seenPorts[pNorm] = true
+				normalizedPorts = append(normalizedPorts, pNorm)
+			}
+		}
+		sw.ExcludePorts = normalizedPorts
+
 		// Mesclar MacToVlan: chaves do switch sobrescrevem globais, chaves e valores normalizados e validados
 		mergedMacToVlan := make(map[string]string)
 		for prefix, vlan := range cfg.MacToVlan {

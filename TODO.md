@@ -212,7 +212,7 @@ Core fixes, configuration merging, authentication refactoring, and test suite cr
 ## Foundation & Config Loader
 - [x] Fix global-to-switch settings merge (DefaultVlan, NoDataVlan, AllowedVlans, ProtectedVlans) in config_loader.go
 - [x] Implement switch-level MacToVlan merge (override global, skip "0"/"00" vlans)
-- [ ] Implement normalization and deduplication of ExcludePorts in config_loader.go
+- [x] Implement normalization and deduplication of ExcludePorts in config_loader.go
 
 ## Core Service
 - [ ] Call saveConfiguration() in ProcessPorts() when actual changes are applied (non-sandbox)

@@ -39,6 +39,10 @@ switches:
       - "30"
     protected_vlans:
       - "100"
+    exclude_ports:
+      - "Gi1/0/24 "
+      - "gi1/0/24"
+      - "Gi1/0/23"
 `
 	tmpDir := t.TempDir()
 	tmpFile := filepath.Join(tmpDir, "test_config.yaml")
@@ -87,6 +91,11 @@ switches:
 	expectedProtected := []string{"999", "100"}
 	if !reflect.DeepEqual(sw2.ProtectedVlans, expectedProtected) {
 		t.Errorf("sw2.ProtectedVlans = %v; expected %v", sw2.ProtectedVlans, expectedProtected)
+	}
+
+	expectedExcludePorts := []string{"gi1/0/24", "gi1/0/23"}
+	if !reflect.DeepEqual(sw2.ExcludePorts, expectedExcludePorts) {
+		t.Errorf("sw2.ExcludePorts = %v; expected %v", sw2.ExcludePorts, expectedExcludePorts)
 	}
 }
 

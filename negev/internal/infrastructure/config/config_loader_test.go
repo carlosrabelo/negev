@@ -114,3 +114,48 @@ switches:
 		t.Error("expected error due to invalid default_vlan (5000), got nil")
 	}
 }
+
+func TestConfigLoadMergeMacToVlan(t *testing.T) {
+	yamlData := `
+platform: auto
+transport: telnet
+username: admin
+password: cisco123
+enable_password: cisco123
+default_vlan: "1"
+no_data_vlan: "999"
+mac_to_vlan:
+  "AA:BB:CC": "10"
+  "112233445566": "20"
+  "deadbe": "100"
+
+switches:
+  - target: 192.168.1.10
+    platform: ios
+    mac_to_vlan:
+      "001122": "30"
+      "11:22:33": "0"  # Remove o prefixo 112233
+      "deadbe": "200"  # Sobrescreve o global
+`
+	tmpDir := t.TempDir()
+	tmpFile := filepath.Join(tmpDir, "test_config_mactovlan.yaml")
+	if err := os.WriteFile(tmpFile, []byte(yamlData), 0644); err != nil {
+		t.Fatalf("failed to write temp yaml config: %v", err)
+	}
+
+	cfg, err := Load(tmpFile, "192.168.1.10", false, 0, false)
+	if err != nil {
+		t.Fatalf("Load() returned error: %v", err)
+	}
+
+	sw1 := cfg.Switches[0]
+	expectedMacToVlan := map[string]string{
+		"aabbcc": "10",
+		"deadbe": "200",
+		"001122": "30",
+	}
+
+	if !reflect.DeepEqual(sw1.MacToVlan, expectedMacToVlan) {
+		t.Errorf("sw1.MacToVlan = %v; expected %v", sw1.MacToVlan, expectedMacToVlan)
+	}
+}

@@ -210,8 +210,8 @@ Add support for Datacom DmOS switches.
 Core fixes, configuration merging, authentication refactoring, and test suite creation.
 
 ## Foundation & Config Loader
-- [ ] Fix global-to-switch settings merge (DefaultVlan, NoDataVlan, AllowedVlans, ProtectedVlans) in config_loader.go
-- [ ] Implement switch-level MacToVlan merge (override global, skip "0"/"00" vlans)
+- [x] Fix global-to-switch settings merge (DefaultVlan, NoDataVlan, AllowedVlans, ProtectedVlans) in config_loader.go
+- [x] Implement switch-level MacToVlan merge (override global, skip "0"/"00" vlans)
 - [ ] Implement normalization and deduplication of ExcludePorts in config_loader.go
 
 ## Core Service

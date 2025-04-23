@@ -214,6 +214,37 @@ func Load(yamlFile, target string, sandbox bool, verbosityLevel int, createVLANs
 		for mac := range normalizedExclude {
 			sw.ExcludeMacs = append(sw.ExcludeMacs, mac)
 		}
+
+		// Mesclar MacToVlan: chaves do switch sobrescrevem globais, chaves e valores normalizados e validados
+		mergedMacToVlan := make(map[string]string)
+		for prefix, vlan := range cfg.MacToVlan {
+			norm := NormalizeMAC(prefix)
+			if len(norm) > 6 {
+				norm = norm[:6]
+			}
+			if vlan == "0" || vlan == "00" || vlan == "" {
+				continue
+			}
+			if err := validateVLAN(vlan, fmt.Sprintf("global mac_to_vlan prefix %s", prefix)); err != nil {
+				return nil, err
+			}
+			mergedMacToVlan[norm] = vlan
+		}
+		for prefix, vlan := range sw.MacToVlan {
+			norm := NormalizeMAC(prefix)
+			if len(norm) > 6 {
+				norm = norm[:6]
+			}
+			if vlan == "0" || vlan == "00" || vlan == "" {
+				delete(mergedMacToVlan, norm)
+				continue
+			}
+			if err := validateVLAN(vlan, fmt.Sprintf("switch %s mac_to_vlan prefix %s", sw.Target, prefix)); err != nil {
+				return nil, err
+			}
+			mergedMacToVlan[norm] = vlan
+		}
+		sw.MacToVlan = mergedMacToVlan
 		debugf(swVerbose, "DEBUG: Merged exclude_macs for %s: %v\n", sw.Target, sw.ExcludeMacs)
 		debugf(swVerbose, "DEBUG: Merged mac_to_vlan for %s: %v\n", sw.Target, sw.MacToVlan)
 			debugf(swVerbose, "DEBUG: Normalized exclude_ports for %s: %v\n", sw.Target, sw.ExcludePorts)

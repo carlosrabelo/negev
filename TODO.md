@@ -218,7 +218,7 @@ Core fixes, configuration merging, authentication refactoring, and test suite cr
 - [x] Call saveConfiguration() in ProcessPorts() when actual changes are applied (non-sandbox)
 
 ## Authentication Refactoring
-- [ ] Make SwitchAdapter implement AuthConfigurable to support sequence injection
+- [x] Make SwitchAdapter implement AuthConfigurable to support sequence injection
 - [ ] Make SSHClient implement AuthConfigurable and accept authentication prompts sequence
 - [ ] Filter out interactive SSH credentials prompts in SSHClient since they are handled at handshake
 - [ ] Implement placeholder replacement (USERNAME_PLACEHOLDER, PASSWORD_PLACEHOLDER, ENABLE_PASSWORD_PLACEHOLDER) inside clients

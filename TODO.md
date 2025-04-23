@@ -215,7 +215,7 @@ Core fixes, configuration merging, authentication refactoring, and test suite cr
 - [x] Implement normalization and deduplication of ExcludePorts in config_loader.go
 
 ## Core Service
-- [ ] Call saveConfiguration() in ProcessPorts() when actual changes are applied (non-sandbox)
+- [x] Call saveConfiguration() in ProcessPorts() when actual changes are applied (non-sandbox)
 
 ## Authentication Refactoring
 - [ ] Make SwitchAdapter implement AuthConfigurable to support sequence injection

@@ -34,6 +34,8 @@ func (s *VLANServiceImpl) ProcessPorts() error {
 		return fmt.Errorf("failed to get VLAN list: %v", err)
 	}
 
+	modified := false
+
 	if s.config.CreateVLANs {
 		allowed := s.getAllowedVLANs()
 		for v := range allowed {
@@ -42,6 +44,9 @@ func (s *VLANServiceImpl) ProcessPorts() error {
 					return fmt.Errorf("failed to create VLAN %s: %v", v, err)
 				}
 				vlans[v] = true
+				if !s.config.Sandbox {
+					modified = true
+				}
 			}
 		}
 		for v := range vlans {
@@ -53,6 +58,9 @@ func (s *VLANServiceImpl) ProcessPorts() error {
 					return fmt.Errorf("failed to delete VLAN %s: %v", v, err)
 				}
 				delete(vlans, v)
+				if !s.config.Sandbox {
+					modified = true
+				}
 			}
 		}
 	}
@@ -119,12 +127,21 @@ func (s *VLANServiceImpl) ProcessPorts() error {
 			return fmt.Errorf("failed to configure VLAN on port %s: %v", port.Interface, err)
 		}
 		changes++
+		if !s.config.Sandbox {
+			modified = true
+		}
 	}
 
-	if changes == 0 {
+	if changes == 0 && !modified {
 		fmt.Println("No changes required")
 	} else if s.config.Sandbox {
 		fmt.Printf("Changes simulated (sandbox mode, use -w to apply)\n")
+	} else if modified {
+		log.Println("Saving changes to startup-config...")
+		if err := s.saveConfiguration(); err != nil {
+			return fmt.Errorf("failed to save configuration: %v", err)
+		}
+		log.Println("Configuration successfully saved")
 	}
 
 	return nil

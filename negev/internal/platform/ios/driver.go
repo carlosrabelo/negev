@@ -1,6 +1,7 @@
 package ios
 
 import (
+	"fmt"
 	"regexp"
 	"sort"
 	"strings"
@@ -82,6 +83,7 @@ func (d *Driver) GetTrunkInterfaces(repo ports.SwitchRepository) ([]string, erro
 
 func parseTrunkInterfaces(output string) []string {
 	lines := strings.Split(output, "\n")
+	seen := make(map[string]bool)
 	var ifaces []string
 	for _, line := range lines {
 		fields := strings.Fields(line)
@@ -89,7 +91,11 @@ func parseTrunkInterfaces(output string) []string {
 			continue
 		}
 		if interfaceRegex.MatchString(fields[0]) {
-			ifaces = append(ifaces, fields[0])
+			name := fields[0]
+			if !seen[name] {
+				seen[name] = true
+				ifaces = append(ifaces, name)
+			}
 		}
 	}
 	return ifaces
@@ -120,11 +126,11 @@ func parseActivePorts(output string) []entities.Port {
 		vlan := ""
 		for i, f := range fields {
 			if isStatusKeyword(f) {
-				status = f
-				if i+1 < len(fields) {
+				if i+1 < len(fields) && isVlanOrMode(fields[i+1]) {
+					status = f
 					vlan = fields[i+1]
+					break
 				}
-				break
 			}
 		}
 		if status == "notconnect" {
@@ -138,6 +144,16 @@ func parseActivePorts(output string) []entities.Port {
 		return ports[i].Interface < ports[j].Interface
 	})
 	return ports
+}
+
+func isVlanOrMode(s string) bool {
+	s = strings.ToLower(s)
+	if s == "trunk" || s == "routed" || s == "routed-port" || s == "access" {
+		return true
+	}
+	var n int
+	_, err := fmt.Sscanf(s, "%d", &n)
+	return err == nil && n >= 1 && n <= 4094
 }
 
 func isStatusKeyword(s string) bool {

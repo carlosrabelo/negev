@@ -123,7 +123,14 @@ func (sc *SSHClient) Connect() error {
 			if strings.Contains(p.SendCmd, "USERNAME_PLACEHOLDER") || (strings.Contains(p.SendCmd, "PASSWORD_PLACEHOLDER") && !strings.Contains(p.SendCmd, "ENABLE_PASSWORD_PLACEHOLDER")) {
 				continue
 			}
-			prompts = append(prompts, p)
+			cmd := p.SendCmd
+			cmd = strings.ReplaceAll(cmd, "USERNAME_PLACEHOLDER", sc.config.Username)
+			cmd = strings.ReplaceAll(cmd, "PASSWORD_PLACEHOLDER", sc.config.Password)
+			cmd = strings.ReplaceAll(cmd, "ENABLE_PASSWORD_PLACEHOLDER", sc.config.EnablePassword)
+			prompts = append(prompts, entities.AuthPrompt{
+				WaitFor: p.WaitFor,
+				SendCmd: cmd,
+			})
 		}
 
 		currentOutput := initial

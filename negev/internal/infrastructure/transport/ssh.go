@@ -118,8 +118,16 @@ func (sc *SSHClient) Connect() error {
 	}
 
 	if len(sc.authSequence) > 0 {
-		currentOutput := initial
+		var prompts []entities.AuthPrompt
 		for _, p := range sc.authSequence {
+			if strings.Contains(p.SendCmd, "USERNAME_PLACEHOLDER") || (strings.Contains(p.SendCmd, "PASSWORD_PLACEHOLDER") && !strings.Contains(p.SendCmd, "ENABLE_PASSWORD_PLACEHOLDER")) {
+				continue
+			}
+			prompts = append(prompts, p)
+		}
+
+		currentOutput := initial
+		for _, p := range prompts {
 			if !strings.Contains(currentOutput, p.WaitFor) {
 				var err error
 				currentOutput, err = sc.readUntil(p.WaitFor, DefaultTimeout)

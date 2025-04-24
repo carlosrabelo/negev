@@ -89,8 +89,8 @@ func parseDmOSTrunksFromSwitchport(output string) []string {
 		trimmed := strings.TrimSpace(line)
 		if strings.HasPrefix(strings.ToLower(trimmed), "interface ethernet") {
 			parts := strings.Fields(trimmed)
-			if len(parts) >= 2 {
-				currentIface = parts[1]
+			if len(parts) >= 3 {
+				currentIface = normalizePort(parts[1] + parts[2])
 			}
 		} else if strings.HasPrefix(trimmed, "Allowed VLANs:") && strings.Contains(trimmed, "(t)") {
 			if currentIface != "" {
@@ -137,7 +137,7 @@ func parseActivePorts(statusOutput string, switchportVLANs map[string]string) []
 		trimmed := strings.TrimSpace(line)
 		m := infoPortRegex.FindStringSubmatch(trimmed)
 		if m != nil {
-			currentIface = "Ethernet" + m[1]
+			currentIface = normalizePort("Ethernet" + m[1])
 			continue
 		}
 		if strings.HasPrefix(trimmed, "Link status:") {
@@ -164,8 +164,8 @@ func parseDmOSSwitchportVLANs(output string) map[string]string {
 		trimmed := strings.TrimSpace(line)
 		if strings.HasPrefix(strings.ToLower(trimmed), "interface ethernet") {
 			parts := strings.Fields(trimmed)
-			if len(parts) >= 2 {
-				currentIface = parts[1]
+			if len(parts) >= 3 {
+				currentIface = normalizePort(parts[1] + parts[2])
 			}
 		} else if strings.HasPrefix(trimmed, "Native VLAN:") {
 			vlan := strings.TrimSpace(strings.TrimPrefix(trimmed, "Native VLAN:"))
@@ -221,7 +221,7 @@ func normalizeMAC(mac string) string {
 func normalizePort(port string) string {
 	port = strings.ToLower(port)
 	if !strings.HasPrefix(port, "ethernet") {
-		port = "ethernet" + strings.TrimPrefix(port, "Eth")
+		port = "ethernet" + strings.TrimPrefix(port, "eth")
 		port = strings.ReplaceAll(port, " ", "")
 	}
 	return strings.ReplaceAll(port, " ", "")

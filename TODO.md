@@ -219,7 +219,7 @@ Core fixes, configuration merging, authentication refactoring, and test suite cr
 
 ## Authentication Refactoring
 - [x] Make SwitchAdapter implement AuthConfigurable to support sequence injection
-- [ ] Make SSHClient implement AuthConfigurable and accept authentication prompts sequence
+- [x] Make SSHClient implement AuthConfigurable and accept authentication prompts sequence
 - [ ] Filter out interactive SSH credentials prompts in SSHClient since they are handled at handshake
 - [ ] Implement placeholder replacement (USERNAME_PLACEHOLDER, PASSWORD_PLACEHOLDER, ENABLE_PASSWORD_PLACEHOLDER) inside clients
 

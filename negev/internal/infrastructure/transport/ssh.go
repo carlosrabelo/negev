@@ -15,16 +15,21 @@ import (
 )
 
 type SSHClient struct {
-	config  entities.SwitchConfig
-	client  *ssh.Client
-	session *ssh.Session
-	stdin   io.WriteCloser
-	reader  *bufio.Reader
-	netConn net.Conn
+	config       entities.SwitchConfig
+	client       *ssh.Client
+	session      *ssh.Session
+	stdin        io.WriteCloser
+	reader       *bufio.Reader
+	netConn      net.Conn
+	authSequence []entities.AuthPrompt
 }
 
 func NewSSHClient(cfg entities.SwitchConfig) *SSHClient {
 	return &SSHClient{config: cfg}
+}
+
+func (sc *SSHClient) SetAuthSequence(prompts []entities.AuthPrompt) {
+	sc.authSequence = prompts
 }
 
 func (sc *SSHClient) Connect() error {
@@ -112,35 +117,59 @@ func (sc *SSHClient) Connect() error {
 		return err
 	}
 
-	if !strings.Contains(initial, PromptPrivileged) {
-		if sc.config.IsDebugEnabled() {
-			fmt.Printf("DEBUG: Elevating to privileged mode on %s\n", sc.config.Target)
+	if len(sc.authSequence) > 0 {
+		currentOutput := initial
+		for _, p := range sc.authSequence {
+			if !strings.Contains(currentOutput, p.WaitFor) {
+				var err error
+				currentOutput, err = sc.readUntil(p.WaitFor, DefaultTimeout)
+				if err != nil {
+					sc.Disconnect()
+					return fmt.Errorf("failed to wait for %s: %v, output: %s", p.WaitFor, err, currentOutput)
+				}
+			}
+			if p.SendCmd != "" {
+				if err := sc.send(p.SendCmd); err != nil {
+					sc.Disconnect()
+					return fmt.Errorf("failed to send command %s: %v", p.SendCmd, err)
+				}
+				if sc.config.IsDebugEnabled() {
+					fmt.Printf("DEBUG: Sent %s for prompt %s\n", strings.TrimSpace(p.SendCmd), p.WaitFor)
+				}
+				currentOutput = ""
+			}
 		}
-		if err := sc.send("enable\n"); err != nil {
-			sc.Disconnect()
-			return fmt.Errorf("failed to send enable command to %s: %v", sc.config.Target, err)
+	} else {
+		if !strings.Contains(initial, PromptPrivileged) {
+			if sc.config.IsDebugEnabled() {
+				fmt.Printf("DEBUG: Elevating to privileged mode on %s\n", sc.config.Target)
+			}
+			if err := sc.send("enable\n"); err != nil {
+				sc.Disconnect()
+				return fmt.Errorf("failed to send enable command to %s: %v", sc.config.Target, err)
+			}
+			if _, err := sc.readUntil(PromptPassword, DefaultTimeout); err != nil {
+				sc.Disconnect()
+				return err
+			}
+			if err := sc.send(sc.config.EnablePassword + "\n"); err != nil {
+				sc.Disconnect()
+				return fmt.Errorf("failed to send enable password to %s: %v", sc.config.Target, err)
+			}
+			if _, err := sc.readUntil(PromptPrivileged, DefaultTimeout); err != nil {
+				sc.Disconnect()
+				return err
+			}
 		}
-		if _, err := sc.readUntil(PromptPassword, DefaultTimeout); err != nil {
+
+		if err := sc.send(TerminalLengthCmd); err != nil {
 			sc.Disconnect()
-			return err
-		}
-		if err := sc.send(sc.config.EnablePassword + "\n"); err != nil {
-			sc.Disconnect()
-			return fmt.Errorf("failed to send enable password to %s: %v", sc.config.Target, err)
+			return fmt.Errorf("failed to send terminal length command to %s: %v", sc.config.Target, err)
 		}
 		if _, err := sc.readUntil(PromptPrivileged, DefaultTimeout); err != nil {
 			sc.Disconnect()
 			return err
 		}
-	}
-
-	if err := sc.send(TerminalLengthCmd); err != nil {
-		sc.Disconnect()
-		return fmt.Errorf("failed to send terminal length command to %s: %v", sc.config.Target, err)
-	}
-	if _, err := sc.readUntil(PromptPrivileged, DefaultTimeout); err != nil {
-		sc.Disconnect()
-		return err
 	}
 
 	return nil

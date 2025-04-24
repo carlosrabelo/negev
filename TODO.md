@@ -226,5 +226,5 @@ Core fixes, configuration merging, authentication refactoring, and test suite cr
 ## Platform Parsers Fixes
 - [x] Refactor DmOS platform parsers to capture correct slot/port info instead of just "ethernet" prefix
 - [x] Refactor IOS parseActivePorts status detection to validate if next field is a valid VLAN or mode (trunk/routed), preventing false positives from port descriptions
-- [ ] Safeguard FormatPlainMac in parseutil against out of bounds index panics
+- [x] Safeguard FormatPlainMac in parseutil against out of bounds index panics
 - [ ] Make switchportCache in dmos keyed by target (IP address) to avoid shared state

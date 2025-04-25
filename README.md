@@ -30,9 +30,28 @@ Install to `~/.local/bin`:
 make install
 ```
 
+## Usage
+
+```bash
+negev --target 192.168.1.10                   # sandbox (simulate)
+negev --target 192.168.1.10 --write           # apply changes
+negev --target 192.168.1.10 --create-vlans --write # sync VLANs and apply
+```
+
+### Flags
+
+| Flag | Description |
+|------|-------------|
+| `--target <ip>` | Switch IP address (required, must exist in config) |
+| `--config <path>` | Path to YAML config file (default: config.yaml) |
+| `--write` | Apply changes (sandbox/dry-run by default) |
+| `--verbose <0-3>` | Output level: 0=none, 1=debug, 2=raw output, 3=both |
+| `--create-vlans` | Create/delete VLANs to match allowed list |
+| `--version` | Show version |
+
 ## Configuration
 
-Create `config.yaml` in the current directory. Negev also searches `~/.config/negev/` and `/etc/negev/`.
+Create `config.yaml` in the current directory. Negev also searches `~/.config/negev/` and `/etc/negev/` (Linux), or `%APPDATA%\negev\` and `%ProgramData%\negev\` (Windows).
 
 ```yaml
 platform: auto
@@ -42,41 +61,36 @@ password: cisco123
 enable_password: cisco123
 default_vlan: "1"
 no_data_vlan: "999"
+allowed_vlans:
+  - "10"
+  - "20"
+  - "30"
+protected_vlans:
+  - "100"
+exclude_macs:
+  - "00:11:22:33:44:55"
 mac_to_vlan:
   "aabbcc": "10"
+  "001122": "20"
 
 switches:
   - target: 192.168.1.10
     platform: ios
+  - target: 192.168.1.20
+    platform: dmos
+    transport: ssh
+    exclude_ports:
+      - "ethernet 1/1"
 ```
-
-## Usage
-
-```bash
-negev --target 192.168.1.10          # sandbox (simulate)
-negev --target 192.168.1.10 --write  # apply changes
-negev --target 192.168.1.10 --create-vlans
-```
-
-### Flags
-
-| Flag | Description |
-|------|-------------|
-| `--target <ip>` | Switch IP address (required) |
-| `--config <path>` | Path to YAML config file |
-| `--write` | Apply changes (sandbox by default) |
-| `--verbose <0-3>` | 0=none, 1=debug, 2=raw, 3=both |
-| `--create-vlans` | Create/delete VLANs to match allowed list |
-| `--version` | Show version |
 
 ## Project Layout
 
 ```
-cmd/negev/              # CLI entry point
-internal/domain/        # Core entities, interfaces, and business logic
-internal/application/   # Service orchestration
-internal/infrastructure/ # Config loading, transport (Telnet/SSH), adapter
-internal/platform/      # Platform drivers (ios, dmos)
+negev/cmd/negev/        # CLI entry point
+negev/internal/domain/  # Core entities, interfaces, and business logic
+negev/internal/application/ # Service orchestration (runner)
+negev/internal/infrastructure/ # Config loading, transport (Telnet/SSH), client cache
+negev/internal/platform/ # Platform drivers (ios, dmos) and registries
 bin/                    # Compiled binary (git-ignored)
 .make/                  # Build and install scripts
 demos/                  # Sample configuration files

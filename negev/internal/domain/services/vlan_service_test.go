@@ -32,7 +32,7 @@ func (m *mockRepository) IsConnected() bool {
 
 type mockDriver struct{}
 
-func (m *mockDriver) Name() string { return "mock" }
+func (m *mockDriver) Name() string                                     { return "mock" }
 func (m *mockDriver) Detect(repo ports.SwitchRepository) (bool, error) { return true, nil }
 func (m *mockDriver) GetAuthenticationSequence() []entities.AuthPrompt { return nil }
 func (m *mockDriver) GetVLANList(repo ports.SwitchRepository) ([]string, error) {
@@ -55,7 +55,7 @@ func (m *mockDriver) DeleteVLANCommands(vlan string) []string { return nil }
 func (m *mockDriver) SaveCommands() []string {
 	return []string{"write memory"}
 }
-func (m *mockDriver) ClearCache() {}
+func (m *mockDriver) ClearCache()                       {}
 func (m *mockDriver) IsCommandError(output string) bool { return false }
 
 func TestProcessPortsSaveConfiguration(t *testing.T) {

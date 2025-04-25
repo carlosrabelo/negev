@@ -2,7 +2,7 @@ MAKEFLAGS += --no-print-directory
 
 .DEFAULT_GOAL := help
 
-.PHONY: build clean deps fmt help info install lint quality run test uninstall version
+.PHONY: build build-static clean deps fmt help info install lint quality run test uninstall version
 
 BINARY_NAME := negev
 VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
@@ -10,6 +10,9 @@ BUILD_TIME := $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
 
 build: ## Build binary for current platform
 	@BINARY_NAME=$(BINARY_NAME) VERSION=$(VERSION) BUILD_TIME=$(BUILD_TIME) ./.make/build.sh
+
+build-static: ## Build statically linked binary
+	@BINARY_NAME=$(BINARY_NAME) VERSION=$(VERSION) BUILD_TIME=$(BUILD_TIME) STATIC=true ./.make/build.sh
 
 clean: ## Clean build artifacts
 	@./.make/clean.sh
@@ -34,7 +37,7 @@ info: ## Show project information
 	@echo "Go Version: $(shell go version)"
 	@echo "Platform: $(shell go env GOOS)/$(shell go env GOARCH)"
 
-install: build ## Install binary
+install: build-static ## Install binary
 	@BINARY_NAME=$(BINARY_NAME) ./.make/install.sh
 
 lint: ## Check code quality

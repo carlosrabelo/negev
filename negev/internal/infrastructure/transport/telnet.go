@@ -65,7 +65,19 @@ func (tc *TelnetClient) Connect() error {
 		}
 	}
 
+	var resolvedPrompts []entities.AuthPrompt
 	for _, p := range prompts {
+		cmd := p.SendCmd
+		cmd = strings.ReplaceAll(cmd, "USERNAME_PLACEHOLDER", tc.config.Username)
+		cmd = strings.ReplaceAll(cmd, "ENABLE_PASSWORD_PLACEHOLDER", tc.config.EnablePassword)
+		cmd = strings.ReplaceAll(cmd, "PASSWORD_PLACEHOLDER", tc.config.Password)
+		resolvedPrompts = append(resolvedPrompts, entities.AuthPrompt{
+			WaitFor: p.WaitFor,
+			SendCmd: cmd,
+		})
+	}
+
+	for _, p := range resolvedPrompts {
 		output, err := tc.readUntil(p.WaitFor, DefaultTimeout)
 		if err != nil {
 			return fmt.Errorf("failed to wait for %s: %v, output: %s", p.WaitFor, err, output)
@@ -75,7 +87,11 @@ func (tc *TelnetClient) Connect() error {
 				return fmt.Errorf("failed to send auth command for prompt %s: %v", p.WaitFor, err)
 			}
 			if tc.config.IsDebugEnabled() {
-				fmt.Printf("DEBUG: Sent %s for prompt %s\n", strings.TrimSpace(p.SendCmd), p.WaitFor)
+				displayCmd := strings.TrimSpace(p.SendCmd)
+				if strings.Contains(strings.ToLower(p.WaitFor), "password") {
+					displayCmd = "********"
+				}
+				fmt.Printf("DEBUG: Sent %s for prompt %s\n", displayCmd, p.WaitFor)
 			}
 		}
 	}

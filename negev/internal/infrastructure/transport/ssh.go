@@ -125,8 +125,8 @@ func (sc *SSHClient) Connect() error {
 			}
 			cmd := p.SendCmd
 			cmd = strings.ReplaceAll(cmd, "USERNAME_PLACEHOLDER", sc.config.Username)
-			cmd = strings.ReplaceAll(cmd, "PASSWORD_PLACEHOLDER", sc.config.Password)
 			cmd = strings.ReplaceAll(cmd, "ENABLE_PASSWORD_PLACEHOLDER", sc.config.EnablePassword)
+			cmd = strings.ReplaceAll(cmd, "PASSWORD_PLACEHOLDER", sc.config.Password)
 			prompts = append(prompts, entities.AuthPrompt{
 				WaitFor: p.WaitFor,
 				SendCmd: cmd,
@@ -149,7 +149,11 @@ func (sc *SSHClient) Connect() error {
 					return fmt.Errorf("failed to send command %s: %v", p.SendCmd, err)
 				}
 				if sc.config.IsDebugEnabled() {
-					fmt.Printf("DEBUG: Sent %s for prompt %s\n", strings.TrimSpace(p.SendCmd), p.WaitFor)
+					displayCmd := strings.TrimSpace(p.SendCmd)
+					if strings.Contains(strings.ToLower(p.WaitFor), "password") {
+						displayCmd = "********"
+					}
+					fmt.Printf("DEBUG: Sent %s for prompt %s\n", displayCmd, p.WaitFor)
 				}
 				currentOutput = ""
 			}

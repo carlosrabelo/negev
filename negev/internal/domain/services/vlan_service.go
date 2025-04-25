@@ -2,7 +2,7 @@ package services
 
 import (
 	"fmt"
-	"log"
+	"log/slog"
 	"sort"
 	"strings"
 
@@ -95,7 +95,7 @@ func (s *VLANServiceImpl) ProcessPorts() error {
 		}
 
 		if len(macs) > 1 {
-			log.Printf("WARNING: multiple MACs on port %s — skipping for safety", port.Interface)
+			slog.Warn("Multiple MACs on port — skipping for safety", "port", port.Interface, "target", s.config.Target)
 			continue
 		}
 
@@ -115,7 +115,7 @@ func (s *VLANServiceImpl) ProcessPorts() error {
 		}
 
 		if !vlans[targetVlan] {
-			log.Printf("ERROR: target VLAN %s does not exist on switch — skipping port %s", targetVlan, port.Interface)
+			slog.Error("Target VLAN does not exist on switch — skipping port", "vlan", targetVlan, "port", port.Interface, "target", s.config.Target)
 			continue
 		}
 
@@ -137,11 +137,11 @@ func (s *VLANServiceImpl) ProcessPorts() error {
 	} else if s.config.Sandbox {
 		fmt.Printf("Changes simulated (sandbox mode, use -w to apply)\n")
 	} else if modified {
-		log.Println("Saving changes to startup-config...")
+		slog.Info("Saving changes to startup-config", "target", s.config.Target)
 		if err := s.saveConfiguration(); err != nil {
 			return fmt.Errorf("failed to save configuration: %v", err)
 		}
-		log.Println("Configuration successfully saved")
+		slog.Info("Configuration successfully saved", "target", s.config.Target)
 	}
 
 	return nil

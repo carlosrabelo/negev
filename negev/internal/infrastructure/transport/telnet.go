@@ -2,7 +2,7 @@ package transport
 
 import (
 	"fmt"
-	"log"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -39,7 +39,7 @@ func (tc *TelnetClient) Connect() error {
 	if tc.conn != nil {
 		return nil
 	}
-	log.Printf("WARNING: connecting to %s via Telnet — credentials are transmitted in cleartext", tc.config.Target)
+	slog.Warn("Connecting via Telnet — credentials are transmitted in cleartext", "target", tc.config.Target)
 	conn, err := telnet.Dial("tcp", tc.config.Target+":23")
 	if err != nil {
 		return fmt.Errorf("failed to connect to %s: %v", tc.config.Target, err)
@@ -83,6 +83,7 @@ func (tc *TelnetClient) Connect() error {
 			return fmt.Errorf("failed to wait for %s: %v, output: %s", p.WaitFor, err, output)
 		}
 		if p.SendCmd != "" {
+			_ = tc.conn.SetWriteDeadline(time.Now().Add(DefaultTimeout))
 			if _, err := tc.conn.Write([]byte(p.SendCmd)); err != nil {
 				return fmt.Errorf("failed to send auth command for prompt %s: %v", p.WaitFor, err)
 			}
@@ -103,11 +104,9 @@ func (tc *TelnetClient) readUntil(pattern string, timeout time.Duration) (string
 	var output strings.Builder
 	output.Grow(BufferSize)
 	deadline := time.Now().Add(timeout)
-	for time.Now().Before(deadline) {
+	_ = tc.conn.SetReadDeadline(deadline)
+	for {
 		n, err := tc.conn.Read(buffer)
-		if err != nil {
-			return output.String(), fmt.Errorf("read error: %v", err)
-		}
 		if n > 0 {
 			output.Write(buffer[:n])
 			if tc.config.IsRawOutputEnabled() {
@@ -117,7 +116,12 @@ func (tc *TelnetClient) readUntil(pattern string, timeout time.Duration) (string
 				return output.String(), nil
 			}
 		}
-		time.Sleep(100 * time.Millisecond)
+		if err != nil {
+			return output.String(), fmt.Errorf("read error: %v", err)
+		}
+		if time.Now().After(deadline) {
+			break
+		}
 	}
 	return output.String(), fmt.Errorf("timeout waiting for %s", pattern)
 }
@@ -140,6 +144,7 @@ func (tc *TelnetClient) ExecuteCommand(cmd string) (string, error) {
 	if tc.config.IsDebugEnabled() {
 		fmt.Printf("DEBUG: Executing: %s\n", cmd)
 	}
+	_ = tc.conn.SetWriteDeadline(time.Now().Add(DefaultTimeout))
 	if _, err := tc.conn.Write([]byte(cmd + "\n")); err != nil {
 		return "", fmt.Errorf("failed to send command %s: %v", cmd, err)
 	}

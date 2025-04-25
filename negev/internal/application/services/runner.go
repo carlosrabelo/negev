@@ -2,7 +2,7 @@ package services
 
 import (
 	"fmt"
-	"log"
+	"log/slog"
 
 	"github.com/carlosrabelo/negev/negev/internal/domain/entities"
 	domainServices "github.com/carlosrabelo/negev/negev/internal/domain/services"
@@ -49,7 +49,7 @@ func (s *VLANApplicationService) Run(sandbox bool, verbosity int, createVLANs bo
 		if err != nil {
 			return fmt.Errorf("platform detection failed: %v", err)
 		}
-		log.Printf("Detected platform: %s", driver.Name())
+		slog.Info("Detected platform", "platform", driver.Name(), "target", switchCfg.Target)
 	} else {
 		driver = platform.Get(platformID)
 		if driver == nil {

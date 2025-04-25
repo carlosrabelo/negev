@@ -4,7 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"sync"
 
 	"github.com/carlosrabelo/negev/negev/internal/domain/entities"
@@ -44,7 +44,7 @@ func cacheKey(cfg entities.SwitchConfig) string {
 	}
 	data, err := json.Marshal(entry)
 	if err != nil {
-		log.Printf("WARNING: failed to marshal cache key: %v", err)
+		slog.Warn("Failed to marshal cache key", "error", err, "target", cfg.Target)
 		return ""
 	}
 	hash := sha256.Sum256(data)

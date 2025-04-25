@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"log/slog"
 	"os"
 
 	"github.com/carlosrabelo/negev/negev/internal/application/services"
@@ -34,6 +35,19 @@ func main() {
 	}
 
 	flag.Parse()
+
+	var level slog.Level
+	switch *verbose {
+	case 1, 3:
+		level = slog.LevelDebug
+	default:
+		level = slog.LevelInfo
+	}
+
+	handler := slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
+		Level: level,
+	})
+	slog.SetDefault(slog.New(handler))
 
 	if *showVersion {
 		fmt.Printf("Negev %s (built %s)\n", version, buildTime)

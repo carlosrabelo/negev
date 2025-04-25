@@ -4,7 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"net"
 	"strings"
 	"time"
@@ -37,7 +37,7 @@ func (sc *SSHClient) Connect() error {
 		return nil
 	}
 	addr := net.JoinHostPort(sc.config.Target, "22")
-	log.Printf("WARNING: SSH host key verification is disabled for %s — use only on trusted networks", sc.config.Target)
+	slog.Warn("SSH host key verification is disabled — use only on trusted networks", "target", sc.config.Target)
 	sshConfig := &ssh.ClientConfig{
 		User:            sc.config.Username,
 		Auth:            []ssh.AuthMethod{ssh.Password(sc.config.Password)},
@@ -222,6 +222,9 @@ func (sc *SSHClient) ExecuteCommand(cmd string) (string, error) {
 	if sc.config.IsDebugEnabled() {
 		fmt.Printf("DEBUG: Executing: %s\n", cmd)
 	}
+	if sc.netConn != nil {
+		_ = sc.netConn.SetWriteDeadline(time.Now().Add(DefaultTimeout))
+	}
 	if err := sc.send(cmd + "\n"); err != nil {
 		return "", fmt.Errorf("failed to send command %s: %v", cmd, err)
 	}
@@ -260,11 +263,11 @@ func (sc *SSHClient) readUntilAny(patterns []string, timeout time.Duration) (str
 	output.Grow(BufferSize)
 	deadline := time.Now().Add(timeout)
 
-	for {
-		if sc.netConn != nil {
-			_ = sc.netConn.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
-		}
+	if sc.netConn != nil {
+		_ = sc.netConn.SetReadDeadline(deadline)
+	}
 
+	for {
 		n, err := sc.reader.Read(buffer)
 		if n > 0 {
 			output.Write(buffer[:n])
@@ -280,12 +283,6 @@ func (sc *SSHClient) readUntilAny(patterns []string, timeout time.Duration) (str
 		}
 
 		if err != nil {
-			if ne, ok := err.(net.Error); ok && ne.Timeout() {
-				if time.Now().After(deadline) {
-					return output.String(), fmt.Errorf("timeout waiting for prompts %s", strings.Join(patterns, ", "))
-				}
-				continue
-			}
 			return output.String(), fmt.Errorf("read error: %v", err)
 		}
 

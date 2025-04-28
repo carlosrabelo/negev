@@ -28,11 +28,17 @@ var (
 )
 
 type cacheEntry struct {
-	Transport      string `json:"transport"`
-	Target         string `json:"target"`
-	Username       string `json:"username"`
-	Password       string `json:"password"`
-	EnablePassword string `json:"enable_password"`
+	Transport         string `json:"transport"`
+	Target            string `json:"target"`
+	Username          string `json:"username"`
+	Password          string `json:"password"`
+	EnablePassword    string `json:"enable_password"`
+	JumpAddr          string `json:"jump_addr,omitempty"`
+	JumpUsername      string `json:"jump_username,omitempty"`
+	JumpPassword      string `json:"jump_password,omitempty"`
+	JumpKeyFile       string `json:"jump_key_file,omitempty"`
+	JumpKeyPassphrase string `json:"jump_key_passphrase,omitempty"`
+	JumpKnownHosts    string `json:"jump_known_hosts,omitempty"`
 }
 
 func cacheKey(cfg entities.SwitchConfig) string {
@@ -42,6 +48,14 @@ func cacheKey(cfg entities.SwitchConfig) string {
 		Username:       cfg.Username,
 		Password:       cfg.Password,
 		EnablePassword: cfg.EnablePassword,
+	}
+	if cfg.JumpHost.IsEnabled() {
+		entry.JumpAddr = cfg.JumpHost.Addr()
+		entry.JumpUsername = cfg.JumpHost.Username
+		entry.JumpPassword = cfg.JumpHost.Password
+		entry.JumpKeyFile = cfg.JumpHost.KeyFile
+		entry.JumpKeyPassphrase = cfg.JumpHost.KeyPassphrase
+		entry.JumpKnownHosts = cfg.JumpHost.KnownHosts
 	}
 	data, err := json.Marshal(entry)
 	if err != nil {
@@ -77,12 +91,37 @@ func newClient(cfg entities.SwitchConfig) Client {
 	return NewTelnetClient(cfg)
 }
 
-func CloseAll() {
-	cacheMu.Lock()
-	defer cacheMu.Unlock()
+// CloseClient disconnects and removes the cached client for cfg without
+// closing other targets' clients or shared jump host tunnels.
+func CloseClient(cfg entities.SwitchConfig) {
+	key := cacheKey(cfg)
+	if key == "" {
+		return
+	}
 
-	for key, c := range clientCache {
-		c.Disconnect()
+	cacheMu.Lock()
+	c, ok := clientCache[key]
+	if ok {
 		delete(clientCache, key)
 	}
+	cacheMu.Unlock()
+
+	if ok && c != nil {
+		c.Disconnect()
+	}
+}
+
+func CloseAll() {
+	cacheMu.Lock()
+	clients := make([]Client, 0, len(clientCache))
+	for key, c := range clientCache {
+		clients = append(clients, c)
+		delete(clientCache, key)
+	}
+	cacheMu.Unlock()
+
+	for _, c := range clients {
+		c.Disconnect()
+	}
+	closeJumpPool()
 }

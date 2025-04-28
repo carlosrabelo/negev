@@ -51,11 +51,18 @@ func sshAuthMethods(password string) []ssh.AuthMethod {
 	}
 }
 
+func sshDialAddr(target string) string {
+	if _, _, err := net.SplitHostPort(target); err == nil {
+		return target
+	}
+	return net.JoinHostPort(target, "22")
+}
+
 func (sc *SSHClient) Connect() error {
 	if sc.IsConnected() {
 		return nil
 	}
-	addr := net.JoinHostPort(sc.config.Target, "22")
+	addr := sshDialAddr(sc.config.Target)
 	slog.Warn("SSH host key verification is disabled — use only on trusted networks", "target", sc.config.Target)
 	sshConfig := &ssh.ClientConfig{
 		User:            sc.config.Username,
@@ -64,8 +71,7 @@ func (sc *SSHClient) Connect() error {
 		Timeout:         DefaultTimeout,
 	}
 
-	dialer := &net.Dialer{Timeout: DefaultTimeout}
-	rawConn, err := dialer.Dial("tcp", addr)
+	rawConn, err := dialTarget(sc.config, addr, DefaultTimeout)
 	if err != nil {
 		return fmt.Errorf("failed to connect to %s via SSH: %v", sc.config.Target, err)
 	}
@@ -127,7 +133,11 @@ func (sc *SSHClient) Connect() error {
 	sc.netConn = rawConn
 
 	if sc.config.IsDebugEnabled() {
-		fmt.Fprintf(os.Stderr, "DEBUG: Connected to %s via SSH\n", sc.config.Target)
+		if sc.config.JumpHost.IsEnabled() {
+			fmt.Fprintf(os.Stderr, "DEBUG: Connected to %s via SSH (jump host %s)\n", sc.config.Target, sc.config.JumpHost.Addr())
+		} else {
+			fmt.Fprintf(os.Stderr, "DEBUG: Connected to %s via SSH\n", sc.config.Target)
+		}
 	}
 
 	initial, err := sc.readUntilAny([]string{PromptPrivileged, PromptEnable}, DefaultTimeout)
@@ -248,6 +258,7 @@ func (sc *SSHClient) ExecuteCommand(cmd string) (string, error) {
 	}
 	if sc.netConn != nil {
 		_ = sc.netConn.SetWriteDeadline(time.Now().Add(DefaultTimeout))
+		defer func() { _ = sc.netConn.SetWriteDeadline(time.Time{}) }()
 	}
 	if err := sc.send(cmd + "\n"); err != nil {
 		return "", fmt.Errorf("failed to send command %s: %v", cmd, err)
@@ -275,6 +286,7 @@ func (sc *SSHClient) readUntilPrompt(profile entities.SessionProfile, timeout ti
 
 	if sc.netConn != nil {
 		_ = sc.netConn.SetReadDeadline(deadline)
+		defer func() { _ = sc.netConn.SetReadDeadline(time.Time{}) }()
 	}
 
 	for {
@@ -359,6 +371,7 @@ func (sc *SSHClient) readUntilAny(patterns []string, timeout time.Duration) (str
 
 	if sc.netConn != nil {
 		_ = sc.netConn.SetReadDeadline(deadline)
+		defer func() { _ = sc.netConn.SetReadDeadline(time.Time{}) }()
 	}
 
 	for {

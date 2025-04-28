@@ -53,16 +53,26 @@ func (tc *TelnetClient) Connect() error {
 	if tc.conn != nil {
 		return nil
 	}
+	addr := telnetDialAddr(tc.config.Target)
 	slog.Warn("Connecting via Telnet — credentials are transmitted in cleartext", "target", tc.config.Target)
-	conn, err := telnet.Dial("tcp", telnetDialAddr(tc.config.Target))
+	rawConn, err := dialTarget(tc.config, addr, DefaultTimeout)
 	if err != nil {
 		return fmt.Errorf("failed to connect to %s: %v", tc.config.Target, err)
+	}
+	conn, err := telnet.NewConn(rawConn)
+	if err != nil {
+		_ = rawConn.Close()
+		return fmt.Errorf("failed to initialize Telnet session to %s: %v", tc.config.Target, err)
 	}
 	tc.conn = conn
 	tc.conn.SetReadDeadline(time.Now().Add(DefaultTimeout))
 	tc.conn.SetWriteDeadline(time.Now().Add(DefaultTimeout))
 	if tc.config.IsDebugEnabled() {
-		fmt.Fprintf(os.Stderr, "DEBUG: Connected to %s\n", tc.config.Target)
+		if tc.config.JumpHost.IsEnabled() {
+			fmt.Fprintf(os.Stderr, "DEBUG: Connected to %s via jump host %s\n", tc.config.Target, tc.config.JumpHost.Addr())
+		} else {
+			fmt.Fprintf(os.Stderr, "DEBUG: Connected to %s\n", tc.config.Target)
+		}
 	}
 
 	if err := tc.authenticate(); err != nil {

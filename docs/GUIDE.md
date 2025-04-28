@@ -21,9 +21,11 @@ Flow for one target: load/merge config → resolve driver (`auto` probes version
 system output per platform) → optional pre-write backup → `ProcessPorts()` →
 optional save → audit append per port change.
 
-Transport clients are cached by SHA-256 of `{Transport, Target, Username, Password, EnablePassword}`.
-Telnet sends credentials in cleartext (warns). SSH uses a PTY and skips host-key
-verification (warns)—use only on trusted networks.
+Transport clients are cached by SHA-256 of `{Transport, Target, Username, Password, EnablePassword}` (plus jump host fields when enabled).
+Telnet sends credentials in cleartext (warns). Direct switch SSH uses a PTY and skips host-key
+verification (warns)—use only on trusted networks. When a jump host is configured (`jump_host`
+or `--jump`), both Telnet and SSH tunnel over a single multiplexed SSH connection to the bastion,
+with mandatory `known_hosts` host-key verification.
 
 ## Installation
 
@@ -64,6 +66,12 @@ no_data_vlan: "999"            # optional quarantine for link-up ports with no M
 multi_mac_policy: ignore       # ignore | alert | priority
 backup_dir: ./backups
 audit_log: ./audit/negev.jsonl
+jump_host:                     # optional SSH bastion (or scalar: ops@192.0.2.5:22)
+  host: 192.0.2.5
+  port: 22                     # optional, default 22
+  username: "${JUMP_USER}"     # optional; defaults to current OS user
+  key_file: ~/.ssh/id_ed25519  # optional (falls back to ssh-agent / default keys)
+  known_hosts: ~/.ssh/known_hosts
 allowed_vlans: ["10", "20", "30"]
 protected_vlans: ["999"]
 exclude_macs: ["00:11:22:33:44:55"]
@@ -77,10 +85,11 @@ switches:
     tags: [access, building-a]
     platform: ios
     transport: ssh
-    # per-switch overrides for credentials, VLANs, mac_to_vlan, exclude_*, multi_mac_policy
+    # per-switch overrides for credentials, VLANs, mac_to_vlan, exclude_*, multi_mac_policy, jump_host
     exclude_ports: ["Gi1/0/24"]
     mac_to_vlan:
       "aabbcc": "0"            # remove inherited prefix for this switch
+    jump_host: none            # opt out of global jump_host for this switch
 ```
 
 ### Merging rules
@@ -91,6 +100,7 @@ switches:
 4. **allowed_vlans / protected_vlans**: merged lists, canonical VLAN strings.
 5. **multi_mac_policy**: switch inherits global; default `ignore`.
 6. **Credentials**: empty switch fields inherit global (after env expansion and password commands).
+7. **jump_host**: switch inherits global (scalar `[user@]host[:port]` or mapping); partial switch mapping fills empty fields from global; `jump_host: none` (`disabled: true` / `null`) opts a switch out; `--jump` overrides all selected switches.
 
 Sample file: [`docs/examples/config.yaml`](examples/config.yaml).
 
@@ -99,6 +109,7 @@ Sample file: [`docs/examples/config.yaml`](examples/config.yaml).
 - `${VAR}` in `username` / `password` / `enable_password` (missing var → Load error).
 - `password_command` / `enable_password_command` when the password field is empty: `/bin/sh -c` (or `cmd /C`), 5s timeout, minimal env, trim trailing `\r\n`.
 - `--ask-pass` prompts once and overrides YAML/env for the selected target(s).
+- `jump_host` supports `${VAR}` across fields, `password_command` / `key_passphrase_command`, `ssh-agent`, `--jump-key`, and `--jump-ask-pass`.
 
 ## CLI reference
 
@@ -193,3 +204,13 @@ negev --target 192.0.2.10 --config docs/examples/config.yaml --ask-pass --verbos
 ```
 
 Use `--ask-pass` or `password_command` when credentials must not sit in YAML.
+
+### Scenario 5: Access switches through an SSH jump host (VPN / bastion)
+
+```bash
+negev --all --config docs/examples/config.yaml --jump ops@192.0.2.5
+negev --all --config docs/examples/config.yaml --jump ops@192.0.2.5 --jump-key ~/.ssh/id_bastion --write
+negev --all --config docs/examples/config.yaml --jump ops@192.0.2.5 --jump-ask-pass
+```
+
+Both Telnet and SSH switches are tunneled over one shared SSH connection to the bastion (`known_hosts` is verified automatically).

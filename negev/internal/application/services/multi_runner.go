@@ -10,6 +10,8 @@ import (
 	"sync/atomic"
 
 	"github.com/carlosrabelo/negev/negev/internal/domain/entities"
+	"github.com/carlosrabelo/negev/negev/internal/infrastructure/config"
+	"github.com/carlosrabelo/negev/negev/internal/infrastructure/transport"
 )
 
 const DefaultConcurrency = 4
@@ -20,6 +22,7 @@ type SwitchRunFunc func(sw entities.SwitchConfig, stdout, stderr io.Writer) (ent
 
 // MultiRunOptions configures concurrent multi-switch execution.
 type MultiRunOptions struct {
+	Config      *config.Config
 	ConfigPath  string
 	Write       bool
 	Verbose     int
@@ -114,8 +117,19 @@ func RunMulti(switches []entities.SwitchConfig, opts MultiRunOptions) MultiRunRe
 
 	runner := opts.Runner
 	if runner == nil {
-		runner = func(sw entities.SwitchConfig, _, _ io.Writer) (entities.RunResult, error) {
-			return RunTarget(sw.Target, opts.ConfigPath, opts.Write, opts.Verbose, opts.CreateVLANs, opts.AskPass, opts.Backup, opts.Audit)
+		defer transport.CloseAll()
+		if err := configureLogging(opts.Verbose); err != nil {
+			runner = func(_ entities.SwitchConfig, _, _ io.Writer) (entities.RunResult, error) {
+				return entities.RunResult{}, err
+			}
+		} else if opts.Config != nil {
+			runner = func(sw entities.SwitchConfig, _, _ io.Writer) (entities.RunResult, error) {
+				return runPreparedSwitch(opts.Config, sw, opts.Write, opts.Verbose, opts.CreateVLANs, opts.AskPass, opts.Backup, opts.Audit)
+			}
+		} else {
+			runner = func(sw entities.SwitchConfig, _, _ io.Writer) (entities.RunResult, error) {
+				return RunTarget(sw.Target, opts.ConfigPath, opts.Write, opts.Verbose, opts.CreateVLANs, opts.AskPass, opts.Backup, opts.Audit)
+			}
 		}
 	}
 

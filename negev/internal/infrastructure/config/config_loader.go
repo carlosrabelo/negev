@@ -11,24 +11,189 @@ import (
 )
 
 type Config struct {
-	Platform              string                  `yaml:"platform"`
-	LegacyVendor          string                  `yaml:"vendor"`
-	Transport             string                  `yaml:"transport"`
-	Username              string                  `yaml:"username"`
-	Password              string                  `yaml:"password"`
-	EnablePassword        string                  `yaml:"enable_password"`
-	PasswordCommand       string                  `yaml:"password_command"`
-	EnablePasswordCommand string                  `yaml:"enable_password_command"`
-	DefaultVlan           string                  `yaml:"default_vlan"`
-	NoDataVlan            string                  `yaml:"no_data_vlan"`
-	ExcludeMacs           []string                `yaml:"exclude_macs"`
-	MacToVlan             map[string]string       `yaml:"mac_to_vlan"`
-	AllowedVlans          []string                `yaml:"allowed_vlans"`
-	ProtectedVlans        []string                `yaml:"protected_vlans"`
-	MultiMacPolicy        string                  `yaml:"multi_mac_policy"`
-	BackupDir             string                  `yaml:"backup_dir"`
-	AuditLog              string                  `yaml:"audit_log"`
-	Switches              []entities.SwitchConfig `yaml:"switches"`
+	Platform              string                   `yaml:"platform"`
+	LegacyVendor          string                   `yaml:"vendor"`
+	Transport             string                   `yaml:"transport"`
+	Username              string                   `yaml:"username"`
+	Password              string                   `yaml:"password"`
+	EnablePassword        string                   `yaml:"enable_password"`
+	PasswordCommand       string                   `yaml:"password_command"`
+	EnablePasswordCommand string                   `yaml:"enable_password_command"`
+	DefaultVlan           string                   `yaml:"default_vlan"`
+	NoDataVlan            string                   `yaml:"no_data_vlan"`
+	ExcludeMacs           []string                 `yaml:"exclude_macs"`
+	MacToVlan             map[string]string        `yaml:"mac_to_vlan"`
+	AllowedVlans          []string                 `yaml:"allowed_vlans"`
+	ProtectedVlans        []string                 `yaml:"protected_vlans"`
+	MultiMacPolicy        string                   `yaml:"multi_mac_policy"`
+	BackupDir             string                   `yaml:"backup_dir"`
+	AuditLog              string                   `yaml:"audit_log"`
+	JumpHost              *entities.JumpHostConfig `yaml:"-"`
+	Switches              []entities.SwitchConfig  `yaml:"-"`
+}
+
+type yamlJumpHost struct {
+	present   bool
+	rawScalar string
+	isScalar  bool
+	cfg       entities.JumpHostConfig
+}
+
+func (y *yamlJumpHost) UnmarshalYAML(value *yaml.Node) error {
+	y.present = true
+	switch value.Kind {
+	case yaml.ScalarNode:
+		if value.Tag == "!!null" {
+			y.cfg.Disabled = true
+			return nil
+		}
+		y.isScalar = true
+		y.rawScalar = value.Value
+		return nil
+	case yaml.MappingNode:
+		var raw entities.JumpHostConfig
+		if err := value.Decode(&raw); err != nil {
+			return err
+		}
+		y.cfg = raw
+		return nil
+	default:
+		return fmt.Errorf("jump_host must be a string or mapping")
+	}
+}
+
+type rawSwitchConfig struct {
+	entities.SwitchConfig `yaml:",inline"`
+	JumpHost              yamlJumpHost `yaml:"jump_host"`
+}
+
+func (r *rawSwitchConfig) UnmarshalYAML(value *yaml.Node) error {
+	type alias rawSwitchConfig
+	var decoded alias
+	if err := value.Decode(&decoded); err != nil {
+		return err
+	}
+	*r = rawSwitchConfig(decoded)
+	if value.Kind == yaml.MappingNode {
+		for i := 0; i+1 < len(value.Content); i += 2 {
+			if value.Content[i].Value == "jump_host" {
+				r.JumpHost.present = true
+				if value.Content[i+1].Kind == yaml.ScalarNode && value.Content[i+1].Tag == "!!null" {
+					r.JumpHost.cfg.Disabled = true
+				}
+				break
+			}
+		}
+	}
+	return nil
+}
+
+type rawConfig struct {
+	Config   `yaml:",inline"`
+	JumpHost yamlJumpHost      `yaml:"jump_host"`
+	Switches []rawSwitchConfig `yaml:"switches"`
+}
+
+func resolveYAMLJumpHost(raw yamlJumpHost, context string) (*entities.JumpHostConfig, error) {
+	if !raw.present {
+		return nil, nil
+	}
+	if raw.cfg.Disabled {
+		return &entities.JumpHostConfig{Disabled: true}, nil
+	}
+	if raw.isScalar {
+		expanded, err := expandEnv(raw.rawScalar)
+		if err != nil {
+			return nil, err
+		}
+		parsed, err := entities.ParseJumpSpec(expanded)
+		if err != nil {
+			return nil, fmt.Errorf("invalid %s jump_host: %w", context, err)
+		}
+		return parsed, nil
+	}
+
+	j := raw.cfg
+	var err error
+	for _, field := range []*string{
+		&j.Host,
+		&j.Username,
+		&j.Password,
+		&j.KeyFile,
+		&j.KeyPassphrase,
+		&j.KnownHosts,
+	} {
+		*field, err = expandEnv(*field)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	j.Host = strings.TrimSpace(j.Host)
+	j.Username = strings.TrimSpace(j.Username)
+	j.KeyFile = strings.TrimSpace(j.KeyFile)
+	j.KnownHosts = strings.TrimSpace(j.KnownHosts)
+
+	if j.Port < 0 || j.Port > 65535 {
+		return nil, fmt.Errorf("invalid %s jump_host port %d: must be between 1 and 65535", context, j.Port)
+	}
+
+	if j.Password == "" && j.PasswordCommand != "" {
+		j.Password, err = runPasswordCommand(j.PasswordCommand)
+		if err != nil {
+			return nil, err
+		}
+	}
+	if j.KeyPassphrase == "" && j.KeyPassphraseCommand != "" {
+		j.KeyPassphrase, err = runPasswordCommand(j.KeyPassphraseCommand)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &j, nil
+}
+
+func mergeJumpHost(global, local *entities.JumpHostConfig, context string) (*entities.JumpHostConfig, error) {
+	if local == nil {
+		return global.Clone(), nil
+	}
+	if local.Disabled {
+		return nil, nil
+	}
+
+	merged := *local
+	if global != nil && (merged.Host == "" || merged.Host == global.Host) {
+		if merged.Host == "" {
+			merged.Host = global.Host
+		}
+		if merged.Port == 0 {
+			merged.Port = global.Port
+		}
+		if merged.Username == "" {
+			merged.Username = global.Username
+		}
+		if merged.Password == "" && merged.PasswordCommand == "" {
+			merged.Password = global.Password
+		}
+		if merged.KeyFile == "" {
+			merged.KeyFile = global.KeyFile
+		}
+		if merged.KeyPassphrase == "" && merged.KeyPassphraseCommand == "" {
+			merged.KeyPassphrase = global.KeyPassphrase
+		}
+		if merged.KnownHosts == "" {
+			merged.KnownHosts = global.KnownHosts
+		}
+	}
+
+	if merged.Host == "" {
+		return nil, fmt.Errorf("jump_host.host is required for %s", context)
+	}
+	if merged.Port < 0 || merged.Port > 65535 {
+		return nil, fmt.Errorf("invalid jump_host port %d for %s: must be between 1 and 65535", merged.Port, context)
+	}
+	return &merged, nil
 }
 
 func debugf(verbose bool, format string, args ...any) {
@@ -162,12 +327,31 @@ func Load(yamlFile, target string, verbosityLevel int) (*Config, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to read YAML file %s: %v", yamlFile, err)
 	}
-	var cfg Config
-	if err := yaml.Unmarshal(data, &cfg); err != nil {
+	var raw rawConfig
+	if err := yaml.Unmarshal(data, &raw); err != nil {
 		return nil, fmt.Errorf("failed to parse YAML: %v", err)
+	}
+	cfg := raw.Config
+	cfg.Switches = make([]entities.SwitchConfig, len(raw.Switches))
+	for i := range raw.Switches {
+		cfg.Switches[i] = raw.Switches[i].SwitchConfig
 	}
 
 	verbose := verbosityLevel == 1 || verbosityLevel == 3
+
+	globalJump, err := resolveYAMLJumpHost(raw.JumpHost, "global")
+	if err != nil {
+		return nil, err
+	}
+	if globalJump != nil {
+		if globalJump.Disabled {
+			cfg.JumpHost = nil
+		} else if globalJump.Host == "" {
+			return nil, fmt.Errorf("global jump_host.host is required")
+		} else {
+			cfg.JumpHost = globalJump
+		}
+	}
 
 	cfg.Username, cfg.Password, cfg.EnablePassword, err = expandCredentialFields(cfg.Username, cfg.Password, cfg.EnablePassword)
 	if err != nil {
@@ -397,6 +581,16 @@ func Load(yamlFile, target string, verbosityLevel int) (*Config, error) {
 			}
 		}
 		sw.MacToVlan = mergedMacToVlan
+
+		localJump, err := resolveYAMLJumpHost(raw.Switches[i].JumpHost, fmt.Sprintf("switch %s", sw.Target))
+		if err != nil {
+			return nil, err
+		}
+		sw.JumpHost, err = mergeJumpHost(cfg.JumpHost, localJump, fmt.Sprintf("switch %s", sw.Target))
+		if err != nil {
+			return nil, err
+		}
+
 		debugf(swVerbose, "DEBUG: Merged exclude_macs for %s: %v\n", sw.Target, sw.ExcludeMacs)
 		debugf(swVerbose, "DEBUG: Merged mac_to_vlan for %s: %v\n", sw.Target, sw.MacToVlan)
 		debugf(swVerbose, "DEBUG: Normalized exclude_ports for %s: %v\n", sw.Target, sw.ExcludePorts)

@@ -69,7 +69,8 @@ func execLines(body string) []string {
 
 var cliFlags = []string{
 	"target", "all", "group", "concurrency", "config", "write", "verbose",
-	"create-vlans", "ask-pass", "backup", "backup-dir", "audit-log", "version",
+	"create-vlans", "ask-pass", "backup", "backup-dir", "audit-log",
+	"jump", "jump-key", "jump-known-hosts", "jump-ask-pass", "version",
 }
 
 func TestBilingualREADMEParity(t *testing.T) {

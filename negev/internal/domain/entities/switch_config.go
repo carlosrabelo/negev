@@ -27,6 +27,7 @@ type SwitchConfig struct {
 	AllowedVlans          []string          `yaml:"allowed_vlans"`
 	ProtectedVlans        []string          `yaml:"protected_vlans"`
 	MultiMacPolicy        string            `yaml:"multi_mac_policy"`
+	JumpHost              *JumpHostConfig   `yaml:"-"`
 	Sandbox               bool
 	VerbosityLevel        int
 	CreateVLANs           bool

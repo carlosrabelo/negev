@@ -17,12 +17,9 @@ import (
 // A nil function skips interactive prompting.
 type AskPassFunc func() (password, enable string, err error)
 
-// RunTarget loads configuration and runs VLAN automation for a switch.
-// When askPass is non-nil, prompted credentials override YAML/env for the target switch.
-func RunTarget(target, configPath string, write bool, verbose int, createVLANs bool, askPass AskPassFunc, backup BackupOpts, auditOpts AuditOpts) (entities.RunResult, error) {
-	var result entities.RunResult
+func configureLogging(verbose int) error {
 	if verbose < 0 || verbose > 3 {
-		return result, fmt.Errorf("--verbose must be 0-3")
+		return fmt.Errorf("--verbose must be 0-3")
 	}
 
 	var level slog.Level
@@ -33,6 +30,16 @@ func RunTarget(target, configPath string, write bool, verbose int, createVLANs b
 		level = slog.LevelInfo
 	}
 	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: level})))
+	return nil
+}
+
+// RunTarget loads configuration and runs VLAN automation for a switch.
+// When askPass is non-nil, prompted credentials override YAML/env for the target switch.
+func RunTarget(target, configPath string, write bool, verbose int, createVLANs bool, askPass AskPassFunc, backup BackupOpts, auditOpts AuditOpts) (entities.RunResult, error) {
+	var result entities.RunResult
+	if err := configureLogging(verbose); err != nil {
+		return result, err
+	}
 
 	cfgPath := configPath
 	if cfgPath == "" {
@@ -59,6 +66,32 @@ func RunTarget(target, configPath string, write bool, verbose int, createVLANs b
 	defer transport.CloseAll()
 
 	return NewVLANApplicationService(cfg, target).Run(!write, verbose, createVLANs, backup, auditOpts)
+}
+
+func runPreparedSwitch(baseCfg *config.Config, sw entities.SwitchConfig, write bool, verbose int, createVLANs bool, askPass AskPassFunc, backup BackupOpts, auditOpts AuditOpts) (entities.RunResult, error) {
+	var result entities.RunResult
+	swCopy := sw
+	swCopy.JumpHost = sw.JumpHost.Clone()
+
+	perSwitchCfg := &config.Config{
+		BackupDir: baseCfg.BackupDir,
+		AuditLog:  baseCfg.AuditLog,
+		Switches:  []entities.SwitchConfig{swCopy},
+	}
+
+	if askPass != nil {
+		password, enable, err := askPass()
+		if err != nil {
+			return result, err
+		}
+		applyAskPass(perSwitchCfg, swCopy.Target, password, enable)
+	}
+
+	defer func() {
+		transport.CloseClient(perSwitchCfg.Switches[0])
+	}()
+
+	return NewVLANApplicationService(perSwitchCfg, swCopy.Target).Run(!write, verbose, createVLANs, backup, auditOpts)
 }
 
 func applyAskPass(cfg *config.Config, target, password, enable string) {

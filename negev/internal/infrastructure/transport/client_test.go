@@ -55,3 +55,44 @@ func TestNewClientTransportSelection(t *testing.T) {
 		t.Fatalf("expected default Telnet client, got %T", def)
 	}
 }
+
+func TestGetClientDifferentiatesJumpHostAndCloseClient(t *testing.T) {
+	t.Cleanup(CloseAll)
+	direct := entities.SwitchConfig{
+		Target:    "203.0.113.40",
+		Transport: "telnet",
+		Username:  "admin",
+		Password:  "secret",
+	}
+	viaJump := direct
+	viaJump.JumpHost = &entities.JumpHostConfig{
+		Host:     "192.0.2.5",
+		Port:     22,
+		Username: "ops",
+	}
+	viaJumpOther := direct
+	viaJumpOther.JumpHost = &entities.JumpHostConfig{
+		Host:     "192.0.2.6",
+		Port:     22,
+		Username: "ops",
+	}
+
+	cDirect := GetClient(direct)
+	cJump := GetClient(viaJump)
+	cJumpOther := GetClient(viaJumpOther)
+
+	if cDirect == cJump {
+		t.Fatal("direct client and jump-host client must have distinct cache entries")
+	}
+	if cJump == cJumpOther {
+		t.Fatal("clients using different jump hosts must have distinct cache entries")
+	}
+
+	CloseClient(viaJump)
+	if GetClient(viaJump) == cJump {
+		t.Fatal("CloseClient should evict only the targeted switch client")
+	}
+	if GetClient(direct) != cDirect {
+		t.Fatal("CloseClient must not evict unrelated cached clients")
+	}
+}

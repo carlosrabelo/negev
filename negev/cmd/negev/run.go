@@ -32,6 +32,10 @@ func run(args []string) int {
 	backup := fs.Bool("backup", false, "Backup running-config even in sandbox mode")
 	backupDir := fs.String("backup-dir", "", "Directory for configuration backups (overrides YAML backup_dir; no default)")
 	auditLog := fs.String("audit-log", "", "Path to JSONL audit log (overrides YAML audit_log)")
+	jump := fs.String("jump", "", "SSH jump host (<user@host[:port]> or 'none' to disable YAML jump_host)")
+	jumpKey := fs.String("jump-key", "", "Path to SSH private key for jump host (overrides YAML jump_host.key_file)")
+	jumpKnownHosts := fs.String("jump-known-hosts", "", "Path to OpenSSH known_hosts file for jump host verification (default ~/.ssh/known_hosts)")
+	jumpAskPass := fs.Bool("jump-ask-pass", false, "Prompt interactively for jump host SSH password")
 	showVersion := fs.Bool("version", false, "Show version and exit")
 	fs.Usage = func() { printUsage(fs) }
 
@@ -80,6 +84,21 @@ func run(args []string) int {
 		return 1
 	}
 
+	var jumpAsk services.JumpAskPassFunc
+	if *jumpAskPass {
+		jumpAsk = promptJumpAskPass
+	}
+	selected, err = services.ApplyJumpOpts(selected, services.JumpOpts{
+		Spec:       *jump,
+		KeyFile:    *jumpKey,
+		KnownHosts: *jumpKnownHosts,
+		AskPass:    jumpAsk,
+	})
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
+		return 1
+	}
+
 	var ask services.AskPassFunc
 	if *askPass {
 		password, enable, err := promptAskPass()
@@ -91,6 +110,7 @@ func run(args []string) int {
 	}
 
 	result := services.RunMulti(selected, services.MultiRunOptions{
+		Config:      cfg,
 		ConfigPath:  cfgPath,
 		Write:       *write,
 		Verbose:     *verbose,
@@ -133,5 +153,9 @@ func printUsage(fs *flag.FlagSet) {
 	fmt.Fprintf(os.Stderr, "  --backup\n        Backup running-config even in sandbox mode\n")
 	fmt.Fprintf(os.Stderr, "  --backup-dir <dir>\n        Directory for configuration backups (overrides YAML backup_dir; no default)\n")
 	fmt.Fprintf(os.Stderr, "  --audit-log <path>\n        Append JSONL audit records for port VLAN changes\n")
+	fmt.Fprintf(os.Stderr, "  --jump <spec>\n        SSH jump host (<user@host[:port]> or 'none' to disable YAML jump_host)\n")
+	fmt.Fprintf(os.Stderr, "  --jump-key <path>\n        Path to SSH private key for jump host (overrides YAML jump_host.key_file)\n")
+	fmt.Fprintf(os.Stderr, "  --jump-known-hosts <path>\n        Path to OpenSSH known_hosts file for jump host verification (default ~/.ssh/known_hosts)\n")
+	fmt.Fprintf(os.Stderr, "  --jump-ask-pass\n        Prompt interactively for jump host SSH password\n")
 	fmt.Fprintf(os.Stderr, "  --version\n        Show version and exit\n")
 }

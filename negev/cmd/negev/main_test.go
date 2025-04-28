@@ -144,3 +144,40 @@ func TestAskPassFlag(t *testing.T) {
 		t.Fatalf("readPassword calls = %d; want 2", calls)
 	}
 }
+
+func TestJumpAskPassPromptAndCLIFlagErrors(t *testing.T) {
+	calls := 0
+	readPassword = func(fd int) ([]byte, error) {
+		calls++
+		return []byte("jump-tty-pass"), nil
+	}
+	t.Cleanup(func() { readPassword = term.ReadPassword })
+
+	pw, err := promptJumpAskPass()
+	if err != nil {
+		t.Fatalf("promptJumpAskPass failed: %v", err)
+	}
+	if pw != "jump-tty-pass" || calls != 1 {
+		t.Fatalf("promptJumpAskPass = %q (calls=%d)", pw, calls)
+	}
+
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "config.yaml")
+	content := []byte(`username: admin
+password: secret
+default_vlan: "10"
+switches:
+  - target: 192.0.2.10
+    platform: ios
+`)
+	if err := os.WriteFile(cfgPath, content, 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	if code := run([]string{"--target", "192.0.2.10", "--config", cfgPath, "--jump", "user@"}); code != 1 {
+		t.Fatalf("run(invalid --jump) = %d; want 1", code)
+	}
+	if code := run([]string{"--target", "192.0.2.10", "--config", cfgPath, "--jump-key", "/tmp/id_ed25519"}); code != 1 {
+		t.Fatalf("run(--jump-key without jump) = %d; want 1", code)
+	}
+}

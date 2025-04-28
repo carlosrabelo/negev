@@ -27,3 +27,13 @@ func promptAskPass() (password, enable string, err error) {
 
 	return string(pw), string(en), nil
 }
+
+func promptJumpAskPass() (string, error) {
+	fmt.Fprint(os.Stderr, "Enter jump host password: ")
+	pw, err := readPassword(int(os.Stdin.Fd()))
+	fmt.Fprintln(os.Stderr)
+	if err != nil {
+		return "", fmt.Errorf("read jump host password: %w", err)
+	}
+	return string(pw), nil
+}

@@ -16,6 +16,10 @@ Referência por flag (markdown em `docs/cli-pt/`). Ordem igual à da CLI.
 | `--backup` | [backup.md](backup.md) |
 | `--backup-dir` | [backup-dir.md](backup-dir.md) |
 | `--audit-log` | [audit-log.md](audit-log.md) |
+| `--jump` | [jump.md](jump.md) |
+| `--jump-key` | [jump-key.md](jump-key.md) |
+| `--jump-known-hosts` | [jump-known-hosts.md](jump-known-hosts.md) |
+| `--jump-ask-pass` | [jump-ask-pass.md](jump-ask-pass.md) |
 | `--version` | [version.md](version.md) |
 
 English: [../cli/](../cli/) · Guia: [../GUIDE-PT.md](../GUIDE-PT.md) · Índice: [../README-PT.md](../README-PT.md).

@@ -11,7 +11,7 @@ English: [README.md](README.md).
 
 - Drivers multi-vendor: Cisco IOS, Cisco NX-OS, Datacom DmSwitch 3000, Datacom DM1200E, 3Com/H3C Comware (detecção `auto`)
 - Seguro por padrão: sandbox sem `--write`; VLANs protegidas (VLAN 1 e 1000–4094, mais config)
-- Transporte dual: SSH (preferencial) e Telnet com cache de clientes
+- Transporte dual: SSH (preferencial) e Telnet com cache de clientes e jump host SSH opcional (`--jump` / `jump_host`) com validação de `known_hosts`
 - Segredos fora do YAML: expansão `${ENV}`, `password_command` e `--ask-pass`
 - Execução multi-switch: nomes, tags, `--all` / `--group`, `--concurrency` limitado
 - Matching `mac_to_vlan` por prefixo mais longo, `multi_mac_policy`, backups e auditoria JSONL
@@ -53,6 +53,7 @@ Documentação completa: [docs/README-PT.md](docs/README-PT.md).
 negev --target 192.0.2.10 --config docs/examples/config.yaml
 negev --target 192.0.2.10 --config docs/examples/config.yaml --write
 negev --all --config docs/examples/config.yaml --concurrency 4
+negev --all --config docs/examples/config.yaml --jump ops@192.0.2.5
 negev --group access --config docs/examples/config.yaml
 ```
 

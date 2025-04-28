@@ -10,6 +10,13 @@ no_data_vlan: "999"
 multi_mac_policy: ignore       # ignore | alert | priority
 backup_dir: ./backups
 audit_log: ./audit/negev.jsonl
+# Optional SSH jump host (bastion) for tunneling both SSH and Telnet switches:
+# jump_host:
+#   host: 192.0.2.5
+#   port: 22
+#   username: "${JUMP_USER}"
+#   key_file: ~/.ssh/id_ed25519
+#   known_hosts: ~/.ssh/known_hosts
 allowed_vlans:
   - "10"
   - "20"

@@ -5,8 +5,7 @@ Referência por flag (markdown em `docs/cli-pt/`). Ordem igual à da CLI.
 | Flag | Página |
 |------|--------|
 | `--target` | [target.md](target.md) |
-| `--all` | [all.md](all.md) |
-| `--group` | [group.md](group.md) |
+| `--tag` | [tag.md](tag.md) |
 | `--concurrency` | [concurrency.md](concurrency.md) |
 | `--config` | [config.md](config.md) |
 | `--write` | [write.md](write.md) |

@@ -180,4 +180,13 @@ switches:
 	if code := run([]string{"--target", "192.0.2.10", "--config", cfgPath, "--jump-key", "/tmp/id_ed25519"}); code != 1 {
 		t.Fatalf("run(--jump-key without jump) = %d; want 1", code)
 	}
+	if code := run([]string{"--all", "--config", cfgPath}); code != 1 {
+		t.Fatalf("run(--all removed flag) = %d; want 1", code)
+	}
+	if code := run([]string{"--group", "access", "--config", cfgPath}); code != 1 {
+		t.Fatalf("run(--group removed flag) = %d; want 1", code)
+	}
+	if code := run([]string{"--tag", "missing", "--config", cfgPath}); code != 1 {
+		t.Fatalf("run(--tag unknown) = %d; want 1", code)
+	}
 }

@@ -9,7 +9,7 @@ const (
 
 type SwitchConfig struct {
 	Name                  string            `yaml:"name"`
-	Tags                  []string          `yaml:"tags"`
+	Tags                  []string          `yaml:"-"`
 	Platform              string            `yaml:"platform"`
 	LegacyPlatform        string            `yaml:"vendor"`
 	Target                string            `yaml:"target"`

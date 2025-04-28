@@ -13,7 +13,7 @@ Portuguese: [README-PT.md](README-PT.md).
 - Safe by default: sandbox unless `--write`; protected VLANs (VLAN 1 and 1000–4094, plus config)
 - Dual transport: SSH (preferred) and Telnet with shared client cache and optional SSH jump host (`--jump` / `jump_host`) with `known_hosts` verification
 - Secrets outside YAML: `${ENV}` expansion, `password_command`, and `--ask-pass`
-- Multi-switch runs: names, tags, `--all` / `--group`, bounded `--concurrency`
+- Multi-switch runs: names, YAML `tag`, `--target` / `--tag`, bounded `--concurrency`
 - Longest-prefix `mac_to_vlan`, `multi_mac_policy`, backups, and JSONL audit logging
 
 ## Prerequisites
@@ -52,9 +52,8 @@ Full docs: [docs/README.md](docs/README.md).
 ```bash
 negev --target 192.0.2.10 --config docs/examples/config.yaml
 negev --target 192.0.2.10 --config docs/examples/config.yaml --write
-negev --all --config docs/examples/config.yaml --concurrency 4
-negev --all --config docs/examples/config.yaml --jump ops@192.0.2.5
-negev --group access --config docs/examples/config.yaml
+negev --tag access --config docs/examples/config.yaml --concurrency 4
+negev --tag access --config docs/examples/config.yaml --jump ops@192.0.2.5
 ```
 
 Exit codes: `0` success / no pending sandbox changes, `1` error, `2` sandbox simulated changes.
@@ -78,7 +77,7 @@ switches:
   - name: access-a1
     target: 192.0.2.10
     platform: ios
-    tags: [access]
+    tag: access
 ```
 
 ## Project Layout

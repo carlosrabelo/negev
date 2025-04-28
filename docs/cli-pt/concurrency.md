@@ -4,17 +4,17 @@
 --concurrency <n>
 ```
 
-Máximo de execuções concorrentes (tamanho do pool). Padrão: `4`. Deve ser `>= 1`.
+Máximo de execuções concorrentes (tamanho do pool). Padrão: `1`. Deve ser `>= 1`.
 
 ## Quando usar
 
-Ajustar carga na rede ou bastion com `--all` / `--group` / vários `--target`.
+Ajustar carga na rede ou bastion com `--tag` ou vários `--target`.
 
 ## Exemplos
 
 ```bash
-negev --all --config docs/examples/config.yaml --concurrency 2
-negev --group access --config docs/examples/config.yaml --concurrency 8
+negev --tag access --config docs/examples/config.yaml --concurrency 2
+negev --tag building-a --config docs/examples/config.yaml --concurrency 8
 ```
 
 ## Notas

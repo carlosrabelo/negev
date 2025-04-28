@@ -19,7 +19,7 @@ negev --target access-a1,192.0.2.20 --config docs/examples/config.yaml
 
 ## Interactions
 
-Mutually exclusive with `--all` and `--group`. At least one of `--target`, `--all`, or `--group` is required.
+Mutually exclusive with `--tag`. One of `--target` or `--tag` is required.
 
 ## Notes
 

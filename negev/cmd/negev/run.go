@@ -21,8 +21,7 @@ func run(args []string) int {
 	fs.SetOutput(os.Stderr)
 
 	target := fs.String("target", "", "Switch IP(s) and/or name(s), comma-separated")
-	all := fs.Bool("all", false, "Run against all switches in the config")
-	group := fs.String("group", "", "Run against switches with the given tag")
+	tag := fs.String("tag", "", "Run against switches with the given tag")
 	concurrency := fs.Int("concurrency", services.DefaultConcurrency, "Max concurrent switch runs")
 	configPath := fs.String("config", "", "Path to YAML config file")
 	write := fs.Bool("write", false, "Apply changes (disables sandbox)")
@@ -73,12 +72,11 @@ func run(args []string) int {
 
 	selected, err := services.ResolveTargets(cfg, services.TargetSelect{
 		Target: *target,
-		All:    *all,
-		Group:  *group,
+		Tag:    *tag,
 	})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
-		if *target == "" && !*all && *group == "" {
+		if *target == "" && *tag == "" {
 			fs.Usage()
 		}
 		return 1
@@ -142,8 +140,7 @@ func printUsage(fs *flag.FlagSet) {
 	}
 	fmt.Fprintf(os.Stderr, "Usage: %s [options]\n\nVLAN automation tool for network switches.\n\nOptions:\n", name)
 	fmt.Fprintf(os.Stderr, "  --target <ip|name>[,...]\n        Switch IP(s) and/or name(s), comma-separated\n")
-	fmt.Fprintf(os.Stderr, "  --all\n        Run against all switches in the config\n")
-	fmt.Fprintf(os.Stderr, "  --group <tag>\n        Run against switches with the given tag\n")
+	fmt.Fprintf(os.Stderr, "  --tag <tag>\n        Run against switches with the given tag\n")
 	fmt.Fprintf(os.Stderr, "  --concurrency <n>\n        Max concurrent switch runs (default %d)\n", services.DefaultConcurrency)
 	fmt.Fprintf(os.Stderr, "  --config <path>\n        Path to YAML config file\n")
 	fmt.Fprintf(os.Stderr, "  --write\n        Apply changes (disables sandbox)\n")

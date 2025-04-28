@@ -9,7 +9,7 @@ Prompt once on the terminal for the jump host SSH password (masked). Overrides Y
 ## Examples
 
 ```bash
-negev --all --config docs/examples/config.yaml --jump ops@192.0.2.5 --jump-ask-pass
+negev --tag access --config docs/examples/config.yaml --jump ops@192.0.2.5 --jump-ask-pass
 ```
 
 ## Notes

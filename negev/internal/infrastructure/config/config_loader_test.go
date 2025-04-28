@@ -535,11 +535,14 @@ default_vlan: "10"
 switches:
   - name: bh-a2-sw-01
     target: 10.13.150.82
-    tags: [distribution, building-a, distribution]
+    tag: [distribution, building-a, distribution]
     platform: ios
   - target: 10.13.150.83
     platform: ios
-    tags: ["  edge  ", ""]
+    tag: "  edge  "
+  - target: 10.13.150.84
+    platform: ios
+    tags: ["  legacy  ", ""]
 `
 	path := filepath.Join(t.TempDir(), "names-tags.yaml")
 	if err := os.WriteFile(path, []byte(yamlData), 0o644); err != nil {
@@ -561,7 +564,29 @@ switches:
 		t.Fatalf("optional name should be empty, got %q", sw1.Name)
 	}
 	if len(sw1.Tags) != 1 || sw1.Tags[0] != "edge" {
-		t.Fatalf("trimmed tags = %#v", sw1.Tags)
+		t.Fatalf("trimmed scalar tag = %#v", sw1.Tags)
+	}
+	sw2 := cfg.Switches[2]
+	if len(sw2.Tags) != 1 || sw2.Tags[0] != "legacy" {
+		t.Fatalf("legacy tags alias = %#v", sw2.Tags)
+	}
+
+	badPath := filepath.Join(t.TempDir(), "bad-tag.yaml")
+	badYAML := `
+username: admin
+password: p
+default_vlan: "10"
+switches:
+  - target: 10.13.150.85
+    platform: ios
+    tag:
+      nested: invalid
+`
+	if err := os.WriteFile(badPath, []byte(badYAML), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Load(badPath, "", 0); err == nil || !strings.Contains(err.Error(), "tag must be a string or list of strings") {
+		t.Fatalf("expected invalid tag type error, got %v", err)
 	}
 }
 

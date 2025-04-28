@@ -42,11 +42,6 @@ func TestMultiRunnerTargetResolution(t *testing.T) {
 		t.Fatalf("comma resolve order/dedupe = %#v", targetsOf(got))
 	}
 
-	got, err = ResolveTargets(cfg, TargetSelect{All: true})
-	if err != nil || len(got) != 3 {
-		t.Fatalf("--all = %#v, %v", got, err)
-	}
-
 	if _, err := ResolveTargets(cfg, TargetSelect{Target: "missing-sw"}); err == nil || !strings.Contains(err.Error(), `target "missing-sw" not found`) {
 		t.Fatalf("missing target = %v", err)
 	}
@@ -54,7 +49,7 @@ func TestMultiRunnerTargetResolution(t *testing.T) {
 	if _, err := ResolveTargets(cfg, TargetSelect{}); err == nil {
 		t.Fatal("expected error when no selector set")
 	}
-	if _, err := ResolveTargets(cfg, TargetSelect{All: true, Group: "distribution"}); err == nil {
+	if _, err := ResolveTargets(cfg, TargetSelect{Target: "10.13.150.82", Tag: "distribution"}); err == nil {
 		t.Fatal("expected mutual exclusion error")
 	}
 }
@@ -62,21 +57,21 @@ func TestMultiRunnerTargetResolution(t *testing.T) {
 func TestMultiRunnerTagFiltering(t *testing.T) {
 	cfg := sampleConfig()
 
-	got, err := ResolveTargets(cfg, TargetSelect{Group: "distribution"})
+	got, err := ResolveTargets(cfg, TargetSelect{Tag: "distribution"})
 	if err != nil {
-		t.Fatalf("group: %v", err)
+		t.Fatalf("tag: %v", err)
 	}
 	if len(got) != 2 || got[0].Target != "10.13.150.82" || got[1].Target != "10.13.150.84" {
-		t.Fatalf("group distribution = %#v", targetsOf(got))
+		t.Fatalf("tag distribution = %#v", targetsOf(got))
 	}
 
-	got, err = ResolveTargets(cfg, TargetSelect{Group: "building-a"})
+	got, err = ResolveTargets(cfg, TargetSelect{Tag: "building-a"})
 	if err != nil || len(got) != 2 {
 		t.Fatalf("building-a = %#v, %v", got, err)
 	}
 
-	if _, err := ResolveTargets(cfg, TargetSelect{Group: "core"}); err == nil || !strings.Contains(err.Error(), `no switches with tag "core"`) {
-		t.Fatalf("empty group = %v", err)
+	if _, err := ResolveTargets(cfg, TargetSelect{Tag: "core"}); err == nil || !strings.Contains(err.Error(), `no switches with tag "core"`) {
+		t.Fatalf("empty tag = %v", err)
 	}
 }
 
@@ -112,6 +107,31 @@ func TestMultiRunnerConcurrency(t *testing.T) {
 	}
 	if got := atomic.LoadInt32(&maxSeen); got < 2 {
 		t.Fatalf("max in-flight = %d; expected concurrent workers", got)
+	}
+}
+
+func TestMultiRunnerDefaultConcurrencySequential(t *testing.T) {
+	if DefaultConcurrency != 1 {
+		t.Fatalf("DefaultConcurrency = %d; want 1", DefaultConcurrency)
+	}
+	switches := make([]entities.SwitchConfig, 4)
+	for i := range switches {
+		switches[i] = entities.SwitchConfig{Target: fmt.Sprintf("192.0.2.%d", i+1), Platform: "ios"}
+	}
+
+	var inFlight, maxSeen int32
+	runner := observeConcurrency(func(sw entities.SwitchConfig, stdout, stderr io.Writer) (entities.RunResult, error) {
+		time.Sleep(15 * time.Millisecond)
+		return entities.RunResult{}, nil
+	}, &inFlight, &maxSeen)
+
+	_ = RunMulti(switches, MultiRunOptions{
+		Stdout: io.Discard,
+		Stderr: io.Discard,
+		Runner: runner,
+	})
+	if got := atomic.LoadInt32(&maxSeen); got != 1 {
+		t.Fatalf("default max in-flight = %d; want 1", got)
 	}
 }
 

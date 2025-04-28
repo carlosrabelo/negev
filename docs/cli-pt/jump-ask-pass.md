@@ -9,7 +9,7 @@ Pergunta uma vez no terminal a senha SSH do jump host (mascarada). Sobrescreve `
 ## Exemplos
 
 ```bash
-negev --all --config docs/examples/config.yaml --jump ops@192.0.2.5 --jump-ask-pass
+negev --tag access --config docs/examples/config.yaml --jump ops@192.0.2.5 --jump-ask-pass
 ```
 
 ## Notas

@@ -39,7 +39,7 @@ switches:
     target: 192.0.2.10
     platform: ios
     transport: ssh
-    tags: [access, building-a]
+    tag: [access, building-a]
     username: switchadmin
     password: "changeme"
     enable_password: "changeme"
@@ -52,7 +52,7 @@ switches:
   - name: access-a2
     target: 192.0.2.20
     platform: auto
-    tags: [access, building-a]
+    tag: access
     default_vlan: "100"
     multi_mac_policy: alert
     exclude_ports:

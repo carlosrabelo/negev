@@ -9,7 +9,7 @@ Path to the SSH private key used to authenticate against the jump host. Override
 ## Examples
 
 ```bash
-negev --all --config docs/examples/config.yaml --jump ops@192.0.2.5 --jump-key ~/.ssh/id_bastion
+negev --tag access --config docs/examples/config.yaml --jump ops@192.0.2.5 --jump-key ~/.ssh/id_bastion
 ```
 
 ## Notes

@@ -62,8 +62,33 @@ func (y *yamlJumpHost) UnmarshalYAML(value *yaml.Node) error {
 	}
 }
 
+type yamlTagList []string
+
+func (y *yamlTagList) UnmarshalYAML(value *yaml.Node) error {
+	switch value.Kind {
+	case yaml.ScalarNode:
+		if value.Tag == "!!null" {
+			*y = nil
+			return nil
+		}
+		*y = yamlTagList{value.Value}
+		return nil
+	case yaml.SequenceNode:
+		var items []string
+		if err := value.Decode(&items); err != nil {
+			return err
+		}
+		*y = yamlTagList(items)
+		return nil
+	default:
+		return fmt.Errorf("tag must be a string or list of strings")
+	}
+}
+
 type rawSwitchConfig struct {
 	entities.SwitchConfig `yaml:",inline"`
+	Tag                   yamlTagList  `yaml:"tag"`
+	LegacyTags            []string     `yaml:"tags"`
 	JumpHost              yamlJumpHost `yaml:"jump_host"`
 }
 
@@ -334,7 +359,9 @@ func Load(yamlFile, target string, verbosityLevel int) (*Config, error) {
 	cfg := raw.Config
 	cfg.Switches = make([]entities.SwitchConfig, len(raw.Switches))
 	for i := range raw.Switches {
-		cfg.Switches[i] = raw.Switches[i].SwitchConfig
+		sw := raw.Switches[i].SwitchConfig
+		sw.Tags = append(append([]string(nil), raw.Switches[i].Tag...), raw.Switches[i].LegacyTags...)
+		cfg.Switches[i] = sw
 	}
 
 	verbose := verbosityLevel == 1 || verbosityLevel == 3

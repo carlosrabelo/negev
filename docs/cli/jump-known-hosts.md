@@ -13,7 +13,7 @@ If omitted and `jump_host.known_hosts` is empty, Negev checks `~/.ssh/known_host
 ## Examples
 
 ```bash
-negev --all --config docs/examples/config.yaml --jump ops@192.0.2.5 --jump-known-hosts ~/.ssh/known_hosts_bastion
+negev --tag access --config docs/examples/config.yaml --jump ops@192.0.2.5 --jump-known-hosts ~/.ssh/known_hosts_bastion
 ```
 
 ## Notes

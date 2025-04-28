@@ -13,7 +13,7 @@ English: [README.md](README.md).
 - Seguro por padrão: sandbox sem `--write`; VLANs protegidas (VLAN 1 e 1000–4094, mais config)
 - Transporte dual: SSH (preferencial) e Telnet com cache de clientes e jump host SSH opcional (`--jump` / `jump_host`) com validação de `known_hosts`
 - Segredos fora do YAML: expansão `${ENV}`, `password_command` e `--ask-pass`
-- Execução multi-switch: nomes, tags, `--all` / `--group`, `--concurrency` limitado
+- Execução multi-switch: nomes, `tag` no YAML, `--target` / `--tag`, `--concurrency` limitado
 - Matching `mac_to_vlan` por prefixo mais longo, `multi_mac_policy`, backups e auditoria JSONL
 
 ## Pré-requisitos
@@ -52,9 +52,8 @@ Documentação completa: [docs/README-PT.md](docs/README-PT.md).
 ```bash
 negev --target 192.0.2.10 --config docs/examples/config.yaml
 negev --target 192.0.2.10 --config docs/examples/config.yaml --write
-negev --all --config docs/examples/config.yaml --concurrency 4
-negev --all --config docs/examples/config.yaml --jump ops@192.0.2.5
-negev --group access --config docs/examples/config.yaml
+negev --tag access --config docs/examples/config.yaml --concurrency 4
+negev --tag access --config docs/examples/config.yaml --jump ops@192.0.2.5
 ```
 
 Códigos de saída: `0` sucesso / sem mudanças pendentes no sandbox, `1` erro, `2` mudanças simuladas no sandbox.
@@ -78,7 +77,7 @@ switches:
   - name: access-a1
     target: 192.0.2.10
     platform: ios
-    tags: [access]
+    tag: access
 ```
 
 ## Estrutura do Projeto

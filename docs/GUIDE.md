@@ -82,7 +82,7 @@ mac_to_vlan:
 switches:
   - name: access-a1            # optional, unique
     target: 192.0.2.10         # required
-    tags: [access, building-a]
+    tag: [access, building-a]  # string or list of strings
     platform: ios
     transport: ssh
     # per-switch overrides for credentials, VLANs, mac_to_vlan, exclude_*, multi_mac_policy, jump_host
@@ -114,10 +114,10 @@ Sample file: [`docs/examples/config.yaml`](examples/config.yaml).
 ## CLI reference
 
 ```bash
-negev (--target <ref>[,...] | --all | --group <tag>) [flags]
+negev (--target <ref>[,...] | --tag <tag>) [flags]
 ```
 
-`--target`, `--all`, and `--group` are mutually exclusive. Exit codes: `0` OK / no
+`--target` and `--tag` are mutually exclusive. Exit codes: `0` OK / no
 pending sandbox changes, `1` error on any target, `2` sandbox simulated changes and
 no failures. Multi-run output is buffered per target and flushed with a `[label]`
 prefix; a summary table prints at the end.
@@ -208,9 +208,9 @@ Use `--ask-pass` or `password_command` when credentials must not sit in YAML.
 ### Scenario 5: Access switches through an SSH jump host (VPN / bastion)
 
 ```bash
-negev --all --config docs/examples/config.yaml --jump ops@192.0.2.5
-negev --all --config docs/examples/config.yaml --jump ops@192.0.2.5 --jump-key ~/.ssh/id_bastion --write
-negev --all --config docs/examples/config.yaml --jump ops@192.0.2.5 --jump-ask-pass
+negev --tag access --config docs/examples/config.yaml --jump ops@192.0.2.5
+negev --tag access --config docs/examples/config.yaml --jump ops@192.0.2.5 --jump-key ~/.ssh/id_bastion --write
+negev --tag access --config docs/examples/config.yaml --jump ops@192.0.2.5 --jump-ask-pass
 ```
 
 Both Telnet and SSH switches are tunneled over one shared SSH connection to the bastion (`known_hosts` is verified automatically).

@@ -9,7 +9,7 @@ Caminho da chave privada SSH usada para autenticar no jump host. Sobrescreve `ju
 ## Exemplos
 
 ```bash
-negev --all --config docs/examples/config.yaml --jump ops@192.0.2.5 --jump-key ~/.ssh/id_bastion
+negev --tag access --config docs/examples/config.yaml --jump ops@192.0.2.5 --jump-key ~/.ssh/id_bastion
 ```
 
 ## Notas

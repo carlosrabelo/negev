@@ -5,8 +5,7 @@ Per-flag reference (markdown under `docs/cli/`). Order matches the CLI.
 | Flag | Page |
 |------|------|
 | `--target` | [target.md](target.md) |
-| `--all` | [all.md](all.md) |
-| `--group` | [group.md](group.md) |
+| `--tag` | [tag.md](tag.md) |
 | `--concurrency` | [concurrency.md](concurrency.md) |
 | `--config` | [config.md](config.md) |
 | `--write` | [write.md](write.md) |

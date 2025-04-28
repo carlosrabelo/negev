@@ -68,7 +68,7 @@ func execLines(body string) []string {
 }
 
 var cliFlags = []string{
-	"target", "all", "group", "concurrency", "config", "write", "verbose",
+	"target", "tag", "concurrency", "config", "write", "verbose",
 	"create-vlans", "ask-pass", "backup", "backup-dir", "audit-log",
 	"jump", "jump-key", "jump-known-hosts", "jump-ask-pass", "version",
 }
@@ -93,7 +93,7 @@ func TestBilingualREADMEParity(t *testing.T) {
 	if !strings.Contains(en, "docs/cli") || !strings.Contains(pt, "docs/cli") {
 		t.Fatal("README pair must link to docs/cli")
 	}
-	for _, flag := range []string{"--target", "--write", "--all"} {
+	for _, flag := range []string{"--target", "--write", "--tag"} {
 		if !strings.Contains(en, flag) || !strings.Contains(pt, flag) {
 			t.Fatalf("flag %s missing in README bilingual pair", flag)
 		}

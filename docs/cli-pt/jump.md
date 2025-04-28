@@ -13,7 +13,7 @@ Quando os switches estão em uma rede de gerência isolada acessível apenas por
 ## Exemplos
 
 ```bash
-negev --all --config docs/examples/config.yaml --jump ops@192.0.2.5
+negev --tag access --config docs/examples/config.yaml --jump ops@192.0.2.5
 negev --target 192.0.2.10 --config docs/examples/config.yaml --jump ops@192.0.2.5:2222 --write
 negev --target 192.0.2.10 --config docs/examples/config.yaml --jump none
 ```

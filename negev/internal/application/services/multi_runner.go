@@ -14,7 +14,7 @@ import (
 	"github.com/carlosrabelo/negev/negev/internal/infrastructure/transport"
 )
 
-const DefaultConcurrency = 4
+const DefaultConcurrency = 1
 
 // SwitchRunFunc executes VLAN automation for one switch, writing isolatable
 // output to the provided stdout/stderr writers.

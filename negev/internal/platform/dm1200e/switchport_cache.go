@@ -1,4 +1,4 @@
-package dmswitch
+package dm1200e
 
 import (
 	"sync"

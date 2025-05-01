@@ -1,4 +1,4 @@
-package dmswitch
+package dm3000
 
 import (
 	"fmt"
@@ -14,14 +14,18 @@ import (
 )
 
 var (
-	vlanLineRegex         = regexp.MustCompile(`(?i)^\s*(?:vlan\s+)?(\d{1,4})\b`)
-	infoPortRegex         = regexp.MustCompile(`(?i)^Information of Eth\s+(\d+\s*/\s*\d+)`)
-	macLineRegex          = regexp.MustCompile(`(?i)^\s*\d+\s+(Eth\s+\d+\s*/\s*\d+)\s+([0-9a-f]{2}(?:-[0-9a-f]{2}){5})\s+(\d+)\s+(Static|Dynamic)\b`)
-	ethCompactRe          = regexp.MustCompile(`^eth(?:ernet)?(\d+/\d+)$`)
-	poCompactRe           = regexp.MustCompile(`^(?:port-channel|po)(\d+)$`)
-	sviNameRegex          = regexp.MustCompile(`(?i)^Vlan(?:-interface)?(\d+)$`)
-	dmswitchPromptPattern = regexp.MustCompile(`(?m)^[A-Za-z0-9_.-]+(?:-[A-Za-z0-9_.-]+)*[>#]\s*$`)
-	dmswitchPagerPattern  = regexp.MustCompile(`(?m)--More--|---- More ----`)
+	vlanColonLineRegex  = regexp.MustCompile(`(?i)^\s*vlan\s*:\s*(\d{1,4})\b`)
+	vlanLegacyLineRegex = regexp.MustCompile(`(?i)^\s*(?:vlan\s+)?(\d{1,4})\b`)
+	infoPortRegex       = regexp.MustCompile(`(?i)^Information\s+of\s+Eth(?:ernet)?\s*(\d+\s*/\s*\d+)`)
+	infoSwitchportRe    = regexp.MustCompile(`(?i)^Information\s+of\s+(Eth(?:ernet)?\s*\d+\s*/\s*\d+|(?:Port-channel|Po)\s*\d+)`)
+	ifaceSwitchportRe   = regexp.MustCompile(`(?i)^interface\s+(eth(?:ernet)?\s*\d+\s*/\s*\d+|(?:port-channel|po)\s*\d+)`)
+	allowedTaggedRe     = regexp.MustCompile(`(?i)\(\s*(?:[sd]\s*,\s*)?t\s*\)`)
+	macLineRegex        = regexp.MustCompile(`(?i)^\s*\d+\s+(?:\S+\s+)?(Eth(?:ernet)?\s*\d+\s*/\s*\d+)\s+([0-9a-f]{2}(?:[:-][0-9a-f]{2}){5}|[0-9a-f]{4}\.[0-9a-f]{4}\.[0-9a-f]{4})\s+(\d{1,4})\s+(?:(?:-|\d+)\s+)?(Static|Dynamic|Learned)\b`)
+	ethCompactRe        = regexp.MustCompile(`^eth(?:ernet)?(\d+/\d+)$`)
+	poCompactRe         = regexp.MustCompile(`^(?:port-channel|po)(\d+)$`)
+	sviLineRegex        = regexp.MustCompile(`(?i)^vlan(?:-interface)?\s*(\d{1,4})\b`)
+	dm3000PromptPattern = regexp.MustCompile(`(?m)^[A-Za-z0-9_.-]+(?:-[A-Za-z0-9_.-]+)*(?:\([^)]*\))?[>#]\s*$`)
+	dm3000PagerPattern  = regexp.MustCompile(`(?m)--More--|---- More ----`)
 )
 
 type Driver struct{}
@@ -33,7 +37,7 @@ func init() {
 }
 
 func (d *Driver) Name() string {
-	return "dmswitch"
+	return "dm3000"
 }
 
 func (d *Driver) Detect(repo ports.SwitchRepository) (bool, error) {
@@ -41,7 +45,7 @@ func (d *Driver) Detect(repo ports.SwitchRepository) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	if match, reject := dmswitchDetectMatch(out); reject {
+	if match, reject := dm3000DetectMatch(out); reject {
 		return false, nil
 	} else if match {
 		return true, nil
@@ -49,24 +53,24 @@ func (d *Driver) Detect(repo ports.SwitchRepository) (bool, error) {
 	if !d.IsCommandError(out) {
 		return false, nil
 	}
-	// Older 3324F2 images reject "show version"; "show system" carries Model: DmSwitch…
+	// Older 3324F2 images reject "show version"; "show system" carries Model: DmSwitch...
 	out, err = repo.ExecuteCommand("show system")
 	if err != nil {
 		return false, err
 	}
-	match, reject := dmswitchDetectMatch(out)
+	match, reject := dm3000DetectMatch(out)
 	if reject {
 		return false, nil
 	}
 	return match, nil
 }
 
-func dmswitchDetectMatch(out string) (match bool, reject bool) {
+func dm3000DetectMatch(out string) (match bool, reject bool) {
 	lower := strings.ToLower(out)
 	if strings.Contains(lower, "dm1200") || strings.Contains(lower, "1200e") {
 		return false, true
 	}
-	if strings.Contains(lower, "dmswitch") {
+	if strings.Contains(lower, "dmswitch") || strings.Contains(lower, "dm3000") {
 		return true, false
 	}
 	if strings.Contains(lower, "datacom") && (strings.Contains(lower, "3324") || strings.Contains(lower, "3224")) {
@@ -79,7 +83,7 @@ func (d *Driver) GetAuthenticationSequence() []entities.AuthPrompt {
 	return []entities.AuthPrompt{
 		{WaitFor: "Username:", SendCmd: "USERNAME_PLACEHOLDER\n"},
 		{WaitFor: "Password:", SendCmd: "PASSWORD_PLACEHOLDER\n"},
-		{WaitFor: "#", SendCmd: "terminal length 0\n"},
+		{WaitFor: "#", SendCmd: "no terminal paging\n"},
 		{WaitFor: "#", SendCmd: ""},
 	}
 }
@@ -143,7 +147,7 @@ func compareInterfaceNames(a, b string) bool {
 
 func (d *Driver) GetVLANList(repo ports.SwitchRepository) ([]string, error) {
 	out, err := repo.ExecuteCommand("show vlan")
-	if err != nil || out == "" {
+	if err != nil || strings.TrimSpace(out) == "" || d.IsCommandError(out) {
 		out, err = repo.ExecuteCommand("show vlan brief")
 		if err != nil {
 			return nil, err
@@ -153,23 +157,51 @@ func (d *Driver) GetVLANList(repo ports.SwitchRepository) ([]string, error) {
 }
 
 func parseVLANs(output string) []string {
+	lines := strings.Split(output, "\n")
 	seen := make(map[string]bool)
 	var vlans []string
-	for _, line := range strings.Split(output, "\n") {
+	add := func(id string) {
+		if !isAccessVLAN(id) || seen[id] {
+			return
+		}
+		seen[id] = true
+		vlans = append(vlans, id)
+	}
+
+	// Real DmSwitch 3000 "show vlan" uses "VLAN: 10" blocks mixed with numeric settings
+	// such as "Aging-time: 300 sec." and "STP: on instance(s) 1".
+	hasColonBlocks := false
+	for _, line := range lines {
+		if m := vlanColonLineRegex.FindStringSubmatch(line); m != nil {
+			hasColonBlocks = true
+			add(m[1])
+		}
+	}
+	if hasColonBlocks {
+		return vlans
+	}
+
+	for _, line := range lines {
 		if parseutil.IsSeparatorLine(line) {
 			continue
 		}
-		m := vlanLineRegex.FindStringSubmatch(line)
+		m := vlanLegacyLineRegex.FindStringSubmatch(line)
 		if m == nil {
 			continue
 		}
-		id := m[1]
-		if !seen[id] {
-			seen[id] = true
-			vlans = append(vlans, id)
-		}
+		add(m[1])
 	}
 	return vlans
+}
+
+func parseSwitchportHeader(trimmed string) (string, bool) {
+	if m := infoSwitchportRe.FindStringSubmatch(strings.TrimSuffix(trimmed, ":")); m != nil {
+		return normalizeInterface(m[1]), true
+	}
+	if m := ifaceSwitchportRe.FindStringSubmatch(trimmed); m != nil {
+		return normalizeInterface(m[1]), true
+	}
+	return "", false
 }
 
 func (d *Driver) GetTrunkInterfaces(repo ports.SwitchRepository) ([]string, error) {
@@ -192,27 +224,42 @@ func parseTrunkInterfaces(output string) []string {
 	}
 
 	var currentIface string
+	inAllowedVLANs := false
 	for _, line := range strings.Split(output, "\n") {
 		trimmed := strings.TrimSpace(line)
+		if trimmed == "" {
+			inAllowedVLANs = false
+			continue
+		}
+		if iface, ok := parseSwitchportHeader(trimmed); ok {
+			currentIface = iface
+			inAllowedVLANs = false
+			continue
+		}
+		if currentIface == "" {
+			continue
+		}
+
 		lower := strings.ToLower(trimmed)
-		if strings.HasPrefix(lower, "interface ethernet") || strings.HasPrefix(lower, "interface eth") {
-			fields := strings.Fields(trimmed)
-			if len(fields) >= 3 {
-				currentIface = normalizeInterface(fields[1] + " " + fields[2])
-			} else if len(fields) >= 2 {
-				currentIface = normalizeInterface(fields[1])
-			}
-			continue
-		}
-		if strings.HasPrefix(trimmed, "Allowed VLANs:") && strings.Contains(trimmed, "(t)") {
-			add(currentIface)
-			continue
-		}
-		if strings.Contains(lower, "trunk") && currentIface != "" {
-			// mode line mentioning trunking
-			if strings.Contains(lower, "mode") || strings.Contains(lower, "trunking") {
+		if strings.HasPrefix(lower, "allowed vlans:") {
+			inAllowedVLANs = true
+			if allowedTaggedRe.MatchString(trimmed) {
 				add(currentIface)
 			}
+			continue
+		}
+		if inAllowedVLANs {
+			if strings.Contains(trimmed, ":") {
+				inAllowedVLANs = false
+			} else {
+				if allowedTaggedRe.MatchString(trimmed) {
+					add(currentIface)
+				}
+				continue
+			}
+		}
+		if strings.Contains(lower, "trunk") && (strings.Contains(lower, "mode") || strings.Contains(lower, "trunking")) {
+			add(currentIface)
 		}
 	}
 	return trunks
@@ -227,7 +274,12 @@ func (d *Driver) GetActivePorts(repo ports.SwitchRepository) ([]entities.Port, e
 	if err != nil {
 		return nil, err
 	}
-	return parseActivePorts(statusOut, parseSwitchportVLANs(swOut)), nil
+	trunks := parseTrunkInterfaces(swOut)
+	trunkSet := make(map[string]bool, len(trunks))
+	for _, t := range trunks {
+		trunkSet[t] = true
+	}
+	return parseActivePorts(statusOut, parseSwitchportVLANs(swOut), trunkSet), nil
 }
 
 func parseSwitchportVLANs(output string) map[string]string {
@@ -235,31 +287,35 @@ func parseSwitchportVLANs(output string) map[string]string {
 	var currentIface string
 	for _, line := range strings.Split(output, "\n") {
 		trimmed := strings.TrimSpace(line)
-		lower := strings.ToLower(trimmed)
-		if strings.HasPrefix(lower, "interface ethernet") || strings.HasPrefix(lower, "interface eth") {
-			fields := strings.Fields(trimmed)
-			if len(fields) >= 3 {
-				currentIface = normalizeInterface(fields[1] + " " + fields[2])
-			} else if len(fields) >= 2 {
-				currentIface = normalizeInterface(fields[1])
-			}
+		if trimmed == "" {
 			continue
 		}
-		if strings.HasPrefix(trimmed, "Native VLAN:") || strings.HasPrefix(trimmed, "PVID:") {
-			vlan := strings.TrimSpace(strings.SplitN(trimmed, ":", 2)[1])
-			if currentIface != "" && isAccessVLAN(vlan) {
-				result[currentIface] = vlan
+		if iface, ok := parseSwitchportHeader(trimmed); ok {
+			currentIface = iface
+			continue
+		}
+		if currentIface == "" {
+			continue
+		}
+		lower := strings.ToLower(trimmed)
+		if strings.HasPrefix(lower, "native vlan:") || strings.HasPrefix(lower, "pvid:") {
+			parts := strings.SplitN(trimmed, ":", 2)
+			if len(parts) == 2 {
+				vlan := strings.TrimSpace(parts[1])
+				if isAccessVLAN(vlan) {
+					result[currentIface] = vlan
+				}
 			}
 		}
 	}
 	return result
 }
 
-func parseActivePorts(statusOutput string, switchportVLANs map[string]string) []entities.Port {
+func parseActivePorts(statusOutput string, switchportVLANs map[string]string, trunkSet map[string]bool) []entities.Port {
 	var ports []entities.Port
 	seen := make(map[string]bool)
 	add := func(iface, vlan string) {
-		if iface == "" || !isEthernetInterface(iface) || seen[iface] {
+		if iface == "" || !isEthernetInterface(iface) || seen[iface] || trunkSet[iface] {
 			return
 		}
 		if vlan == "" || strings.EqualFold(vlan, "trunk") || !isAccessVLAN(vlan) {
@@ -272,13 +328,13 @@ func parseActivePorts(statusOutput string, switchportVLANs map[string]string) []
 	var currentIface string
 	for _, line := range strings.Split(statusOutput, "\n") {
 		trimmed := strings.TrimSpace(line)
-		if m := infoPortRegex.FindStringSubmatch(trimmed); m != nil {
+		if m := infoPortRegex.FindStringSubmatch(strings.TrimSuffix(trimmed, ":")); m != nil {
 			currentIface = normalizeInterface("Eth " + m[1])
 			continue
 		}
-		if strings.HasPrefix(trimmed, "Link status:") {
-			status := strings.TrimSpace(strings.TrimPrefix(trimmed, "Link status:"))
-			if strings.EqualFold(status, "Up") && currentIface != "" {
+		if strings.HasPrefix(strings.ToLower(trimmed), "link status:") {
+			parts := strings.SplitN(trimmed, ":", 2)
+			if len(parts) == 2 && strings.EqualFold(strings.TrimSpace(parts[1]), "Up") && currentIface != "" {
 				add(currentIface, switchportVLANs[currentIface])
 			}
 			currentIface = ""
@@ -319,9 +375,13 @@ func parseActivePorts(statusOutput string, switchportVLANs map[string]string) []
 }
 
 func isAccessVLAN(s string) bool {
-	var n int
-	_, err := fmt.Sscanf(s, "%d", &n)
+	n, err := strconv.Atoi(strings.TrimSpace(s))
 	return err == nil && n >= 1 && n <= 4094
+}
+
+func normalizeMAC(mac string) string {
+	mac = strings.ToLower(mac)
+	return strings.NewReplacer(":", "", "-", "", ".", "").Replace(mac)
 }
 
 func (d *Driver) GetMacTable(repo ports.SwitchRepository) ([]entities.Device, error) {
@@ -352,12 +412,16 @@ func parseMacTable(output string, trunkSet map[string]bool) []entities.Device {
 		if trunkSet[iface] {
 			continue
 		}
-		macPlain := strings.ToLower(strings.ReplaceAll(m[2], "-", ""))
+		macPlain := normalizeMAC(m[2])
+		if len(macPlain) != 12 {
+			continue
+		}
 		devices = append(devices, entities.Device{
 			Vlan:      m[3],
 			Mac:       macPlain,
 			MacFull:   parseutil.FormatPlainMac(macPlain),
 			Interface: iface,
+			IsStatic:  strings.EqualFold(m[4], "static"),
 		})
 	}
 	return devices
@@ -375,17 +439,24 @@ func formatInterfaceForCLI(name string) string {
 
 func (d *Driver) ConfigureAccessCommands(port entities.Port, vlan string) []string {
 	iface := formatInterfaceForCLI(port.Interface)
-	return []string{
-		"configure",
-		"interface vlan " + vlan,
-		"set-member untagged " + iface,
+	cmds := []string{"configure"}
+	if port.Vlan != "" && port.Vlan != vlan {
+		cmds = append(cmds,
+			"interface vlan "+port.Vlan,
+			"no set-member "+iface,
+			"exit",
+		)
+	}
+	cmds = append(cmds,
+		"interface vlan "+vlan,
+		"set-member untagged "+iface,
 		"exit",
-		"interface " + iface,
-		"switchport native vlan " + vlan,
-		"switchport acceptable-frame-type all",
+		"interface "+iface,
+		"switchport native vlan "+vlan,
 		"exit",
 		"end",
-	}
+	)
+	return cmds
 }
 
 func (d *Driver) CreateVLANCommands(vlan string) []string {
@@ -407,8 +478,8 @@ func (d *Driver) DeleteVLANCommands(vlan string) []string {
 
 func (d *Driver) GetSessionProfile() entities.SessionProfile {
 	return entities.SessionProfile{
-		PromptPattern: dmswitchPromptPattern,
-		PagerPattern:  dmswitchPagerPattern,
+		PromptPattern: dm3000PromptPattern,
+		PagerPattern:  dm3000PagerPattern,
 		PagerResponse: " ",
 	}
 }
@@ -418,9 +489,12 @@ func (d *Driver) NormalizeInterface(name string) string {
 }
 
 func (d *Driver) GetL3Interfaces(repo ports.SwitchRepository) ([]string, error) {
-	out, err := repo.ExecuteCommand("show ip interface brief")
-	if err != nil {
-		return nil, err
+	out, err := repo.ExecuteCommand("show ip interface")
+	if err != nil || d.IsCommandError(out) || strings.TrimSpace(out) == "" {
+		out, err = repo.ExecuteCommand("show ip interface brief")
+		if err != nil {
+			return nil, err
+		}
 	}
 	return parseL3Interfaces(out), nil
 }
@@ -429,11 +503,11 @@ func parseL3Interfaces(output string) []string {
 	seen := make(map[string]bool)
 	var vlans []string
 	for _, line := range strings.Split(output, "\n") {
-		fields := strings.Fields(line)
-		if len(fields) == 0 {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" {
 			continue
 		}
-		m := sviNameRegex.FindStringSubmatch(fields[0])
+		m := sviLineRegex.FindStringSubmatch(trimmed)
 		if m == nil {
 			continue
 		}
@@ -473,8 +547,9 @@ func (d *Driver) ClearCache() {
 	clearSwitchportCache()
 }
 
-var dmswitchErrorPatterns = []string{
+var dm3000ErrorPatterns = []string{
 	"unknown command",
+	"unrecognized command",
 	"invalid input",
 	"incomplete command",
 	"invalid command",
@@ -484,7 +559,7 @@ var dmswitchErrorPatterns = []string{
 
 func (d *Driver) IsCommandError(output string) bool {
 	lower := strings.ToLower(output)
-	for _, pat := range dmswitchErrorPatterns {
+	for _, pat := range dm3000ErrorPatterns {
 		if strings.Contains(lower, pat) {
 			return true
 		}

@@ -1,4 +1,4 @@
-package dmswitch
+package dm1200e
 
 import (
 	"errors"
@@ -31,14 +31,14 @@ func TestSwitchportCacheKeyedByTarget(t *testing.T) {
 	clearSwitchportCache()
 	t.Cleanup(clearSwitchportCache)
 
-	repo1 := &mockCacheRepo{target: "192.168.1.10"}
-	repo2 := &mockCacheRepo{target: "192.168.1.20"}
+	repo1 := &mockCacheRepo{target: "192.0.2.10"}
+	repo2 := &mockCacheRepo{target: "192.0.2.20"}
 
 	out1, err := getSwitchportOutput(repo1)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if out1 != "switchport output for 192.168.1.10" {
+	if out1 != "switchport output for 192.0.2.10" {
 		t.Fatalf("out1 = %q", out1)
 	}
 	if repo1.cmdCount != 1 {
@@ -60,7 +60,7 @@ func TestSwitchportCacheKeyedByTarget(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error for repo2: %v", err)
 	}
-	if out2 != "switchport output for 192.168.1.20" {
+	if out2 != "switchport output for 192.0.2.20" {
 		t.Fatalf("out2 = %q", out2)
 	}
 	if repo2.cmdCount != 1 {

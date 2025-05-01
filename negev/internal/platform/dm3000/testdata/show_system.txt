@@ -1,0 +1,16 @@
+Product
+-------
+ Model:               DmSwitch3324F2
+ System capabilities: Bridge, Router
+ OID:                 1.3.6.1.4.1.3709.1.2.19
+
+Factory
+-------
+ ID:                  1000001
+ MAC Address:         00:11:22:33:44:00
+
+User configurable
+-----------------
+ Name:                sw-dm3000
+ Location:            Lab
+ Contact:             netops

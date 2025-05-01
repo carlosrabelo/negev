@@ -75,6 +75,7 @@ type stubDriver struct {
 	createCmds      []string
 	deleteCmds      []string
 	configurePrefix string
+	configuredPorts []entities.Port
 	cleared         bool
 	saveCmds        []string
 }
@@ -117,6 +118,7 @@ func (d *stubDriver) GetRunningConfig(repo ports.SwitchRepository) (string, erro
 }
 func (d *stubDriver) NormalizeInterface(name string) string { return name }
 func (d *stubDriver) ConfigureAccessCommands(port entities.Port, vlan string) []string {
+	d.configuredPorts = append(d.configuredPorts, port)
 	prefix := d.configurePrefix
 	if prefix == "" {
 		prefix = "switchport access vlan "
@@ -1012,5 +1014,43 @@ func TestMultiMacPolicyPriority(t *testing.T) {
 	vlan, ok := NewVLANService(repo, cfg, drv).resolveTargetVlan(drv.ports[0], drv.devices)
 	if !ok || vlan != "55" {
 		t.Fatalf("priority vlan = %q ok=%v; want 55", vlan, ok)
+	}
+}
+
+func TestProcessPortsPreservesPreviousPortVlan(t *testing.T) {
+	for _, sandbox := range []bool{true, false} {
+		name := "write"
+		if sandbox {
+			name = "sandbox"
+		}
+		t.Run(name, func(t *testing.T) {
+			repo := &mockRepository{}
+			drv := &stubDriver{
+				vlans: []string{"12", "100"},
+				ports: []entities.Port{{Interface: "ethernet1/23", Vlan: "100"}},
+				devices: []entities.Device{
+					{Interface: "ethernet1/23", Mac: "001122334455", MacFull: "00:11:22:33:44:55", Vlan: "100"},
+				},
+			}
+			cfg := entities.SwitchConfig{
+				Sandbox:     sandbox,
+				DefaultVlan: "12",
+				MacToVlan:   map[string]string{"001122": "12"},
+			}
+			result, err := NewVLANService(repo, cfg, drv).ProcessPorts()
+			if err != nil {
+				t.Fatalf("ProcessPorts failed: %v", err)
+			}
+			if result.PortsChanged != 1 {
+				t.Fatalf("PortsChanged=%d; want 1", result.PortsChanged)
+			}
+			if len(drv.configuredPorts) != 1 {
+				t.Fatalf("configuredPorts=%+v; want 1 entry", drv.configuredPorts)
+			}
+			got := drv.configuredPorts[0]
+			if got.Interface != "ethernet1/23" || got.Vlan != "100" {
+				t.Fatalf("configuredPorts[0]=%+v; want Interface=\"ethernet1/23\" Vlan=\"100\"", got)
+			}
+		})
 	}
 }

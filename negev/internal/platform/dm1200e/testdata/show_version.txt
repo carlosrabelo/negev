@@ -1,0 +1,11 @@
+Switch: 1
+
+System Description............................. DM1200E 24GP+4GX Standalone, 4.0.0.73
+Machine Type................................... DM1200E 24GP+4GX Standalone
+Machine Model.................................. 24GP+4GX Standalone
+Serial Number.................................. 1000001
+HW Version..................................... 4.1
+Maintenance Level.............................. A
+Burned In MAC Address.......................... 00:11:22:33:44:00
+Software Version............................... 4.0.0.73
+Network Processing Device...................... DM1200 GX

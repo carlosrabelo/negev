@@ -1,7 +1,9 @@
-package dm1200
+package dm1200e
 
 import (
 	"errors"
+	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -10,6 +12,7 @@ import (
 )
 
 type mockRepo struct {
+	target    string
 	version   string
 	sysinfo   string
 	err       error
@@ -21,6 +24,7 @@ func (m *mockRepo) Connect() error                                    { return n
 func (m *mockRepo) Disconnect()                                       {}
 func (m *mockRepo) IsConnected() bool                                 { return true }
 func (m *mockRepo) SetSessionProfile(profile entities.SessionProfile) {}
+func (m *mockRepo) GetTarget() string                                 { return m.target }
 func (m *mockRepo) ExecuteCommand(cmd string) (string, error) {
 	if cmd == "show version" {
 		if m.err != nil {
@@ -44,21 +48,25 @@ func (m *mockRepo) ExecuteCommand(cmd string) (string, error) {
 	return "", errors.New("unexpected command: " + cmd)
 }
 
+func readFixture(t *testing.T, name string) string {
+	t.Helper()
+	b, err := os.ReadFile(filepath.Join("testdata", name))
+	if err != nil {
+		t.Fatalf("read fixture %s: %v", name, err)
+	}
+	return string(b)
+}
+
 func TestName(t *testing.T) {
-	if got := (&Driver{}).Name(); got != "dm1200" {
-		t.Fatalf("Name() = %q; expected %q", got, "dm1200")
+	if got := (&Driver{}).Name(); got != "dm1200e" {
+		t.Fatalf("Name() = %q; expected %q", got, "dm1200e")
 	}
 }
 
-func TestDetectDM1200(t *testing.T) {
+func TestDetectDM1200E(t *testing.T) {
 	d := &Driver{}
 
-	banner1200 := `
-DM1200E 24GT + 4GX
-Software Version 1.0.0.x
-Datacom
-`
-	match, err := d.Detect(&mockRepo{version: banner1200})
+	match, err := d.Detect(&mockRepo{version: readFixture(t, "show_version.txt")})
 	if err != nil {
 		t.Fatalf("Detect(DM1200E) error: %v", err)
 	}
@@ -82,16 +90,29 @@ Copyright (c) Datacom
 
 func TestDetectFallsBackToSysinfo(t *testing.T) {
 	d := &Driver{}
-	repo := &mockRepo{
+
+	repoErr := &mockRepo{
 		err:     errors.New("unrecognized command"),
 		sysinfo: "DM1200E 24GT + 4GX\nDatacom\n",
 	}
-	match, err := d.Detect(repo)
+	match, err := d.Detect(repoErr)
 	if err != nil {
-		t.Fatalf("Detect(sysinfo fallback) error: %v", err)
+		t.Fatalf("Detect(sysinfo fallback on err) error: %v", err)
 	}
 	if !match {
-		t.Fatal("Detect via show sysinfo = false; expected true")
+		t.Fatal("Detect via show sysinfo on error = false; expected true")
+	}
+
+	repoTextErr := &mockRepo{
+		version: "Command not found / Incomplete command.",
+		sysinfo: "DM1200E 24GP+4GX\nDatacom\n",
+	}
+	match, err = d.Detect(repoTextErr)
+	if err != nil {
+		t.Fatalf("Detect(sysinfo fallback on CLI error) error: %v", err)
+	}
+	if !match {
+		t.Fatal("Detect via show sysinfo on CLI error = false; expected true")
 	}
 }
 
@@ -128,32 +149,41 @@ func TestNormalizeInterface(t *testing.T) {
 	}
 }
 
-func TestParseVLANs(t *testing.T) {
-	output := `
-VLAN  Name
------ ----------
-1     default
-2     Gerencia
-10-12 Data
-`
-	got := parseVLANs(output)
-	want := []string{"1", "2", "10", "11", "12"}
+func TestParseVLANsRealAndNamed(t *testing.T) {
+	got := parseVLANs(readFixture(t, "show_vlan.txt"))
+	want := []string{"1", "10", "20", "50", "100", "101", "102"}
 	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("parseVLANs() = %v; expected %v", got, want)
+		t.Fatalf("parseVLANs(real) = %v; expected %v", got, want)
 	}
 }
 
-func TestParseTrunkInterfaces(t *testing.T) {
+func TestGetTrunkInterfacesRealAndFallback(t *testing.T) {
+	clearSwitchportCache()
+	t.Cleanup(clearSwitchportCache)
+
+	repo := &mockRepo{
+		target: "192.0.2.21",
+		responses: map[string]string{
+			"show interfaces switchport": readFixture(t, "show_interfaces_switchport.txt"),
+		},
+	}
+	got, err := (&Driver{}).GetTrunkInterfaces(repo)
+	if err != nil {
+		t.Fatalf("GetTrunkInterfaces(real) error: %v", err)
+	}
+	want := []string{"1/0/2", "1/0/24"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("GetTrunkInterfaces(real) = %v; expected %v", got, want)
+	}
+
 	vlanPortAll := `
 Port     Mode
 1/0/1    Untagged
 1/0/25   Tagged
 1/0/2    access
 `
-	got := parseTrunkFromVlanPortAll(vlanPortAll)
-	want := []string{"1/0/25"}
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("parseTrunkFromVlanPortAll() = %v; expected %v", got, want)
+	if got := parseTrunkFromVlanPortAll(vlanPortAll); !reflect.DeepEqual(got, []string{"1/0/25"}) {
+		t.Fatalf("parseTrunkFromVlanPortAll() = %v; expected [1/0/25]", got)
 	}
 
 	status := `
@@ -161,44 +191,67 @@ Port   Name   Duplex  Speed  Neg  Link  Flow Control  VLAN
 1/0/1         Full    1000   Auto Up    On            10
 1/0/25        Full    1000   Auto Up    On            trunk
 `
-	got = parseTrunkFromStatus(status)
-	want = []string{"1/0/25"}
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("parseTrunkFromStatus() = %v; expected %v", got, want)
+	if got := parseTrunkFromStatus(status); !reflect.DeepEqual(got, []string{"1/0/25"}) {
+		t.Fatalf("parseTrunkFromStatus() = %v; expected [1/0/25]", got)
 	}
 }
 
-func TestParseActivePorts(t *testing.T) {
-	output := `
+func TestGetActivePortsRealAndFallback(t *testing.T) {
+	clearSwitchportCache()
+	t.Cleanup(clearSwitchportCache)
+
+	repo := &mockRepo{
+		target: "192.0.2.21",
+		responses: map[string]string{
+			"show port all":              readFixture(t, "show_port_all.txt"),
+			"show interfaces switchport": readFixture(t, "show_interfaces_switchport.txt"),
+		},
+	}
+	got, err := (&Driver{}).GetActivePorts(repo)
+	if err != nil {
+		t.Fatalf("GetActivePorts(real) failed: %v", err)
+	}
+	want := []entities.Port{
+		{Interface: "1/0/1", Vlan: "10"},
+		{Interface: "1/0/3", Vlan: "1"},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("GetActivePorts(real) = %+v; expected %+v", got, want)
+	}
+
+	fallbackRepo := &mockRepo{
+		responses: map[string]string{
+			"show port all": "Command not found / Incomplete command.",
+			"show interfaces status": `
 Port   Name   Duplex  Speed  Neg  Link  Flow Control  VLAN
 1/0/1         Full    1000   Auto Up    On            10
 1/0/2         N/A     Unknown Auto Down Off           1
 1/0/25        Full    1000   Auto Up    On            trunk
-`
-	got := parseActivePorts(output)
-	want := []entities.Port{
+`,
+		},
+	}
+	got, err = (&Driver{}).GetActivePorts(fallbackRepo)
+	if err != nil {
+		t.Fatalf("GetActivePorts(fallback) failed: %v", err)
+	}
+	wantFallback := []entities.Port{
 		{Interface: "1/0/1", Vlan: "10"},
 	}
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("parseActivePorts() = %+v; expected %+v", got, want)
+	if !reflect.DeepEqual(got, wantFallback) {
+		t.Fatalf("GetActivePorts(fallback) = %+v; expected %+v", got, wantFallback)
 	}
 }
 
-func TestParseMacTable(t *testing.T) {
-	output := `
-VLAN  MAC Address        Port
-10    00:11:22:33:44:55  1/0/1
-20    00-aa-bb-cc-dd-ee  1/0/10
-30    aabb.ccdd.eeff     1/0/25
-`
-	trunkSet := map[string]bool{"1/0/25": true}
-	got := parseMacTable(output, trunkSet)
+func TestParseMacTableReal(t *testing.T) {
+	trunkSet := map[string]bool{"1/0/2": true, "1/0/24": true}
+	got := parseMacTable(readFixture(t, "show_mac_addr_table.txt"), trunkSet)
 	want := []entities.Device{
-		{Vlan: "10", Mac: "001122334455", MacFull: "00:11:22:33:44:55", Interface: "1/0/1"},
-		{Vlan: "20", Mac: "00aabbccddee", MacFull: "00:aa:bb:cc:dd:ee", Interface: "1/0/10"},
+		{Vlan: "10", Mac: "001122aabb01", MacFull: "00:11:22:aa:bb:01", Interface: "1/0/1", IsStatic: false},
+		{Vlan: "10", Mac: "001122aabb02", MacFull: "00:11:22:aa:bb:02", Interface: "1/0/1", IsStatic: true},
+		{Vlan: "1", Mac: "001122aabb03", MacFull: "00:11:22:aa:bb:03", Interface: "1/0/3", IsStatic: false},
 	}
 	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("parseMacTable() = %+v; expected %+v", got, want)
+		t.Fatalf("parseMacTable(real) = %+v; expected %+v", got, want)
 	}
 }
 
@@ -209,7 +262,6 @@ func TestConfigureAccessCommands(t *testing.T) {
 		"interface 1/0/1",
 		"switchport mode access",
 		"switchport access vlan 10",
-		"vlan participation exclude 1",
 		"exit",
 		"exit",
 	}
@@ -256,16 +308,18 @@ func TestSaveCommands(t *testing.T) {
 	}
 }
 
-func TestIsDM1200CommandError(t *testing.T) {
+func TestIsDM1200ECommandError(t *testing.T) {
 	d := &Driver{}
-	if !d.IsCommandError("Invalid input detected at '^' marker.") {
-		t.Fatal("expected invalid input to be an error")
-	}
-	if !d.IsCommandError("Unrecognized command") {
-		t.Fatal("expected unrecognized command to be an error")
-	}
-	if !d.IsCommandError("% Error: incomplete command") {
-		t.Fatal("expected error: to be an error")
+	for _, sample := range []string{
+		"Invalid input detected at '^' marker.",
+		"Unrecognized command",
+		"% Error: incomplete command",
+		"Command not found / Incomplete command. Use ? to list commands.",
+		"An invalid interface has been used for this function.",
+	} {
+		if !d.IsCommandError(sample) {
+			t.Fatalf("expected %q to be an error", sample)
+		}
 	}
 	if d.IsCommandError("Packets invalid: 0") {
 		t.Fatal("must not treat a counter line containing 'invalid' as a command error")
@@ -298,21 +352,15 @@ func TestGetSessionProfile(t *testing.T) {
 	}
 }
 
-func TestGetL3Interfaces(t *testing.T) {
+func TestGetL3InterfacesReal(t *testing.T) {
 	repo := &mockRepo{responses: map[string]string{
-		"show ip interface brief": `
-Interface            IP-Address      Status
-Vlan1                192.168.1.1     up
-Vlan10               10.0.0.1        up
-1/0/1                unassigned      up
-Vlan-interface20     10.0.20.1       up
-`,
+		"show ip interface brief": readFixture(t, "show_ip_interface_brief.txt"),
 	}}
 	got, err := (&Driver{}).GetL3Interfaces(repo)
 	if err != nil {
 		t.Fatalf("GetL3Interfaces error: %v", err)
 	}
-	want := []string{"1", "10", "20"}
+	want := []string{"50"}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("GetL3Interfaces() = %v; expected %v", got, want)
 	}

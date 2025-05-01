@@ -1,0 +1,21 @@
+Information of Eth 1/1:
+ MTU:                           9198 bytes
+ Acceptable frame types:        All frames
+ Native VLAN:                   40
+ Allowed VLANs:                 40(s,u)
+ Forbidden VLANs:
+
+Information of Eth 1/2:
+ MTU:                           9198 bytes
+ Acceptable frame types:        All frames
+ Native VLAN:                   10
+ Allowed VLANs:                 10(s,u)
+ Forbidden VLANs:
+
+Information of Eth 1/25:
+ MTU:                           9198 bytes
+ Acceptable frame types:        All frames
+ Native VLAN:                   1
+ Allowed VLANs:                 10(s,t),    40(s,t),
+                                50(s,t)
+ Forbidden VLANs:

@@ -305,18 +305,22 @@ func normalizeVLAN(vlan, context string) (string, error) {
 }
 
 func canonicalizePlatform(platform string) string {
-	if platform == "dmos" {
-		return "dmswitch"
+	switch platform {
+	case "dmswitch", "dmos", "dm3324", "dm3324f2":
+		return "dm3000"
+	case "dm1200":
+		return "dm1200e"
+	default:
+		return platform
 	}
-	return platform
 }
 
 func validatePlatform(platform string) error {
 	switch platform {
-	case "ios", "nxos", "dmswitch", "dm1200", "comware", "auto":
+	case "ios", "nxos", "dm3000", "dm1200e", "comware", "auto":
 		return nil
 	default:
-		return fmt.Errorf("platform %s is invalid, must be 'ios', 'nxos', 'dmswitch', 'dm1200', 'comware', or 'auto'", platform)
+		return fmt.Errorf("platform %s is invalid, must be 'ios', 'nxos', 'dm3000', 'dm1200e', 'comware', or 'auto'", platform)
 	}
 }
 

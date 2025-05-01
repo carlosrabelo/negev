@@ -1,0 +1,22 @@
+Information of  Eth 1/1 
+ Basic information:
+  Port type:              100TX
+  MAC address:            00:11:22:33:44:01
+ Current status:
+  Link status:            Up
+  Operation speed-duplex: 100M full
+
+Information of  Eth 1/2 
+ Basic information:
+  Port type:              100TX
+  MAC address:            00:11:22:33:44:02
+ Current status:
+  Link status:            Down
+
+Information of  Eth 1/25 
+ Basic information:
+  Port type:              1000FX
+  MAC address:            00:11:22:33:44:19
+ Current status:
+  Link status:            Up
+  Operation speed-duplex: 1000M full

@@ -54,8 +54,8 @@ Os campos YAML opcionais `backup_dir` e `audit_log` são globais.
 ### Esquema YAML (global + switch)
 
 ```yaml
-platform: auto                 # ios | nxos | dmswitch | dm1200 | comware | auto
-                               # alias legado: dmos → dmswitch
+platform: auto                 # ios | nxos | dm3000 | dm1200e | comware | auto
+                               # aliases legados: dmswitch/dmos/dm3324/dm3324f2 → dm3000; dm1200 → dm1200e
 transport: ssh                 # telnet | ssh
 username: "${SWITCH_USER}"     # ${VAR} expandido no Load; $${VAR} → literal ${VAR}
 password: ""                   # opcional se password_command / --ask-pass
@@ -132,11 +132,11 @@ Referência por flag (exemplos, padrões, interações): [cli-pt/](cli-pt/) · E
 |---|---|---|---|---|
 | Cisco IOS | `ios` | `show mac address-table`, `show interfaces status` | `switchport access vlan` | `write memory` / `show running-config` |
 | Cisco NX-OS | `nxos` | `show mac address-table`, `show interface status` | `switchport` depois `switchport access vlan` | `copy running-config startup-config` / `show running-config` |
-| Datacom DmSwitch 3000 | `dmswitch` (`dmos`) | `show mac-address-table`, status switchport | `set-member untagged` / native VLAN | `show running-config` |
-| Datacom DM1200E | `dm1200` | `show mac-addr-table` | `vlan database`, `switchport access vlan`, `vlan participation exclude 1` | `show running-config` |
+| Datacom DmSwitch 3000 | `dm3000` (`dmswitch`, `dmos`, `dm3324f2`) | `show mac-address-table`, `show interfaces switchport` | `no set-member` + `set-member untagged` / `switchport native vlan` | `copy running-config startup-config` / `show running-config` |
+| Datacom DM1200E | `dm1200e` (`dm1200`) | `show mac-addr-table`, `show port all`, `show interfaces switchport` | `switchport mode access`, `switchport access vlan` | `copy system:running-config nvram:startup-config` / `show running-config` |
 | 3Com / H3C Comware | `comware` | `display mac-address`, `display brief interface` | `port access vlan` | `save` / `display current-configuration` |
 
-`platform: auto` sonda a saída de versão em ordem alfabética dos drivers registrados (Comware, DM1200, DmSwitch, IOS, NX-OS). A detecção IOS rejeita banners NX-OS.
+`platform: auto` sonda a saída de versão em ordem alfabética dos drivers registrados (Comware, DM1200E, DM3000, IOS, NX-OS). A detecção IOS rejeita banners NX-OS.
 
 ## Como funciona
 

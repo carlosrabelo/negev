@@ -338,7 +338,11 @@ func (s *VLANServiceImpl) GetMacTable() ([]entities.Device, error) {
 }
 
 func (s *VLANServiceImpl) ConfigureVlan(iface, vlan string) error {
-	cmds := s.driver.ConfigureAccessCommands(entities.Port{Interface: iface}, vlan)
+	return s.configurePortVlan(entities.Port{Interface: iface}, vlan)
+}
+
+func (s *VLANServiceImpl) configurePortVlan(port entities.Port, vlan string) error {
+	cmds := s.driver.ConfigureAccessCommands(port, vlan)
 	if s.config.Sandbox {
 		for _, cmd := range cmds {
 			fmt.Printf("SIMULATE: %s\n", cmd)
@@ -405,7 +409,7 @@ func (s *VLANServiceImpl) applyPortVlan(port entities.Port, targetVlan string, v
 	if targetVlan == port.Vlan || canonicalVLAN(targetVlan) == canonicalVLAN(port.Vlan) {
 		return false, nil
 	}
-	if err := s.ConfigureVlan(port.Interface, targetVlan); err != nil {
+	if err := s.configurePortVlan(port, targetVlan); err != nil {
 		return false, fmt.Errorf("failed to configure VLAN on port %s: %v", port.Interface, err)
 	}
 	return true, nil

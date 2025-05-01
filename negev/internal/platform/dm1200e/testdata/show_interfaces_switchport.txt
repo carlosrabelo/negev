@@ -1,0 +1,50 @@
+Port: 1/0/1
+VLAN Membership Mode: Access
+Access Mode VLAN: 10
+General Mode PVID: 1 (default)
+General Mode Ingress Filtering: Enabled
+General Mode Acceptable Frame Type: Admit all
+General Mode Dynamically Added VLANs:
+General Mode Untagged VLANs: 1
+General Mode Tagged VLANs:
+General Mode Forbidden VLANs:
+Trunking Mode Native VLAN: 1 (default)
+Trunking Mode Native VLAN tagging: Disable
+Trunking Mode VLANs Enabled: All
+Protected Port: False
+
+Port: 1/0/2
+VLAN Membership Mode: Trunk
+Access Mode VLAN: 1 (default)
+General Mode PVID: 1 (default)
+General Mode Ingress Filtering: Enabled
+General Mode Acceptable Frame Type: Admit all
+General Mode Dynamically Added VLANs:
+General Mode Untagged VLANs: 1
+General Mode Tagged VLANs:
+General Mode Forbidden VLANs:
+Trunking Mode Native VLAN: 1 (default)
+Trunking Mode Native VLAN tagging: Disable
+Trunking Mode VLANs Enabled: All
+Protected Port: False
+
+Port: 1/0/3
+VLAN Membership Mode: Access
+Access Mode VLAN: 1 (default)
+General Mode PVID: 1 (default)
+General Mode Untagged VLANs: 1
+General Mode Tagged VLANs:
+Protected Port: False
+
+Port: 1/0/4
+VLAN Membership Mode: Access
+Access Mode VLAN: 20
+Protected Port: False
+
+Port: 1/0/24
+VLAN Membership Mode: General
+Access Mode VLAN: 1 (default)
+General Mode PVID: 1 (default)
+General Mode Untagged VLANs: 1
+General Mode Tagged VLANs: 10, 20, 50
+Protected Port: False

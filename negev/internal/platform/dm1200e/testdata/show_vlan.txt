@@ -1,0 +1,7 @@
+VLAN ID VLAN Name                        VLAN Type
+------- -------------------------------- -------------------
+1       default                          Default
+10      Sala_104                         Static
+20      VLAN0020                         Static
+50      Management                       Static
+100-102 Range_100                        Static

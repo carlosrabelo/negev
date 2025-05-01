@@ -1,0 +1,37 @@
+Total number of VLANs: 4
+
+Global VLAN Settings:
+ QinQ:              Disabled
+ Link Detection:    Disabled
+
+
+ VLAN:              1 [DefaultVlan]
+ Type:              Static
+ Status
+  Admin:            Enabled
+  Oper:             Up
+ Aging-time:        300 sec.
+ STP:               on instance(s) 1
+ Members:           (none)
+
+ VLAN:              10
+ Type:              Static
+ Status
+  Admin:            Enabled
+  Oper:             Up
+ Aging-time:        300 sec.
+ Members:           Eth1/25 (static, tagged)
+
+ VLAN:              40
+ Type:              Static
+ Status
+  Admin:            Enabled
+  Oper:             Up
+ Members:           Eth1/1 to Eth1/2 (static, untagged)
+
+ VLAN:              50
+ Type:              Static
+ Status
+  Admin:            Enabled
+  Oper:             Up
+ Members:           Eth1/25 (static, tagged)

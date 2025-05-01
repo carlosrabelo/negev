@@ -9,7 +9,7 @@ import (
 	"github.com/carlosrabelo/negev/negev/internal/infrastructure/config"
 	"github.com/carlosrabelo/negev/negev/internal/infrastructure/transport"
 
-	_ "github.com/carlosrabelo/negev/negev/internal/platform/dmswitch"
+	_ "github.com/carlosrabelo/negev/negev/internal/platform/dm3000"
 	_ "github.com/carlosrabelo/negev/negev/internal/platform/ios"
 )
 

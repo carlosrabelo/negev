@@ -10,8 +10,8 @@ import (
 	"github.com/carlosrabelo/negev/negev/internal/infrastructure/config"
 
 	_ "github.com/carlosrabelo/negev/negev/internal/platform/comware"
-	_ "github.com/carlosrabelo/negev/negev/internal/platform/dm1200"
-	_ "github.com/carlosrabelo/negev/negev/internal/platform/dmswitch"
+	_ "github.com/carlosrabelo/negev/negev/internal/platform/dm1200e"
+	_ "github.com/carlosrabelo/negev/negev/internal/platform/dm3000"
 	_ "github.com/carlosrabelo/negev/negev/internal/platform/ios"
 	_ "github.com/carlosrabelo/negev/negev/internal/platform/nxos"
 )

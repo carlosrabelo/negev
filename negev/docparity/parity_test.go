@@ -120,7 +120,7 @@ func TestBilingualGUIDEParity(t *testing.T) {
 			t.Fatalf("GUIDE fence %d executable lines differ\nEN=%v\nPT=%v", i, ae, ap)
 		}
 	}
-	for _, platform := range []string{"ios", "nxos", "dmswitch", "dm1200", "comware"} {
+	for _, platform := range []string{"ios", "nxos", "dm3000", "dm1200e", "comware"} {
 		if !strings.Contains(en, platform) || !strings.Contains(pt, platform) {
 			t.Fatalf("platform %s missing in GUIDE bilingual pair", platform)
 		}

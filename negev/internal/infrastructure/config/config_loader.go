@@ -478,8 +478,10 @@ func Load(yamlFile, target string, verbosityLevel int) (*Config, error) {
 		cfg.Platform, cfg.Transport, cfg.DefaultVlan, cfg.NoDataVlan, globalManagePorts)
 
 	seenNames := make(map[string]bool)
+	seenTargets := make(map[string]bool)
 	for i := range cfg.Switches {
 		sw := &cfg.Switches[i]
+		sw.Target = strings.TrimSpace(sw.Target)
 		swVerbose := verbose
 		if target != "" && sw.Target != target {
 			swVerbose = false
@@ -487,6 +489,10 @@ func Load(yamlFile, target string, verbosityLevel int) (*Config, error) {
 		if sw.Target == "" {
 			return nil, fmt.Errorf("target is required for switch %d", i)
 		}
+		if seenTargets[sw.Target] {
+			return nil, fmt.Errorf("duplicate switch target %q", sw.Target)
+		}
+		seenTargets[sw.Target] = true
 
 		sw.Name = strings.TrimSpace(sw.Name)
 		if sw.Name != "" {

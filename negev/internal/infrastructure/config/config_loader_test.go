@@ -748,3 +748,48 @@ switches:
 		})
 	}
 }
+
+func TestLoadRejectsDuplicateSwitchTarget(t *testing.T) {
+	t.Run("duplicate_after_trim", func(t *testing.T) {
+		yamlData := `
+username: admin
+password: p
+default_vlan: "10"
+switches:
+  - name: sw-1
+    target: 192.0.2.10
+    platform: ios
+  - name: sw-2
+    target: " 192.0.2.10 "
+    platform: ios
+`
+		path := filepath.Join(t.TempDir(), "dup-target.yaml")
+		if err := os.WriteFile(path, []byte(yamlData), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		_, err := Load(path, "", 0)
+		if err == nil || !strings.Contains(err.Error(), `duplicate switch target "192.0.2.10"`) {
+			t.Fatalf("expected duplicate switch target error, got %v", err)
+		}
+	})
+
+	t.Run("whitespace_only_target", func(t *testing.T) {
+		yamlData := `
+username: admin
+password: p
+default_vlan: "10"
+switches:
+  - name: sw-1
+    target: "   "
+    platform: ios
+`
+		path := filepath.Join(t.TempDir(), "empty-target.yaml")
+		if err := os.WriteFile(path, []byte(yamlData), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		_, err := Load(path, "", 0)
+		if err == nil || !strings.Contains(err.Error(), "target is required for switch 0") {
+			t.Fatalf("expected missing target error, got %v", err)
+		}
+	})
+}

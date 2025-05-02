@@ -5,6 +5,7 @@ type RunResult struct {
 	VLANsCreated int
 	VLANsDeleted int
 	PortsFailed  int
+	VLANsFailed  int
 	Errors       []error
 }
 

@@ -1143,3 +1143,69 @@ func TestProcessPortsManagePortsFalseSkipsPortChanges(t *testing.T) {
 		}
 	})
 }
+
+func TestProcessPortsSavesAfterVLANDeleteFailure(t *testing.T) {
+	repo := &mockRepository{failOnCmd: "no vlan 5"}
+	drv := baseDriver()
+	drv.vlans = []string{"1", "5", "20", "30"}
+	cfg := entities.SwitchConfig{
+		Sandbox:      false,
+		CreateVLANs:  true,
+		AllowedVlans: []string{"1", "10"},
+		DefaultVlan:  "10",
+		MacToVlan:    map[string]string{"aabbcc": "10"},
+	}
+
+	result, err := NewVLANService(repo, cfg, drv).ProcessPorts()
+	if err == nil {
+		t.Fatal("expected aggregated VLAN failure error")
+	}
+	if !strings.Contains(err.Error(), "VLAN failure(s)") || !strings.Contains(err.Error(), "failed to delete VLAN 5") {
+		t.Fatalf("unexpected error = %q", err.Error())
+	}
+	if result.VLANsCreated != 1 || result.PortsChanged != 1 || result.VLANsDeleted != 2 || result.VLANsFailed != 1 || result.PortsFailed != 0 {
+		t.Fatalf("unexpected result = %+v; want created=1 changed=1 deleted=2 vlansFailed=1 portsFailed=0", result)
+	}
+
+	seen := make(map[string]bool, len(repo.executed))
+	for _, cmd := range repo.executed {
+		seen[cmd] = true
+	}
+	for _, want := range []string{"vlan 10", "switchport access vlan 10", "no vlan 20", "no vlan 30", "write memory"} {
+		if !seen[want] {
+			t.Fatalf("missing expected command %q in %v", want, repo.executed)
+		}
+	}
+}
+
+func TestProcessPortsContinuesAfterVLANCreateFailure(t *testing.T) {
+	repo := &mockRepository{failOnCmd: "vlan 10"}
+	drv := &stubDriver{vlans: []string{"1"}}
+	cfg := entities.SwitchConfig{
+		Sandbox:      false,
+		CreateVLANs:  true,
+		AllowedVlans: []string{"1", "10", "20"},
+		DefaultVlan:  "1",
+	}
+
+	result, err := NewVLANService(repo, cfg, drv).ProcessPorts()
+	if err == nil {
+		t.Fatal("expected aggregated VLAN creation failure error")
+	}
+	if !strings.Contains(err.Error(), "VLAN failure(s)") || !strings.Contains(err.Error(), "failed to create VLAN 10") {
+		t.Fatalf("unexpected error = %q", err.Error())
+	}
+	if result.VLANsCreated != 1 || result.VLANsFailed != 1 {
+		t.Fatalf("unexpected result = %+v; want created=1 vlansFailed=1", result)
+	}
+
+	seen := make(map[string]bool, len(repo.executed))
+	for _, cmd := range repo.executed {
+		seen[cmd] = true
+	}
+	for _, want := range []string{"vlan 20", "write memory"} {
+		if !seen[want] {
+			t.Fatalf("missing expected command %q in %v", want, repo.executed)
+		}
+	}
+}

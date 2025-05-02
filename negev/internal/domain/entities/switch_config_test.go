@@ -47,6 +47,9 @@ func TestRunResultHasChanges(t *testing.T) {
 	if (RunResult{PortsFailed: 2}).HasChanges() {
 		t.Fatal("PortsFailed alone should not count as changes")
 	}
+	if (RunResult{VLANsFailed: 2}).HasChanges() {
+		t.Fatal("VLANsFailed alone should not count as changes")
+	}
 }
 
 func TestSwitchConfigShouldManagePorts(t *testing.T) {

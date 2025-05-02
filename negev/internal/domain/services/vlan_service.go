@@ -102,7 +102,10 @@ func (s *VLANServiceImpl) ProcessPorts() (entities.RunResult, error) {
 		for _, v := range sortedKeys(allowed) {
 			if !vlans[v] {
 				if err := s.CreateVLAN(v); err != nil {
-					return result, fmt.Errorf("failed to create VLAN %s: %v", v, err)
+					slog.Error("VLAN creation failed — continuing", "vlan", v, "error", err, "target", s.config.Target)
+					result.VLANsFailed++
+					result.Errors = append(result.Errors, fmt.Errorf("failed to create VLAN %s: %v", v, err))
+					continue
 				}
 				vlans[v] = true
 				result.VLANsCreated++
@@ -166,7 +169,10 @@ func (s *VLANServiceImpl) ProcessPorts() (entities.RunResult, error) {
 				continue
 			}
 			if err := s.DeleteVLAN(v); err != nil {
-				return result, fmt.Errorf("failed to delete VLAN %s: %v", v, err)
+				slog.Error("VLAN deletion failed — continuing", "vlan", v, "error", err, "target", s.config.Target)
+				result.VLANsFailed++
+				result.Errors = append(result.Errors, fmt.Errorf("failed to delete VLAN %s: %v", v, err))
+				continue
 			}
 			delete(vlans, v)
 			result.VLANsDeleted++
@@ -178,19 +184,25 @@ func (s *VLANServiceImpl) ProcessPorts() (entities.RunResult, error) {
 		}
 	}
 
-	if result.PortsChanged == 0 && !modified && !simulated && result.PortsFailed == 0 {
+	if result.PortsChanged == 0 && !modified && !simulated && result.PortsFailed == 0 && result.VLANsFailed == 0 {
 		fmt.Println("No changes required")
 	} else if s.config.Sandbox {
 		fmt.Printf("Changes simulated (sandbox mode, use --write to apply)\n")
 	} else if modified {
 		slog.Info("Saving changes to startup-config", "target", s.config.Target)
 		if err := s.saveConfiguration(); err != nil {
+			if len(result.Errors) > 0 {
+				return result, fmt.Errorf("failed to save configuration: %v (prior errors: %v)", err, result.Errors)
+			}
 			return result, fmt.Errorf("failed to save configuration: %v", err)
 		}
 		slog.Info("Configuration successfully saved", "target", s.config.Target)
 	}
 
 	if len(result.Errors) > 0 {
+		if result.VLANsFailed > 0 {
+			return result, fmt.Errorf("completed with %d port failure(s) and %d VLAN failure(s): %v", result.PortsFailed, result.VLANsFailed, result.Errors)
+		}
 		return result, fmt.Errorf("completed with %d port failure(s): %v", result.PortsFailed, result.Errors)
 	}
 	return result, nil

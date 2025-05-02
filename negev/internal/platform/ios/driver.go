@@ -15,6 +15,7 @@ var vlanLineRegex = regexp.MustCompile(`^\s*(?:vlan\s+)?(\d{1,4})\b`)
 var interfaceRegex = regexp.MustCompile(`^[A-Za-z-]+\d+(?:/\d+){0,2}$`)
 var macTableRegex = regexp.MustCompile(`(?i)^\s*(\d+)\s+([0-9a-f]{4}\.[0-9a-f]{4}\.[0-9a-f]{4})\s+(DYNAMIC|STATIC)\s+(\S+)`)
 var sviNameRegex = regexp.MustCompile(`(?i)^Vlan(\d+)$`)
+
 // Matches exec and config-mode prompts, e.g. Switch#, ba-sw-01(config)#, ba-sw-01(config-if)#.
 var iosPromptPattern = regexp.MustCompile(`(?m)^[A-Za-z0-9_.-]+(?:-[A-Za-z0-9_.-]+)*(?:\([^)]*\))?[>#]\s*$`)
 var iosPagerPattern = regexp.MustCompile(`(?m)--More--`)
@@ -263,11 +264,6 @@ func (d *Driver) CreateVLANCommands(vlan string) []string {
 func (d *Driver) DeleteVLANCommands(vlan string) []string {
 	return []string{
 		"configure terminal",
-		"interface vlan " + vlan,
-		"shutdown",
-		"exit",
-		"no interface vlan " + vlan,
-		"exit",
 		"no vlan " + vlan,
 		"end",
 	}

@@ -27,10 +27,17 @@ type SwitchConfig struct {
 	AllowedVlans          []string          `yaml:"allowed_vlans"`
 	ProtectedVlans        []string          `yaml:"protected_vlans"`
 	MultiMacPolicy        string            `yaml:"multi_mac_policy"`
+	ManagePorts           *bool             `yaml:"manage_ports"`
 	JumpHost              *JumpHostConfig   `yaml:"-"`
 	Sandbox               bool
 	VerbosityLevel        int
 	CreateVLANs           bool
+}
+
+// ShouldManagePorts reports whether port VLAN assignments should run for this switch.
+// Defaults to true when manage_ports is unset in YAML.
+func (sc SwitchConfig) ShouldManagePorts() bool {
+	return sc.ManagePorts == nil || *sc.ManagePorts
 }
 
 func (sc SwitchConfig) IsDebugEnabled() bool {

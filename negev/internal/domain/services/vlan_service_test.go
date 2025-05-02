@@ -76,6 +76,7 @@ type stubDriver struct {
 	deleteCmds      []string
 	configurePrefix string
 	configuredPorts []entities.Port
+	macTableCalls   int
 	cleared         bool
 	saveCmds        []string
 }
@@ -105,6 +106,7 @@ func (d *stubDriver) GetActivePorts(repo ports.SwitchRepository) ([]entities.Por
 	return d.ports, nil
 }
 func (d *stubDriver) GetMacTable(repo ports.SwitchRepository) ([]entities.Device, error) {
+	d.macTableCalls++
 	if d.macErr != nil {
 		return nil, d.macErr
 	}
@@ -1053,4 +1055,91 @@ func TestProcessPortsPreservesPreviousPortVlan(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestProcessPortsManagePortsFalseSkipsPortChanges(t *testing.T) {
+	falseVal := false
+
+	t.Run("without_create_vlans", func(t *testing.T) {
+		repo := &mockRepository{}
+		drv := &stubDriver{
+			vlans: []string{"1", "12", "30", "40"},
+			ports: []entities.Port{{Interface: "ethernet1/1", Vlan: "40"}},
+			devices: []entities.Device{
+				{Interface: "ethernet1/1", Mac: "001122334455", MacFull: "00:11:22:33:44:55", Vlan: "40"},
+			},
+		}
+		cfg := entities.SwitchConfig{
+			Target:      "192.0.2.4",
+			ManagePorts: &falseVal,
+			Sandbox:     false,
+			CreateVLANs: false,
+			DefaultVlan: "12",
+			MacToVlan:   map[string]string{"001122": "30"},
+		}
+		result, err := NewVLANService(repo, cfg, drv).ProcessPorts()
+		if err != nil {
+			t.Fatalf("ProcessPorts failed: %v", err)
+		}
+		if result.PortsChanged != 0 || result.HasChanges() {
+			t.Fatalf("unexpected changes: %+v", result)
+		}
+		if drv.macTableCalls != 0 {
+			t.Fatalf("macTableCalls=%d; want 0", drv.macTableCalls)
+		}
+		if len(drv.configuredPorts) != 0 {
+			t.Fatalf("configuredPorts=%+v; want empty", drv.configuredPorts)
+		}
+		if len(repo.executed) != 0 {
+			t.Fatalf("executed=%v; want no commands", repo.executed)
+		}
+	})
+
+	t.Run("with_create_vlans", func(t *testing.T) {
+		repo := &mockRepository{}
+		drv := &stubDriver{
+			vlans: []string{"1", "40", "99"},
+			ports: []entities.Port{{Interface: "ethernet1/1", Vlan: "40"}},
+			devices: []entities.Device{
+				{Interface: "ethernet1/1", Mac: "001122334455", MacFull: "00:11:22:33:44:55", Vlan: "40"},
+			},
+		}
+		cfg := entities.SwitchConfig{
+			Target:       "192.0.2.4",
+			ManagePorts:  &falseVal,
+			Sandbox:      false,
+			CreateVLANs:  true,
+			AllowedVlans: []string{"1", "20"},
+			DefaultVlan:  "12",
+			MacToVlan:    map[string]string{"001122": "30"},
+		}
+		result, err := NewVLANService(repo, cfg, drv).ProcessPorts()
+		if err != nil {
+			t.Fatalf("ProcessPorts failed: %v", err)
+		}
+		if result.PortsChanged != 0 || result.VLANsCreated != 2 || result.VLANsDeleted != 1 {
+			t.Fatalf("unexpected result: %+v", result)
+		}
+		if drv.macTableCalls != 0 {
+			t.Fatalf("macTableCalls=%d; want 0", drv.macTableCalls)
+		}
+		if len(drv.configuredPorts) != 0 {
+			t.Fatalf("configuredPorts=%+v; want empty", drv.configuredPorts)
+		}
+		seen := make(map[string]bool)
+		for _, cmd := range repo.executed {
+			seen[cmd] = true
+			if strings.HasPrefix(cmd, "switchport access vlan ") {
+				t.Fatalf("unexpected port command %q", cmd)
+			}
+		}
+		for _, want := range []string{"vlan 12", "vlan 20", "no vlan 99", "write memory"} {
+			if !seen[want] {
+				t.Fatalf("missing expected command %q in %v", want, repo.executed)
+			}
+		}
+		if seen["no vlan 40"] {
+			t.Fatalf("active port VLAN 40 must remain protected, executed=%v", repo.executed)
+		}
+	})
 }

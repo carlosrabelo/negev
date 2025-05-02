@@ -72,6 +72,10 @@ func runPreparedSwitch(baseCfg *config.Config, sw entities.SwitchConfig, write b
 	var result entities.RunResult
 	swCopy := sw
 	swCopy.JumpHost = sw.JumpHost.Clone()
+	if sw.ManagePorts != nil {
+		v := *sw.ManagePorts
+		swCopy.ManagePorts = &v
+	}
 
 	perSwitchCfg := &config.Config{
 		BackupDir: baseCfg.BackupDir,

@@ -36,6 +36,15 @@ var _ ports.VLANService = (*VLANServiceImpl)(nil)
 func (s *VLANServiceImpl) ProcessPorts() (entities.RunResult, error) {
 	var result entities.RunResult
 
+	if !s.config.ShouldManagePorts() && !s.config.CreateVLANs {
+		slog.Info("Port VLAN management disabled (manage_ports: false) — skipping port changes", "target", s.config.Target)
+		if s.repo.IsConnected() {
+			s.repo.Disconnect()
+		}
+		fmt.Println("No changes required")
+		return result, nil
+	}
+
 	s.repo.SetSessionProfile(s.driver.GetSessionProfile())
 
 	if err := s.repo.Connect(); err != nil {
@@ -67,9 +76,12 @@ func (s *VLANServiceImpl) ProcessPorts() (entities.RunResult, error) {
 		return result, fmt.Errorf("failed to get active ports: %v", err)
 	}
 
-	devices, err := s.GetMacTable()
-	if err != nil {
-		return result, fmt.Errorf("failed to get MAC table: %v", err)
+	var devices []entities.Device
+	if s.config.ShouldManagePorts() {
+		devices, err = s.GetMacTable()
+		if err != nil {
+			return result, fmt.Errorf("failed to get MAC table: %v", err)
+		}
 	}
 
 	modified := false
@@ -104,41 +116,45 @@ func (s *VLANServiceImpl) ProcessPorts() (entities.RunResult, error) {
 	}
 
 	applied := make(map[string]string) // canonical iface → new vlan
-	for _, port := range ports {
-		if port.IsRouted || port.IsTrunk {
-			continue
-		}
-		ifaceKey := s.canonicalIface(port.Interface)
-		if trunks[ifaceKey] {
-			continue
-		}
-		if s.isExcludedPort(port.Interface) {
-			continue
-		}
-
-		targetVlan, ok := s.resolveTargetVlan(port, devices)
-		if !ok {
-			continue
-		}
-
-		mac := primaryMAC(s.filterActiveMacs(devices, port.Interface))
-		changed, err := s.applyPortVlan(port, targetVlan, vlans)
-		if err != nil {
-			slog.Error("Port configuration failed — continuing", "port", port.Interface, "error", err, "target", s.config.Target)
-			result.PortsFailed++
-			result.Errors = append(result.Errors, err)
-			s.auditPortChange(port, mac, targetVlan, "FAILED")
-			continue
-		}
-		if changed {
-			applied[ifaceKey] = targetVlan
-			result.PortsChanged++
-			if s.config.Sandbox {
-				simulated = true
-			} else {
-				modified = true
+	if !s.config.ShouldManagePorts() {
+		slog.Info("Port VLAN management disabled (manage_ports: false) — skipping port changes", "target", s.config.Target)
+	} else {
+		for _, port := range ports {
+			if port.IsRouted || port.IsTrunk {
+				continue
 			}
-			s.auditPortChange(port, mac, targetVlan, "SUCCESS")
+			ifaceKey := s.canonicalIface(port.Interface)
+			if trunks[ifaceKey] {
+				continue
+			}
+			if s.isExcludedPort(port.Interface) {
+				continue
+			}
+
+			targetVlan, ok := s.resolveTargetVlan(port, devices)
+			if !ok {
+				continue
+			}
+
+			mac := primaryMAC(s.filterActiveMacs(devices, port.Interface))
+			changed, err := s.applyPortVlan(port, targetVlan, vlans)
+			if err != nil {
+				slog.Error("Port configuration failed — continuing", "port", port.Interface, "error", err, "target", s.config.Target)
+				result.PortsFailed++
+				result.Errors = append(result.Errors, err)
+				s.auditPortChange(port, mac, targetVlan, "FAILED")
+				continue
+			}
+			if changed {
+				applied[ifaceKey] = targetVlan
+				result.PortsChanged++
+				if s.config.Sandbox {
+					simulated = true
+				} else {
+					modified = true
+				}
+				s.auditPortChange(port, mac, targetVlan, "SUCCESS")
+			}
 		}
 	}
 

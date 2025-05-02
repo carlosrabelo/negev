@@ -26,6 +26,7 @@ type Config struct {
 	AllowedVlans          []string                 `yaml:"allowed_vlans"`
 	ProtectedVlans        []string                 `yaml:"protected_vlans"`
 	MultiMacPolicy        string                   `yaml:"multi_mac_policy"`
+	ManagePorts           *bool                    `yaml:"manage_ports"`
 	BackupDir             string                   `yaml:"backup_dir"`
 	AuditLog              string                   `yaml:"audit_log"`
 	JumpHost              *entities.JumpHostConfig `yaml:"-"`
@@ -440,8 +441,13 @@ func Load(yamlFile, target string, verbosityLevel int) (*Config, error) {
 		return nil, err
 	}
 
-	debugf(verbose, "DEBUG: Global values: Platform=%s, Transport=%s, DefaultVlan=%s, NoDataVlan=%s\n",
-		cfg.Platform, cfg.Transport, cfg.DefaultVlan, cfg.NoDataVlan)
+	globalManagePorts := true
+	if cfg.ManagePorts != nil {
+		globalManagePorts = *cfg.ManagePorts
+	}
+
+	debugf(verbose, "DEBUG: Global values: Platform=%s, Transport=%s, DefaultVlan=%s, NoDataVlan=%s, ManagePorts=%t\n",
+		cfg.Platform, cfg.Transport, cfg.DefaultVlan, cfg.NoDataVlan, globalManagePorts)
 
 	seenNames := make(map[string]bool)
 	for i := range cfg.Switches {
@@ -622,11 +628,17 @@ func Load(yamlFile, target string, verbosityLevel int) (*Config, error) {
 			return nil, err
 		}
 
+		managePorts := globalManagePorts
+		if sw.ManagePorts != nil {
+			managePorts = *sw.ManagePorts
+		}
+		sw.ManagePorts = &managePorts
+
 		debugf(swVerbose, "DEBUG: Merged exclude_macs for %s: %v\n", sw.Target, sw.ExcludeMacs)
 		debugf(swVerbose, "DEBUG: Merged mac_to_vlan for %s: %v\n", sw.Target, sw.MacToVlan)
 		debugf(swVerbose, "DEBUG: Normalized exclude_ports for %s: %v\n", sw.Target, sw.ExcludePorts)
-		debugf(swVerbose, "DEBUG: Switch %s: Platform=%s, Transport=%s, DefaultVlan=%s\n",
-			sw.Target, sw.Platform, sw.Transport, sw.DefaultVlan)
+		debugf(swVerbose, "DEBUG: Switch %s: Platform=%s, Transport=%s, DefaultVlan=%s, ManagePorts=%t\n",
+			sw.Target, sw.Platform, sw.Transport, sw.DefaultVlan, sw.ShouldManagePorts())
 	}
 
 	if len(cfg.Switches) == 0 {

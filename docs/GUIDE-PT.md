@@ -65,6 +65,7 @@ enable_password_command: "pass show lab/enable"
 default_vlan: "1"              # obrigatório
 no_data_vlan: "999"            # quarentena opcional para portas up sem MAC
 multi_mac_policy: ignore       # ignore | alert | priority
+manage_ports: true             # defina false para pular alterações de VLAN em portas (mantém --create-vlans/--backup)
 backup_dir: ./backups
 audit_log: ./audit/negev.jsonl
 jump_host:                     # bastion SSH opcional (ou escalar: ops@192.0.2.5:22)
@@ -86,7 +87,8 @@ switches:
     tag: [access, building-a]  # string ou lista de strings
     platform: ios
     transport: ssh
-    # sobrescritas por switch: credenciais, VLANs, mac_to_vlan, exclude_*, multi_mac_policy, jump_host
+    manage_ports: false        # sobrescreve o manage_ports global neste switch
+    # sobrescritas por switch: credenciais, VLANs, mac_to_vlan, exclude_*, multi_mac_policy, manage_ports, jump_host
     exclude_ports: ["Gi1/0/24"]
     mac_to_vlan:
       "aabbcc": "0"            # remove prefixo herdado neste switch
@@ -102,6 +104,7 @@ switches:
 5. **multi_mac_policy**: switch herda o global; padrão `ignore`.
 6. **Credenciais**: campos vazios do switch herdam o global (após expansão e password commands).
 7. **jump_host**: switch herda o global (escalar `[user@]host[:port]` ou mapeamento); mapeamento parcial no switch preenche campos vazios pelo global; `jump_host: none` (`disabled: true` / `null`) desativa o salto no switch; `--jump` sobrescreve os switches selecionados.
+8. **manage_ports**: switch herda o global; padrão `true`. Quando `false`, pula a leitura da tabela MAC e todas as alterações de VLAN em portas (`mac_to_vlan`, `default_vlan`, `no_data_vlan`), mantendo `--create-vlans` (protegendo VLANs em uso nas portas ativas) e `--backup`.
 
 Arquivo de exemplo: [`docs/examples/config.yaml`](examples/config.yaml).
 
@@ -143,8 +146,8 @@ Referência por flag (exemplos, padrões, interações): [cli-pt/](cli-pt/) · E
 1. Resolve os switches selecionados (`ResolveTargets`).
 2. Por switch (pool concorrente): carrega credenciais, detecta/obtém driver, aplica session profile + sequência de auth.
 3. Se `--write` ou `--backup` e um diretório estiver definido (`--backup-dir` ou YAML `backup_dir`): baixa o running-config e grava `<nome-ou-ip>_<UTC>.cfg` modo `0600` nele (diretório criado só então). Sem diretório → omite backup com `--write`; `--backup` sem diretório resulta em erro. Falha de backup aborta antes de qualquer comando mutável.
-4. Coleta VLANs, trunks, interfaces L3/SVI, portas ativas, tabela MAC.
-5. Ignora trunks, portas roteadas, `exclude_ports`, MACs excluídos.
+4. Coleta VLANs, trunks, interfaces L3/SVI, portas ativas e (exceto se `manage_ports: false`) tabela MAC.
+5. Ignora trunks, portas roteadas, `exclude_ports`, MACs excluídos; se `manage_ports: false`, pula todas as alterações de VLAN em portas (mantendo `--create-vlans` e `--backup`).
 6. Resolve VLAN: maior prefixo de comprimento par em `mac_to_vlan` (12→2); senão `default_vlan`; portas vazias podem usar `no_data_vlan`.
 7. Portas multi-MAC: `ignore` (pula em silêncio), `alert` (avisa + pula), `priority` (maior prefixo explícito vence).
 8. `--create-vlans` opcional: cria allowed faltantes; remove não-allowed não-protegidas (VLAN 1 e 1000–4094 sempre protegidas; mais `default_vlan` / `no_data_vlan` / `protected_vlans` / SVIs L3 / VLANs ainda em portas ativas).

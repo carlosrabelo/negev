@@ -196,3 +196,44 @@ func TestGetRunningConfig(t *testing.T) {
 		t.Fatalf("unexpected config: %q", got)
 	}
 }
+
+func TestConfigureAccessCommands(t *testing.T) {
+	got := (&Driver{}).ConfigureAccessCommands(entities.Port{Interface: "Gi1/0/5", Vlan: "1"}, "10")
+	want := []string{
+		"configure terminal",
+		"interface Gi1/0/5",
+		"switchport mode access",
+		"switchport access vlan 10",
+		"end",
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("ConfigureAccessCommands() = %v; expected %v", got, want)
+	}
+}
+
+func TestCreateVLANCommands(t *testing.T) {
+	got := (&Driver{}).CreateVLANCommands("10")
+	want := []string{
+		"configure terminal",
+		"vlan 10",
+		"exit",
+		"interface vlan 10",
+		"no shutdown",
+		"end",
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("CreateVLANCommands() = %v; expected %v", got, want)
+	}
+}
+
+func TestDeleteVLANCommands(t *testing.T) {
+	got := (&Driver{}).DeleteVLANCommands("5")
+	want := []string{
+		"configure terminal",
+		"no vlan 5",
+		"end",
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("DeleteVLANCommands() = %v; expected %v", got, want)
+	}
+}

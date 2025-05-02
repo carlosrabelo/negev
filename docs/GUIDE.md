@@ -64,6 +64,7 @@ enable_password_command: "pass show lab/enable"
 default_vlan: "1"              # required
 no_data_vlan: "999"            # optional quarantine for link-up ports with no MAC
 multi_mac_policy: ignore       # ignore | alert | priority
+manage_ports: true             # set false to skip port VLAN changes (keeps --create-vlans/--backup)
 backup_dir: ./backups
 audit_log: ./audit/negev.jsonl
 jump_host:                     # optional SSH bastion (or scalar: ops@192.0.2.5:22)
@@ -85,7 +86,8 @@ switches:
     tag: [access, building-a]  # string or list of strings
     platform: ios
     transport: ssh
-    # per-switch overrides for credentials, VLANs, mac_to_vlan, exclude_*, multi_mac_policy, jump_host
+    manage_ports: false        # override global manage_ports on this switch
+    # per-switch overrides for credentials, VLANs, mac_to_vlan, exclude_*, multi_mac_policy, manage_ports, jump_host
     exclude_ports: ["Gi1/0/24"]
     mac_to_vlan:
       "aabbcc": "0"            # remove inherited prefix for this switch
@@ -101,6 +103,7 @@ switches:
 5. **multi_mac_policy**: switch inherits global; default `ignore`.
 6. **Credentials**: empty switch fields inherit global (after env expansion and password commands).
 7. **jump_host**: switch inherits global (scalar `[user@]host[:port]` or mapping); partial switch mapping fills empty fields from global; `jump_host: none` (`disabled: true` / `null`) opts a switch out; `--jump` overrides all selected switches.
+8. **manage_ports**: switch inherits global; default `true`. When `false`, skips MAC table lookups and all port VLAN changes (`mac_to_vlan`, `default_vlan`, `no_data_vlan`), while keeping `--create-vlans` (protecting active port VLANs) and `--backup` functional.
 
 Sample file: [`docs/examples/config.yaml`](examples/config.yaml).
 
@@ -142,8 +145,8 @@ Per-flag reference (examples, defaults, interactions): [cli/](cli/) · Portugues
 1. Resolve selected switches (`ResolveTargets`).
 2. Per switch (concurrent pool): load credentials, detect/get driver, set session profile + auth sequence.
 3. If `--write` or `--backup` and a directory is set (`--backup-dir` or YAML `backup_dir`): download running-config and write `<name-or-ip>_<UTC>.cfg` mode `0600` there (directory created only then). No configured directory → skip backup on `--write`; `--backup` without a directory errors. Backup failure aborts before any mutating command.
-4. Collect VLANs, trunks, L3/SVI interfaces, active ports, MAC table.
-5. Skip trunks, routed ports, `exclude_ports`, excluded MACs.
+4. Collect VLANs, trunks, L3/SVI interfaces, active ports, and (unless `manage_ports: false`) MAC table.
+5. Skip trunks, routed ports, `exclude_ports`, excluded MACs; if `manage_ports: false`, skip all port VLAN changes (while still running `--create-vlans` and `--backup`).
 6. Resolve VLAN: longest even-length prefix in `mac_to_vlan` (12→2); else `default_vlan`; empty ports may use `no_data_vlan`.
 7. Multi-MAC ports: `ignore` (skip quiet), `alert` (warn + skip), `priority` (longest explicit mapping wins).
 8. Optional `--create-vlans`: create missing allowed; delete non-allowed non-protected (VLAN 1 and 1000–4094 always protected; plus `default_vlan` / `no_data_vlan` / `protected_vlans` / L3 SVIs / VLANs still on active ports).

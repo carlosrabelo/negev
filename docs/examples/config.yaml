@@ -8,6 +8,7 @@ enable_password: "changeme"
 default_vlan: "1"
 no_data_vlan: "999"
 multi_mac_policy: ignore       # ignore | alert | priority
+manage_ports: true             # set false to prevent port VLAN changes (keeps --create-vlans/--backup)
 backup_dir: ./backups
 audit_log: ./audit/negev.jsonl
 # Optional SSH jump host (bastion) for tunneling both SSH and Telnet switches:
@@ -53,6 +54,7 @@ switches:
     target: 192.0.2.20
     platform: auto
     tag: access
+    # manage_ports: false        # disable port VLAN changes on datacenter/core switches
     default_vlan: "100"
     multi_mac_policy: alert
     exclude_ports:

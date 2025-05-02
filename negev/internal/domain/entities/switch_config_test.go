@@ -48,3 +48,18 @@ func TestRunResultHasChanges(t *testing.T) {
 		t.Fatal("PortsFailed alone should not count as changes")
 	}
 }
+
+func TestSwitchConfigShouldManagePorts(t *testing.T) {
+	trueVal := true
+	falseVal := false
+
+	if !(SwitchConfig{}).ShouldManagePorts() {
+		t.Fatal("nil ManagePorts should default to true")
+	}
+	if !(SwitchConfig{ManagePorts: &trueVal}).ShouldManagePorts() {
+		t.Fatal("ManagePorts=&true should return true")
+	}
+	if (SwitchConfig{ManagePorts: &falseVal}).ShouldManagePorts() {
+		t.Fatal("ManagePorts=&false should return false")
+	}
+}

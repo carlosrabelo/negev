@@ -592,3 +592,68 @@ switches:
 		t.Fatalf("Load duplicate name = %v", err)
 	}
 }
+
+func TestConfigLoadManagePortsInheritanceAndOverride(t *testing.T) {
+	t.Run("default_true_and_switch_false", func(t *testing.T) {
+		yamlData := `
+username: admin
+password: p
+default_vlan: "10"
+switches:
+  - target: 192.0.2.10
+    platform: ios
+  - target: 192.0.2.11
+    platform: dm3000
+    manage_ports: false
+`
+		path := filepath.Join(t.TempDir(), "default-manage-ports.yaml")
+		if err := os.WriteFile(path, []byte(yamlData), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		cfg, err := Load(path, "", 0)
+		if err != nil {
+			t.Fatalf("Load: %v", err)
+		}
+		if !cfg.Switches[0].ShouldManagePorts() {
+			t.Fatal("switch 0 should default ManagePorts to true")
+		}
+		if cfg.Switches[1].ShouldManagePorts() {
+			t.Fatal("switch 1 should have ManagePorts=false")
+		}
+		if cfg.Switches[0].ManagePorts == cfg.Switches[1].ManagePorts {
+			t.Fatal("switches must not share ManagePorts pointer")
+		}
+	})
+
+	t.Run("global_false_and_switch_true", func(t *testing.T) {
+		yamlData := `
+username: admin
+password: p
+default_vlan: "10"
+manage_ports: false
+switches:
+  - target: 192.0.2.20
+    platform: ios
+  - target: 192.0.2.21
+    platform: ios
+    manage_ports: true
+`
+		path := filepath.Join(t.TempDir(), "global-false-manage-ports.yaml")
+		if err := os.WriteFile(path, []byte(yamlData), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		cfg, err := Load(path, "", 0)
+		if err != nil {
+			t.Fatalf("Load: %v", err)
+		}
+		if cfg.Switches[0].ShouldManagePorts() {
+			t.Fatal("switch 0 should inherit global manage_ports: false")
+		}
+		if !cfg.Switches[1].ShouldManagePorts() {
+			t.Fatal("switch 1 should override manage_ports to true")
+		}
+		if cfg.Switches[0].ManagePorts == cfg.Switches[1].ManagePorts {
+			t.Fatal("switches must not share ManagePorts pointer")
+		}
+	})
+}

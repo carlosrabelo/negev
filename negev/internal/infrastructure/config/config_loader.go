@@ -1,7 +1,10 @@
 package config
 
 import (
+	"bytes"
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"strconv"
 	"strings"
@@ -40,6 +43,26 @@ type yamlJumpHost struct {
 	cfg       entities.JumpHostConfig
 }
 
+// decodeStrictNode re-decodes a YAML AST node with KnownFields enabled because
+// yaml.Node.Decode inside custom UnmarshalYAML hooks does not inherit it.
+func decodeStrictNode(node *yaml.Node, out any) error {
+	var buf bytes.Buffer
+	enc := yaml.NewEncoder(&buf)
+	if err := enc.Encode(node); err != nil {
+		_ = enc.Close()
+		return err
+	}
+	if err := enc.Close(); err != nil {
+		return err
+	}
+	dec := yaml.NewDecoder(&buf)
+	dec.KnownFields(true)
+	if err := dec.Decode(out); err != nil && !errors.Is(err, io.EOF) {
+		return err
+	}
+	return nil
+}
+
 func (y *yamlJumpHost) UnmarshalYAML(value *yaml.Node) error {
 	y.present = true
 	switch value.Kind {
@@ -53,7 +76,7 @@ func (y *yamlJumpHost) UnmarshalYAML(value *yaml.Node) error {
 		return nil
 	case yaml.MappingNode:
 		var raw entities.JumpHostConfig
-		if err := value.Decode(&raw); err != nil {
+		if err := decodeStrictNode(value, &raw); err != nil {
 			return err
 		}
 		y.cfg = raw
@@ -96,7 +119,7 @@ type rawSwitchConfig struct {
 func (r *rawSwitchConfig) UnmarshalYAML(value *yaml.Node) error {
 	type alias rawSwitchConfig
 	var decoded alias
-	if err := value.Decode(&decoded); err != nil {
+	if err := decodeStrictNode(value, &decoded); err != nil {
 		return err
 	}
 	*r = rawSwitchConfig(decoded)
@@ -358,7 +381,12 @@ func Load(yamlFile, target string, verbosityLevel int) (*Config, error) {
 		return nil, fmt.Errorf("failed to read YAML file %s: %v", yamlFile, err)
 	}
 	var raw rawConfig
-	if err := yaml.Unmarshal(data, &raw); err != nil {
+	dec := yaml.NewDecoder(bytes.NewReader(data))
+	dec.KnownFields(true)
+	if err := dec.Decode(&raw); err != nil {
+		if errors.Is(err, io.EOF) {
+			return nil, fmt.Errorf("no switches defined in the YAML configuration")
+		}
 		return nil, fmt.Errorf("failed to parse YAML: %v", err)
 	}
 	cfg := raw.Config

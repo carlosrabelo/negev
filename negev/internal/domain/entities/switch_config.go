@@ -29,9 +29,9 @@ type SwitchConfig struct {
 	MultiMacPolicy        string            `yaml:"multi_mac_policy"`
 	ManagePorts           *bool             `yaml:"manage_ports"`
 	JumpHost              *JumpHostConfig   `yaml:"-"`
-	Sandbox               bool
-	VerbosityLevel        int
-	CreateVLANs           bool
+	Sandbox               bool              `yaml:"-"`
+	VerbosityLevel        int               `yaml:"-"`
+	CreateVLANs           bool              `yaml:"-"`
 }
 
 // ShouldManagePorts reports whether port VLAN assignments should run for this switch.

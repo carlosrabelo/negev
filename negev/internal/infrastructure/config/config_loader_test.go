@@ -657,3 +657,94 @@ switches:
 		}
 	})
 }
+
+func TestLoadRejectsUnknownYAMLField(t *testing.T) {
+	tests := []struct {
+		name    string
+		yaml    string
+		wantErr []string
+	}{
+		{
+			name: "top_level_typo",
+			yaml: `
+username: admin
+password: p
+default_vlan: "10"
+manage_port: false
+switches:
+  - target: 192.0.2.10
+    platform: ios
+`,
+			wantErr: []string{"failed to parse YAML", "manage_port"},
+		},
+		{
+			name: "switch_level_typo",
+			yaml: `
+username: admin
+password: p
+default_vlan: "10"
+switches:
+  - target: 192.0.2.10
+    platform: ios
+    default_vln: "10"
+`,
+			wantErr: []string{"failed to parse YAML", "default_vln"},
+		},
+		{
+			name: "jump_host_typo",
+			yaml: `
+username: admin
+password: p
+default_vlan: "10"
+jump_host:
+  host: 192.0.2.5
+  known_host: ~/.ssh/known_hosts
+switches:
+  - target: 192.0.2.10
+    platform: ios
+`,
+			wantErr: []string{"failed to parse YAML", "known_host"},
+		},
+		{
+			name: "runtime_field_rejected",
+			yaml: `
+username: admin
+password: p
+default_vlan: "10"
+switches:
+  - target: 192.0.2.10
+    platform: ios
+    sandbox: false
+`,
+			wantErr: []string{"failed to parse YAML", "sandbox"},
+		},
+		{
+			name:    "empty_yaml_file",
+			yaml:    "",
+			wantErr: []string{"no switches defined in the YAML configuration"},
+		},
+		{
+			name:    "comment_only_yaml_file",
+			yaml:    "# empty config\n",
+			wantErr: []string{"no switches defined in the YAML configuration"},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), tc.name+".yaml")
+			if err := os.WriteFile(path, []byte(tc.yaml), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			_, err := Load(path, "", 0)
+			if err == nil {
+				t.Fatalf("expected error for %s, got nil", tc.name)
+			}
+			for _, sub := range tc.wantErr {
+				if !strings.Contains(err.Error(), sub) {
+					t.Fatalf("error %q missing substring %q", err.Error(), sub)
+				}
+			}
+		})
+	}
+}

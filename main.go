@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
+	"runtime"
 )
 
 func main() {
@@ -17,7 +19,41 @@ func main() {
 	createVLANs := flag.Bool("c", false, "Criar VLANs ausentes no switch")
 	flag.Parse()
 
-	cfg, err := loadConfig(*yamlFile, !*write, *verbose, *skipVlanCheck, *createVLANs)
+	// Determinar o caminho do arquivo de configuração
+	configPath := *yamlFile
+	if runtime.GOOS == "linux" && *yamlFile == "config.yaml" {
+		// Em Linux, se o caminho padrão não foi sobrescrito, procurar em locais específicos
+		possiblePaths := []string{
+			filepath.Join(".", "config.yaml"), // Diretório local
+		}
+
+		// Adicionar caminho do usuário (~/.config/negev/config.yaml)
+		if userConfigDir, err := os.UserConfigDir(); err == nil {
+			possiblePaths = append(possiblePaths, filepath.Join(userConfigDir, "negev", "config.yaml"))
+		}
+
+		// Adicionar caminho global (/etc/negev/config.yaml)
+		possiblePaths = append(possiblePaths, "/etc/negev/config.yaml")
+
+		// Tentar encontrar o primeiro arquivo existente
+		found := false
+		for _, path := range possiblePaths {
+			if _, err := os.Stat(path); err == nil {
+				configPath = path
+				found = true
+				if *verbose {
+					fmt.Printf("DEBUG: Arquivo de configuração encontrado em %s\n", path)
+				}
+				break
+			}
+		}
+
+		if !found {
+			log.Fatal("Erro: Nenhum arquivo config.yaml encontrado em ./, ~/.config/negev/ ou /etc/negev/")
+		}
+	}
+
+	cfg, err := loadConfig(configPath, !*write, *verbose, *skipVlanCheck, *createVLANs)
 	if err != nil {
 		log.Fatal(err)
 	}

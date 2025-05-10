@@ -30,11 +30,12 @@ var trapStates = make(map[string]*TrapState)
 var trapStateMutex sync.Mutex
 
 // RunSNMP inicia o daemon para escutar SNMP traps e configurar VLANs
-func RunSNMP(cfg *Config, debug bool) error {
+func RunSNMP(cfg *Config, verbose, extra bool) error {
 	// Mapa para buscar configurações de switch por IP
 	switchMap := make(map[string]SwitchConfig)
 	for _, sw := range cfg.Switches {
-		sw.Debug = debug // Aplicar debug a todas as configurações de switch
+		sw.Verbose = verbose // Aplicar verbosidade a todas as configurações de switch
+		sw.Extra = extra     // Aplicar exibição de saídas brutas
 		switchMap[sw.Target] = sw
 	}
 
@@ -51,7 +52,7 @@ func RunSNMP(cfg *Config, debug bool) error {
 	// Definir handler para processar traps
 	listener.OnNewTrap = func(packet *gosnmp.SnmpPacket, addr *net.UDPAddr) {
 		// Logar todos os traps recebidos
-		if debug {
+		if verbose {
 			fmt.Printf("DEBUG: Recebido trap de %s, OID=%s\n", addr.IP.String(), packet.Variables[0].Name)
 		}
 
@@ -62,8 +63,8 @@ func RunSNMP(cfg *Config, debug bool) error {
 			return
 		}
 
-		// Logar a recepção do trap apenas se debug estiver ativado
-		if switchCfg.Debug {
+		// Logar a recepção do trap apenas se verbose estiver ativado
+		if switchCfg.Verbose {
 			fmt.Printf("DEBUG: Trap recebido de %s\n", addr.IP.String())
 		}
 
@@ -74,8 +75,8 @@ func RunSNMP(cfg *Config, debug bool) error {
 		for _, variable := range packet.Variables {
 			oid := variable.Name
 			valueStr := fmt.Sprintf("%v", variable.Value)
-			if switchCfg.Debug {
-				fmt.Printf("DEBUG: Trap variável: OID=%s, Valor=%s\n", oid, valueStr)
+			if switchCfg.Extra {
+				fmt.Printf("Saída do switch: Trap variável: OID=%s, Valor=%s\n", oid, valueStr)
 			}
 
 			// Processar apenas traps cmnMacChangedNotification
@@ -91,7 +92,7 @@ func RunSNMP(cfg *Config, debug bool) error {
 							macAddress = fmt.Sprintf("%02x:%02x:%02x:%02x:%02x:%02x",
 								macBytes[0], macBytes[1], macBytes[2], macBytes[3], macBytes[4], macBytes[5])
 							port = binary.BigEndian.Uint16(bytes[9:11])
-							if switchCfg.Debug {
+							if switchCfg.Verbose {
 								fmt.Printf("DEBUG: Trap processado: MAC=%s, VLAN=%d, dot1dBasePort=%d, Operação=%d\n", macAddress, vlan, port, operation)
 							}
 						} else {
@@ -123,7 +124,7 @@ func RunSNMP(cfg *Config, debug bool) error {
 				defer state.mutex.Unlock()
 				now := time.Now()
 				if now.Sub(state.lastTrapTime) < DebounceTime && state.lastVlan != "" {
-					if switchCfg.Debug {
+					if switchCfg.Verbose {
 						fmt.Printf("DEBUG: Ignorando trap para %s devido a debounce (última VLAN: %s, tempo desde último trap: %v)\n", trapKey, state.lastVlan, now.Sub(state.lastTrapTime))
 					}
 					return
@@ -151,7 +152,7 @@ func RunSNMP(cfg *Config, debug bool) error {
 						time.Sleep(2 * time.Second)
 					}
 				} else {
-					if switchCfg.Debug {
+					if switchCfg.Verbose {
 						fmt.Printf("DEBUG: Ignorando trap com operação desconhecida %d\n", operation)
 					}
 				}
@@ -179,7 +180,7 @@ func configureVlanForTrap(switchCfg SwitchConfig, cfg Config, mac string, port u
 	// Verificar se o MAC está excluído
 	for _, excludeMac := range switchCfg.ExcludeMacs {
 		if normMac == excludeMac {
-			if switchCfg.Debug {
+			if switchCfg.Verbose {
 				fmt.Printf("DEBUG: Ignorando MAC %s com dot1dBasePort %d devido à exclusão\n", mac, port)
 			}
 			return nil
@@ -188,12 +189,12 @@ func configureVlanForTrap(switchCfg SwitchConfig, cfg Config, mac string, port u
 
 	// Determinar VLAN alvo
 	targetVlan := switchCfg.MacToVlan[macPrefix]
-	if switchCfg.Debug {
+	if switchCfg.Verbose {
 		fmt.Printf("DEBUG: Prefixo MAC %s mapeado para VLAN %s em MacToVlan\n", macPrefix, targetVlan)
 	}
 	if targetVlan == "" {
 		targetVlan = switchCfg.DefaultVlan
-		if switchCfg.Debug {
+		if switchCfg.Verbose {
 			fmt.Printf("DEBUG: Nenhum mapeamento de VLAN para %s com dot1dBasePort %d, usando default_vlan do switch %s\n", mac, port, targetVlan)
 			fmt.Printf("DEBUG: Valor final de default_vlan para switch %s: %s\n", switchCfg.Target, targetVlan)
 		}
@@ -217,11 +218,11 @@ func configureVlanForTrap(switchCfg SwitchConfig, cfg Config, mac string, port u
 	var ifIndex int
 	const maxRetries = 3
 	for attempt := 1; attempt <= maxRetries; attempt++ {
-		ifIndex, err = getIfIndexFromPort(client, port, switchCfg.Debug)
+		ifIndex, err = getIfIndexFromPort(client, port, switchCfg.Verbose)
 		if err == nil {
 			break
 		}
-		if switchCfg.Debug {
+		if switchCfg.Verbose {
 			fmt.Printf("DEBUG: Tentativa %d de %d falhou ao obter ifIndex para dot1dBasePort %d: %v\n", attempt, maxRetries, port, err)
 		}
 		if attempt < maxRetries {
@@ -231,10 +232,10 @@ func configureVlanForTrap(switchCfg SwitchConfig, cfg Config, mac string, port u
 	if err != nil {
 		// Fallback para ifTable
 		iface := fmt.Sprintf("GigabitEthernet1/0/%d", port)
-		if switchCfg.Debug {
+		if switchCfg.Verbose {
 			fmt.Printf("DEBUG: Fallback para ifTable com interface inferida %s\n", iface)
 		}
-		ifIndex, err = getIfIndexFromIfTable(client, iface, switchCfg.Debug)
+		ifIndex, err = getIfIndexFromIfTable(client, iface, switchCfg.Verbose)
 		if err != nil {
 			return fmt.Errorf("falha ao obter ifIndex para dot1dBasePort %d ou interface %s: %v", port, iface, err)
 		}
@@ -257,12 +258,12 @@ func configureVlanForTrap(switchCfg SwitchConfig, cfg Config, mac string, port u
 		}
 		result, err := client.Set([]gosnmp.SnmpPDU{pdu})
 		if err == nil {
-			if switchCfg.Debug {
+			if switchCfg.Verbose {
 				fmt.Printf("DEBUG: Resultado do SET para VLAN %s (tentativa %d): %v\n", targetVlan, attempt, result)
 			}
 			break
 		}
-		if switchCfg.Debug {
+		if switchCfg.Verbose {
 			fmt.Printf("DEBUG: Tentativa %d de %d falhou ao configurar VLAN %s para dot1dBasePort %d (ifIndex %d): %v\n", attempt, setRetries, targetVlan, port, ifIndex, err)
 		}
 		if attempt < setRetries {
@@ -274,13 +275,13 @@ func configureVlanForTrap(switchCfg SwitchConfig, cfg Config, mac string, port u
 	}
 
 	// Verificar se a VLAN foi configurada corretamente
-	currentVlan, err := getCurrentVlan(client, ifIndex, switchCfg.Debug)
+	currentVlan, err := getCurrentVlan(client, ifIndex, switchCfg.Verbose)
 	if err != nil {
 		log.Printf("Aviso: Falha ao verificar VLAN atual para dot1dBasePort %d (ifIndex %d): %v", port, ifIndex, err)
 	} else if currentVlan != vNum {
 		log.Printf("Aviso: VLAN configurada (%s) não corresponde à VLAN atual (%d) para dot1dBasePort %d (ifIndex %d)", targetVlan, currentVlan, port, ifIndex)
 	} else {
-		if switchCfg.Debug {
+		if switchCfg.Verbose {
 			fmt.Printf("DEBUG: Verificado: VLAN %s configurada corretamente para dot1dBasePort %d (ifIndex %d)\n", targetVlan, port, ifIndex)
 		}
 	}
@@ -288,7 +289,7 @@ func configureVlanForTrap(switchCfg SwitchConfig, cfg Config, mac string, port u
 	// Exibir mensagem quando a VLAN for alterada
 	fmt.Printf("VLAN %s configurada para a interface com dot1dBasePort %d (ifIndex %d) no switch %s\n", targetVlan, port, ifIndex, switchCfg.Target)
 
-	if switchCfg.Debug {
+	if switchCfg.Verbose {
 		fmt.Printf("DEBUG: Configurado VLAN %s para dot1dBasePort %d (ifIndex %d) via SNMP\n", targetVlan, port, ifIndex)
 	}
 
@@ -299,7 +300,7 @@ func configureVlanForTrap(switchCfg SwitchConfig, cfg Config, mac string, port u
 func revertVlanForTrap(switchCfg SwitchConfig, cfg Config, mac string, port uint16) error {
 	// Determinar VLAN de quarentena
 	targetVlan := switchCfg.NoDataVlan
-	if switchCfg.Debug {
+	if switchCfg.Verbose {
 		fmt.Printf("DEBUG: Valor de no_data_vlan para switch %s: %s\n", switchCfg.Target, targetVlan)
 		fmt.Printf("DEBUG: Revertendo para no_data_vlan %s para MAC %s com dot1dBasePort %d\n", targetVlan, mac, port)
 	}
@@ -322,11 +323,11 @@ func revertVlanForTrap(switchCfg SwitchConfig, cfg Config, mac string, port uint
 	var ifIndex int
 	const maxRetries = 3
 	for attempt := 1; attempt <= maxRetries; attempt++ {
-		ifIndex, err = getIfIndexFromPort(client, port, switchCfg.Debug)
+		ifIndex, err = getIfIndexFromPort(client, port, switchCfg.Verbose)
 		if err == nil {
 			break
 		}
-		if switchCfg.Debug {
+		if switchCfg.Verbose {
 			fmt.Printf("DEBUG: Tentativa %d de %d falhou ao obter ifIndex para dot1dBasePort %d: %v\n", attempt, maxRetries, port, err)
 		}
 		if attempt < maxRetries {
@@ -336,10 +337,10 @@ func revertVlanForTrap(switchCfg SwitchConfig, cfg Config, mac string, port uint
 	if err != nil {
 		// Fallback para ifTable
 		iface := fmt.Sprintf("GigabitEthernet1/0/%d", port)
-		if switchCfg.Debug {
+		if switchCfg.Verbose {
 			fmt.Printf("DEBUG: Fallback para ifTable com interface inferida %s\n", iface)
 		}
-		ifIndex, err = getIfIndexFromIfTable(client, iface, switchCfg.Debug)
+		ifIndex, err = getIfIndexFromIfTable(client, iface, switchCfg.Verbose)
 		if err != nil {
 			return fmt.Errorf("falha ao obter ifIndex para dot1dBasePort %d ou interface %s: %v", port, iface, err)
 		}
@@ -362,15 +363,15 @@ func revertVlanForTrap(switchCfg SwitchConfig, cfg Config, mac string, port uint
 		}
 		result, err := client.Set([]gosnmp.SnmpPDU{pdu})
 		if err == nil {
-			if switchCfg.Debug {
+			if switchCfg.Verbose {
 				fmt.Printf("DEBUG: Resultado do SET para no_data_vlan %s (tentativa %d): %v\n", targetVlan, attempt, result)
 			}
 			break
 		}
-		if switchCfg.Debug {
+		if switchCfg.Verbose {
 			fmt.Printf("DEBUG: Tentativa %d de %d falhou ao configurar no_data_vlan %s para dot1dBasePort %d (ifIndex %d): %v\n", attempt, setRetries, targetVlan, port, ifIndex, err)
 		}
-		if attempt < setRetries {
+		if attempt < maxRetries {
 			time.Sleep(2 * time.Second)
 		}
 	}
@@ -379,13 +380,13 @@ func revertVlanForTrap(switchCfg SwitchConfig, cfg Config, mac string, port uint
 	}
 
 	// Verificar se a VLAN foi configurada corretamente
-	currentVlan, err := getCurrentVlan(client, ifIndex, switchCfg.Debug)
+	currentVlan, err := getCurrentVlan(client, ifIndex, switchCfg.Verbose)
 	if err != nil {
 		log.Printf("Aviso: Falha ao verificar VLAN atual para dot1dBasePort %d (ifIndex %d): %v", port, ifIndex, err)
 	} else if currentVlan != vNum {
 		log.Printf("Aviso: VLAN configurada (%s) não corresponde à VLAN atual (%d) para dot1dBasePort %d (ifIndex %d)", targetVlan, currentVlan, port, ifIndex)
 	} else {
-		if switchCfg.Debug {
+		if switchCfg.Verbose {
 			fmt.Printf("DEBUG: Verificado: no_data_vlan %s configurada corretamente para dot1dBasePort %d (ifIndex %d)\n", targetVlan, port, ifIndex)
 		}
 	}
@@ -393,7 +394,7 @@ func revertVlanForTrap(switchCfg SwitchConfig, cfg Config, mac string, port uint
 	// Exibir mensagem quando a VLAN for alterada
 	fmt.Printf("Revertido para no_data_vlan %s na interface com dot1dBasePort %d (ifIndex %d) no switch %s\n", targetVlan, port, ifIndex, switchCfg.Target)
 
-	if switchCfg.Debug {
+	if switchCfg.Verbose {
 		fmt.Printf("DEBUG: Revertido para no_data_vlan %s para dot1dBasePort %d (ifIndex %d) via SNMP\n", targetVlan, port, ifIndex)
 	}
 
@@ -401,7 +402,7 @@ func revertVlanForTrap(switchCfg SwitchConfig, cfg Config, mac string, port uint
 }
 
 // getIfIndexFromPort obtém o ifIndex correspondente ao dot1dBasePort
-func getIfIndexFromPort(client *gosnmp.GoSNMP, port uint16, debug bool) (int, error) {
+func getIfIndexFromPort(client *gosnmp.GoSNMP, port uint16, verbose bool) (int, error) {
 	oid := fmt.Sprintf(".1.3.6.1.2.1.17.1.4.1.2.%d", port) // dot1dBasePortToIfIndex
 	result, err := client.Get([]string{oid})
 	if err != nil {
@@ -414,7 +415,7 @@ func getIfIndexFromPort(client *gosnmp.GoSNMP, port uint16, debug bool) (int, er
 			if !ok {
 				return 0, fmt.Errorf("ifIndex %v não é um inteiro", v.Value)
 			}
-			if debug {
+			if verbose {
 				fmt.Printf("DEBUG: Encontrado ifIndex %d para dot1dBasePort %d\n", ifIndex, port)
 			}
 			return ifIndex, nil
@@ -425,7 +426,7 @@ func getIfIndexFromPort(client *gosnmp.GoSNMP, port uint16, debug bool) (int, er
 }
 
 // getIfIndexFromIfTable obtém o ifIndex da interface usando a tabela ifTable
-func getIfIndexFromIfTable(client *gosnmp.GoSNMP, iface string, debug bool) (int, error) {
+func getIfIndexFromIfTable(client *gosnmp.GoSNMP, iface string, verbose bool) (int, error) {
 	oids := []string{
 		".1.3.6.1.2.1.2.2.1.2",    // ifDescr
 		".1.3.6.1.2.1.31.1.1.1.1", // ifName
@@ -435,7 +436,7 @@ func getIfIndexFromIfTable(client *gosnmp.GoSNMP, iface string, debug bool) (int
 		err := client.Walk(baseOid, func(pdu gosnmp.SnmpPDU) error {
 			if pdu.Type == gosnmp.OctetString {
 				ifName := string(pdu.Value.([]byte))
-				if debug {
+				if verbose {
 					fmt.Printf("DEBUG: Interface encontrada: OID=%s, Nome=%s\n", pdu.Name, ifName)
 				}
 				// Correspondência parcial para lidar com variações de formato
@@ -467,7 +468,7 @@ func getIfIndexFromIfTable(client *gosnmp.GoSNMP, iface string, debug bool) (int
 }
 
 // getCurrentVlan obtém a VLAN atual da interface via SNMP
-func getCurrentVlan(client *gosnmp.GoSNMP, ifIndex int, debug bool) (int, error) {
+func getCurrentVlan(client *gosnmp.GoSNMP, ifIndex int, verbose bool) (int, error) {
 	oid := fmt.Sprintf(".1.3.6.1.4.1.9.9.68.1.2.2.1.2.%d", ifIndex)
 	result, err := client.Get([]string{oid})
 	if err != nil {
@@ -480,7 +481,7 @@ func getCurrentVlan(client *gosnmp.GoSNMP, ifIndex int, debug bool) (int, error)
 			if !ok {
 				return 0, fmt.Errorf("VLAN atual %v não é um inteiro", v.Value)
 			}
-			if debug {
+			if verbose {
 				fmt.Printf("DEBUG: VLAN atual para ifIndex %d: %d\n", ifIndex, vlan)
 			}
 			return vlan, nil

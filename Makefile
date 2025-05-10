@@ -7,6 +7,7 @@ GO = go
 GOFLAGS = -v
 INSTALL_DIR_ROOT = /usr/local/bin
 INSTALL_DIR_LOCAL = ~/.local/bin
+BUILD_DIR = build
 
 # Default targets
 .PHONY: all build run run-write run-debug install deps clean help
@@ -14,7 +15,8 @@ INSTALL_DIR_LOCAL = ~/.local/bin
 all: build
 
 build:
-	$(GO) build $(GOFLAGS) -o $(BINARY_NAME)
+	@mkdir -p $(BUILD_DIR)
+	$(GO) build $(GOFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME)
 
 run:
 	$(GO) run . -y $(CONFIG_FILE)
@@ -28,11 +30,11 @@ run-debug:
 install: build
 	@if [ "$$(id -u)" -eq 0 ]; then \
 		echo "Installing $(BINARY_NAME) to $(INSTALL_DIR_ROOT)"; \
-		mv $(BINARY_NAME) $(INSTALL_DIR_ROOT)/; \
+		cp $(BUILD_DIR)/$(BINARY_NAME) $(INSTALL_DIR_ROOT)/; \
 	else \
 		echo "Installing $(BINARY_NAME) to $(INSTALL_DIR_LOCAL)"; \
 		mkdir -p $(INSTALL_DIR_LOCAL); \
-		mv $(BINARY_NAME) $(INSTALL_DIR_LOCAL)/; \
+		cp $(BUILD_DIR)/$(BINARY_NAME) $(INSTALL_DIR_LOCAL)/; \
 	fi
 
 deps:
@@ -40,18 +42,18 @@ deps:
 	$(GO) get gopkg.in/yaml.v3
 
 clean:
-	rm -f $(BINARY_NAME)
+	rm -rf $(BUILD_DIR)
 
 help:
 	@echo "Makefile for Negev"
 	@echo ""
 	@echo "Usage:"
-	@echo "  make           # Builds the binary"
-	@echo "  make build     # Builds the binary"
+	@echo "  make           # Builds the binary into build/ directory"
+	@echo "  make build     # Builds the binary into build/ directory"
 	@echo "  make run       # Runs in sandbox mode with config.yaml"
 	@echo "  make run-write # Runs in write mode with config.yaml"
 	@echo "  make run-debug # Runs with debugging and config.yaml"
 	@echo "  make install   # Installs the binary to /usr/local/bin (root) or ~/.local/bin (local user)"
 	@echo "  make deps      # Installs dependencies"
-	@echo "  make clean     # Removes the generated binary"
+	@echo "  make clean     # Removes the build directory"
 	@echo "  make help      # Displays this help"

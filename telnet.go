@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -37,7 +38,7 @@ func (tc *TelnetClient) Connect() error {
 	tc.conn = conn
 	tc.conn.SetReadDeadline(time.Now().Add(DefaultTimeout))
 	tc.conn.SetWriteDeadline(time.Now().Add(DefaultTimeout))
-	if tc.config.Debug {
+	if tc.config.Verbose {
 		fmt.Printf("DEBUG: Conectado a %s\n", tc.config.Target)
 	}
 	prompts := []struct {
@@ -58,7 +59,7 @@ func (tc *TelnetClient) Connect() error {
 		}
 		if p.input != "" {
 			tc.conn.Write([]byte(p.input))
-			if tc.config.Debug {
+			if tc.config.Verbose {
 				fmt.Printf("DEBUG: Enviado %s para prompt %s\n", strings.TrimSpace(p.input), p.prompt)
 			}
 		}
@@ -78,8 +79,8 @@ func (tc *TelnetClient) readUntil(pattern string, timeout time.Duration) (string
 		}
 		if n > 0 {
 			output.Write(buffer[:n])
-			if tc.config.Debug {
-				fmt.Printf("DEBUG: Lido: %s\n", string(buffer[:n]))
+			if tc.config.Extra {
+				fmt.Printf("Saída do switch: Lido: %s\n", string(buffer[:n]))
 			}
 			if strings.Contains(output.String(), pattern) {
 				return output.String(), nil
@@ -93,14 +94,14 @@ func (tc *TelnetClient) readUntil(pattern string, timeout time.Duration) (string
 func (tc *TelnetClient) Disconnect() {
 	if tc.conn != nil {
 		tc.conn.Close()
-		if tc.config.Debug {
+		if tc.config.Verbose {
 			fmt.Println("DEBUG: Desconectado")
 		}
 	}
 }
 
 func (tc *TelnetClient) ExecuteCommand(cmd string) (string, error) {
-	if tc.config.Debug {
+	if tc.config.Verbose {
 		fmt.Printf("DEBUG: Executando: %s\n", cmd)
 	}
 	tc.conn.Write([]byte(cmd + "\n"))
@@ -114,8 +115,8 @@ func (tc *TelnetClient) ExecuteCommand(cmd string) (string, error) {
 	} else {
 		output = ""
 	}
-	if tc.config.Debug {
-		fmt.Printf("DEBUG: Saída: %s\n", output)
+	if tc.config.Extra {
+		fmt.Printf("Saída do switch para '%s':\n%s\n", cmd, output)
 	}
 	return output, nil
 }
@@ -135,7 +136,7 @@ func NewSwitchManager(config SwitchConfig, globalConfig Config) *SwitchManager {
 }
 
 func (sm *SwitchManager) ProcessPorts() error {
-	if sm.config.Debug {
+	if sm.config.Verbose {
 		fmt.Printf("DEBUG: Configuração do switch %s: DefaultVlan=%s, ExcludeMacs=%v\n", sm.config.Target, sm.config.DefaultVlan, sm.config.ExcludeMacs)
 	}
 	err := sm.telnetClient.Connect()
@@ -188,7 +189,7 @@ func (sm *SwitchManager) ProcessPorts() error {
 	changed := false
 	for _, port := range activePorts {
 		if trunks[port.Interface] {
-			if sm.config.Debug {
+			if sm.config.Verbose {
 				fmt.Printf("DEBUG: Ignorando interface trunk %s\n", port.Interface)
 			}
 			continue
@@ -202,7 +203,7 @@ func (sm *SwitchManager) ProcessPorts() error {
 		var targetVlan string
 		if len(portDevices) == 0 {
 			targetVlan = sm.config.DefaultVlan
-			if sm.config.Debug {
+			if sm.config.Verbose {
 				fmt.Printf("DEBUG: Porta %s sem dispositivo ativo, usando default_vlan %s\n", port.Interface, targetVlan)
 			}
 		} else if len(portDevices) > 1 {
@@ -213,13 +214,13 @@ func (sm *SwitchManager) ProcessPorts() error {
 			// Um dispositivo encontrado
 			dev := portDevices[0]
 			normDevMac := normalizeMac(dev.MacFull)
-			if sm.config.Debug {
+			if sm.config.Verbose {
 				fmt.Printf("DEBUG: Verificando MAC %s na porta %s contra exclude_macs: %v\n", dev.MacFull, port.Interface, sm.config.ExcludeMacs)
 			}
 			isExcluded := false
 			for _, excludeMac := range sm.config.ExcludeMacs {
 				if normDevMac == excludeMac {
-					if sm.config.Debug {
+					if sm.config.Verbose {
 						fmt.Printf("DEBUG: MAC %s excluído, ignorando porta %s\n", dev.MacFull, port.Interface)
 					}
 					isExcluded = true
@@ -230,14 +231,14 @@ func (sm *SwitchManager) ProcessPorts() error {
 				continue
 			}
 			// Apenas prosseguir se o MAC não foi excluído
-			if sm.config.Debug {
+			if sm.config.Verbose {
 				fmt.Printf("DEBUG: MAC %s não excluído, verificando mac_to_vlan para prefixo %s\n", dev.MacFull, normDevMac[:6])
 			}
 			macPrefix := normDevMac[:6]
 			targetVlan = sm.config.MacToVlan[macPrefix]
 			if targetVlan == "" || targetVlan == "0" || targetVlan == "00" {
 				targetVlan = sm.config.DefaultVlan
-				if sm.config.Debug {
+				if sm.config.Verbose {
 					if targetVlan == "0" || targetVlan == "00" {
 						fmt.Printf("DEBUG: Ignorando mapeamento inválido para VLAN %s para MAC %s (prefixo %s) na porta %s, usando default_vlan do switch %s\n", targetVlan, dev.MacFull, macPrefix, port.Interface, sm.config.DefaultVlan)
 					} else {
@@ -245,7 +246,7 @@ func (sm *SwitchManager) ProcessPorts() error {
 					}
 				}
 			} else {
-				if sm.config.Debug {
+				if sm.config.Verbose {
 					fmt.Printf("DEBUG: MAC %s (prefixo %s) mapeado para VLAN %s na porta %s\n", dev.MacFull, macPrefix, targetVlan, port.Interface)
 				}
 			}
@@ -257,18 +258,19 @@ func (sm *SwitchManager) ProcessPorts() error {
 		}
 
 		if targetVlan != port.Vlan {
-			if sm.config.Debug {
+			if sm.config.Verbose {
 				fmt.Printf("DEBUG: Alterando %s de VLAN %s para %s\n", port.Interface, port.Vlan, targetVlan)
 			}
 			cmds := sm.configureVlan(port.Interface, targetVlan)
 			commands = append(commands, cmds...)
 			changed = true
 		} else {
-			if sm.config.Debug {
+			if sm.config.Verbose {
 				fmt.Printf("DEBUG: Porta %s já configurada para VLAN %s, nenhuma alteração necessária\n", port.Interface, targetVlan)
 			}
 		}
 	}
+	fmt.Printf("Estado antes de gravação: Sandbox=%v, Changed=%v\n", sm.config.Sandbox, changed)
 	if !sm.config.Sandbox && changed {
 		_, err := sm.telnetClient.ExecuteCommand("write memory")
 		if err != nil {
@@ -276,8 +278,12 @@ func (sm *SwitchManager) ProcessPorts() error {
 		} else {
 			fmt.Println("Configuração salva")
 		}
-	} else if !changed {
-		fmt.Println("Nenhuma alteração necessária")
+	} else {
+		if !changed {
+			fmt.Println("Nenhuma alteração necessária")
+		} else if sm.config.Sandbox {
+			fmt.Println("Alterações simuladas (modo sandbox ativado, use -w para gravar)")
+		}
 	}
 	return nil
 }
@@ -287,9 +293,6 @@ func (sm *SwitchManager) getVlanList() (map[string]bool, error) {
 	if err != nil {
 		return nil, fmt.Errorf("falha ao obter lista de VLANs: %v", err)
 	}
-	if sm.config.Debug {
-		fmt.Printf("DEBUG: Saída de show vlan brief:\n%s\n", output)
-	}
 	re := regexp.MustCompile(`(?m)^(\d+)\s+\S+`)
 	matches := re.FindAllStringSubmatch(output, -1)
 	vlans := make(map[string]bool)
@@ -298,7 +301,7 @@ func (sm *SwitchManager) getVlanList() (map[string]bool, error) {
 			vlans[match[1]] = true
 		}
 	}
-	if sm.config.Debug {
+	if sm.config.Verbose {
 		fmt.Printf("DEBUG: VLANs existentes: %v\n", vlans)
 	}
 	if len(vlans) == 0 {
@@ -320,7 +323,7 @@ func (sm *SwitchManager) getTrunkInterfaces() (map[string]bool, error) {
 			trunks[match[1]] = true
 		}
 	}
-	if sm.config.Debug {
+	if sm.config.Verbose {
 		fmt.Printf("DEBUG: Interfaces trunk: %v\n", trunks)
 	}
 	return trunks, nil
@@ -331,6 +334,7 @@ func (sm *SwitchManager) getActivePorts() ([]Port, error) {
 	if err != nil {
 		return nil, fmt.Errorf("falha ao obter status das interfaces: %v", err)
 	}
+	// Regex mais rígida para capturar apenas portas com status "connected"
 	re := regexp.MustCompile(`(?m)^([A-Za-z]+\d+\/\d+(?:\/\d+)?)\s+(?:[^\s]*\s+)?connected\s+(\d+|trunk)\s+.*$`)
 	matches := re.FindAllStringSubmatch(output, -1)
 	var ports []Port
@@ -339,7 +343,12 @@ func (sm *SwitchManager) getActivePorts() ([]Port, error) {
 			log.Printf("Aviso: Ignorando linha de interface malformada: %s", match[0])
 			continue
 		}
-		if sm.config.Debug {
+		// Verificação explícita para evitar status ambíguos
+		if !strings.Contains(match[0], "connected") {
+			log.Printf("Aviso: Linha %s não contém status connected, ignorando", match[0])
+			continue
+		}
+		if sm.config.Verbose {
 			fmt.Printf("DEBUG: Encontrada porta ativa %s com VLAN %s\n", match[1], match[2])
 		}
 		ports = append(ports, Port{
@@ -347,7 +356,7 @@ func (sm *SwitchManager) getActivePorts() ([]Port, error) {
 			Vlan:      match[2],
 		})
 	}
-	if sm.config.Debug {
+	if sm.config.Verbose {
 		fmt.Printf("DEBUG: Encontradas %d portas ativas\n", len(ports))
 	}
 	return ports, nil
@@ -358,17 +367,44 @@ func (sm *SwitchManager) getMacTable() ([]Device, error) {
 	if err != nil {
 		return nil, fmt.Errorf("falha ao obter tabela MAC: %v", err)
 	}
-	re := regexp.MustCompile(`(\d+)\s+([0-9A-Fa-f]{4}\.[0-9A-Fa-f]{4}\.[0-9A-Fa-f]{4})\s+\w+\s+(\S+)`)
+	if sm.config.Extra {
+		fmt.Printf("Saída bruta do comando 'show mac address-table dynamic':\n%s\n", output)
+	}
+	// Regex ajustada para ser mais flexível com espaçamento
+	re := regexp.MustCompile(`(?m)^\s*(\d+)\s+([0-9A-Fa-f]{4}\.[0-9A-Fa-f]{4}\.[0-9A-Fa-f]{4})\s+DYNAMIC\s+(\S+)\s*$`)
 	matches := re.FindAllStringSubmatch(output, -1)
 	var devices []Device
 	for _, match := range matches {
 		if len(match) < 4 {
-			log.Printf("Aviso: Ignorando linha malformada da tabela MAC: %s", match[0])
+			if sm.config.Verbose {
+				fmt.Printf("DEBUG: Ignorando linha malformada da tabela MAC: %s\n", match[0])
+			}
 			continue
 		}
 		vlan := match[1]
 		mac := match[2]
 		iface := match[3]
+		// Validar VLAN
+		if _, err := strconv.Atoi(vlan); err != nil {
+			if sm.config.Verbose {
+				fmt.Printf("DEBUG: Ignorando linha com VLAN inválido '%s' na tabela MAC: %s\n", vlan, match[0])
+			}
+			continue
+		}
+		// Validar MAC
+		if !regexp.MustCompile(`^[0-9A-Fa-f]{4}\.[0-9A-Fa-f]{4}\.[0-9A-Fa-f]{4}$`).MatchString(mac) {
+			if sm.config.Verbose {
+				fmt.Printf("DEBUG: Ignorando linha com MAC inválido '%s' na tabela MAC: %s\n", mac, match[0])
+			}
+			continue
+		}
+		// Validar interface
+		if !regexp.MustCompile(`^[A-Za-z]+\d+\/\d+(?:\/\d+)?$`).MatchString(iface) {
+			if sm.config.Verbose {
+				fmt.Printf("DEBUG: Ignorando linha com interface inválida '%s' na tabela MAC: %s\n", iface, match[0])
+			}
+			continue
+		}
 		macNoDots := strings.ReplaceAll(mac, ".", "")
 		var macFull strings.Builder
 		for i := 0; i < len(macNoDots); i += 2 {
@@ -377,6 +413,9 @@ func (sm *SwitchManager) getMacTable() ([]Device, error) {
 			}
 			macFull.WriteString(macNoDots[i : i+2])
 		}
+		if sm.config.Verbose {
+			fmt.Printf("DEBUG: Adicionando dispositivo: VLAN=%s, MAC=%s, Interface=%s\n", vlan, macFull.String(), iface)
+		}
 		devices = append(devices, Device{
 			Vlan:      vlan,
 			Mac:       mac,
@@ -384,7 +423,7 @@ func (sm *SwitchManager) getMacTable() ([]Device, error) {
 			Interface: iface,
 		})
 	}
-	if sm.config.Debug {
+	if sm.config.Verbose {
 		fmt.Printf("DEBUG: Encontrados %d dispositivos na tabela MAC\n", len(devices))
 	}
 	return devices, nil
@@ -428,7 +467,7 @@ func (sm *SwitchManager) createVLAN(vlan string) error {
 			return fmt.Errorf("falha ao criar VLAN %s: %v", vlan, err)
 		}
 	}
-	if sm.config.Debug {
+	if sm.config.Verbose {
 		fmt.Printf("DEBUG: Criada VLAN %s\n", vlan)
 	}
 	return nil

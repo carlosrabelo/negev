@@ -12,7 +12,8 @@ import (
 func main() {
 	yamlFile := flag.String("y", "config.yaml", "Arquivo de configuração YAML")
 	write := flag.Bool("w", false, "Gravar alterações (desativa sandbox)")
-	verbose := flag.Bool("v", false, "Ativar logs detalhados (debug)")
+	verbose := flag.Bool("v", false, "Ativar logs de debug (mensagens DEBUG:)")
+	extra := flag.Bool("e", false, "Ativar exibição das saídas brutas do switch")
 	daemon := flag.Bool("d", false, "Ativar modo daemon para SNMP traps")
 	host := flag.String("t", "", "Alvo do switch (deve corresponder a um target no YAML)")
 	skipVlanCheck := flag.Bool("s", false, "Ignorar verificação de VLAN (use com cautela)")
@@ -53,7 +54,7 @@ func main() {
 		}
 	}
 
-	cfg, err := loadConfig(configPath, !*write, *verbose, *skipVlanCheck, *createVLANs)
+	cfg, err := loadConfig(configPath, *write, *verbose, *extra, *skipVlanCheck, *createVLANs)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -61,7 +62,7 @@ func main() {
 	if *daemon {
 		// Modo daemon: escuta SNMP traps
 		fmt.Println("Iniciando Negev em modo daemon para SNMP traps...")
-		err = RunSNMP(cfg, *verbose)
+		err = RunSNMP(cfg, *verbose, *extra)
 		if err != nil {
 			log.Fatal(err)
 		}

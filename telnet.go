@@ -209,55 +209,55 @@ func (sm *SwitchManager) ProcessPorts() error {
 				portDevices = append(portDevices, d)
 			}
 		}
-		var targetVlan string
 		if len(portDevices) == 0 {
-			targetVlan = sm.config.DefaultVlan
 			if sm.config.Verbose {
-				fmt.Printf("DEBUG: Port %s has no active device, using default_vlan %s\n", port.Interface, targetVlan)
+				fmt.Printf("DEBUG: Skipping port %s with no active devices\n", port.Interface)
 			}
-		} else if len(portDevices) > 1 {
+			continue
+		}
+		var targetVlan string
+		if len(portDevices) > 1 {
 			log.Printf("Warning: Multiple MACs detected on port %s: %v. Ignoring port to avoid ambiguity.",
 				port.Interface, getMacList(portDevices))
 			continue
+		}
+		// One device found
+		dev := portDevices[0]
+		normDevMac := normalizeMac(dev.MacFull)
+		if sm.config.Verbose {
+			fmt.Printf("DEBUG: Checking MAC %s on port %s against exclude_macs: %v\n", dev.MacFull, port.Interface, sm.config.ExcludeMacs)
+		}
+		isExcluded := false
+		for _, excludeMac := range sm.config.ExcludeMacs {
+			if normDevMac == excludeMac {
+				if sm.config.Verbose {
+					fmt.Printf("DEBUG: MAC %s excluded, ignoring port %s\n", dev.MacFull, port.Interface)
+				}
+				isExcluded = true
+				break
+			}
+		}
+		if isExcluded {
+			continue
+		}
+		// Proceed only if the MAC is not excluded
+		if sm.config.Verbose {
+			fmt.Printf("DEBUG: MAC %s not excluded, checking mac_to_vlan for prefix %s\n", dev.MacFull, normDevMac[:6])
+		}
+		macPrefix := normDevMac[:6]
+		targetVlan = sm.config.MacToVlan[macPrefix]
+		if targetVlan == "" || targetVlan == "0" || targetVlan == "00" {
+			targetVlan = sm.config.DefaultVlan
+			if sm.config.Verbose {
+				if targetVlan == "0" || targetVlan == "00" {
+					fmt.Printf("DEBUG: Ignoring invalid VLAN mapping %s for MAC %s (prefix %s) on port %s, using switch default_vlan %s\n", targetVlan, dev.MacFull, macPrefix, port.Interface, sm.config.DefaultVlan)
+				} else {
+					fmt.Printf("DEBUG: No VLAN mapping for %s (prefix %s) on port %s, using switch default_vlan %s\n", dev.MacFull, macPrefix, port.Interface, sm.config.DefaultVlan)
+				}
+			}
 		} else {
-			// One device found
-			dev := portDevices[0]
-			normDevMac := normalizeMac(dev.MacFull)
 			if sm.config.Verbose {
-				fmt.Printf("DEBUG: Checking MAC %s on port %s against exclude_macs: %v\n", dev.MacFull, port.Interface, sm.config.ExcludeMacs)
-			}
-			isExcluded := false
-			for _, excludeMac := range sm.config.ExcludeMacs {
-				if normDevMac == excludeMac {
-					if sm.config.Verbose {
-						fmt.Printf("DEBUG: MAC %s excluded, ignoring port %s\n", dev.MacFull, port.Interface)
-					}
-					isExcluded = true
-					break
-				}
-			}
-			if isExcluded {
-				continue
-			}
-			// Proceed only if the MAC is not excluded
-			if sm.config.Verbose {
-				fmt.Printf("DEBUG: MAC %s not excluded, checking mac_to_vlan for prefix %s\n", dev.MacFull, normDevMac[:6])
-			}
-			macPrefix := normDevMac[:6]
-			targetVlan = sm.config.MacToVlan[macPrefix]
-			if targetVlan == "" || targetVlan == "0" || targetVlan == "00" {
-				targetVlan = sm.config.DefaultVlan
-				if sm.config.Verbose {
-					if targetVlan == "0" || targetVlan == "00" {
-						fmt.Printf("DEBUG: Ignoring invalid VLAN mapping %s for MAC %s (prefix %s) on port %s, using switch default_vlan %s\n", targetVlan, dev.MacFull, macPrefix, port.Interface, sm.config.DefaultVlan)
-					} else {
-						fmt.Printf("DEBUG: No VLAN mapping for %s (prefix %s) on port %s, using switch default_vlan %s\n", dev.MacFull, macPrefix, port.Interface, sm.config.DefaultVlan)
-					}
-				}
-			} else {
-				if sm.config.Verbose {
-					fmt.Printf("DEBUG: MAC %s (prefix %s) mapped to VLAN %s on port %s\n", dev.MacFull, macPrefix, targetVlan, port.Interface)
-				}
+				fmt.Printf("DEBUG: MAC %s (prefix %s) mapped to VLAN %s on port %s\n", dev.MacFull, macPrefix, targetVlan, port.Interface)
 			}
 		}
 
@@ -383,6 +383,11 @@ func (sm *SwitchManager) getMacTable() ([]Device, error) {
 	if sm.config.Extra {
 		fmt.Printf("Raw output of 'show mac address-table dynamic':\n%s\n", output)
 	}
+	// Get trunk interfaces to filter out trunk ports
+	trunks, err := sm.getTrunkInterfaces()
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve trunk interfaces: %v", err)
+	}
 	// Adjusted regex to be more flexible with spacing
 	re := regexp.MustCompile(`(?m)^\s*(\d+)\s+([0-9A-Fa-f]{4}\.[0-9A-Fa-f]{4}\.[0-9A-Fa-f]{4})\s+DYNAMIC\s+(\S+)\s*$`)
 	matches := re.FindAllStringSubmatch(output, -1)
@@ -415,6 +420,13 @@ func (sm *SwitchManager) getMacTable() ([]Device, error) {
 		if !regexp.MustCompile(`^[A-Za-z]+\d+\/\d+(?:\/\d+)?$`).MatchString(iface) {
 			if sm.config.Verbose {
 				fmt.Printf("DEBUG: Ignoring line with invalid interface '%s' in MAC table: %s\n", iface, match[0])
+			}
+			continue
+		}
+		// Skip if the interface is a trunk
+		if trunks[iface] {
+			if sm.config.Verbose {
+				fmt.Printf("DEBUG: Skipping MAC %s on trunk interface %s\n", mac, iface)
 			}
 			continue
 		}

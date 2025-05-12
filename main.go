@@ -37,7 +37,7 @@ func main() {
 		}
 
 		if runtime.GOOS == "linux" {
-			// Linux: Add user and global paths
+			// Linux: Add user and global configuration paths
 			if userConfigDir, err := os.UserConfigDir(); err == nil {
 				possiblePaths = append(possiblePaths, filepath.Join(userConfigDir, "negev", "config.yaml"))
 			}
@@ -52,7 +52,7 @@ func main() {
 			}
 		}
 
-		// Try to find the first existing file
+		// Try to find the first existing configuration file
 		found := false
 		for _, path := range possiblePaths {
 			if _, err := os.Stat(path); err == nil {
@@ -74,7 +74,8 @@ func main() {
 		}
 	}
 
-	cfg, err := loadConfig(configPath, *write, *verbose, *extra, *skipVlanCheck, *createVLANs)
+	// Load configuration, passing the target switch IP for log filtering
+	cfg, err := loadConfig(configPath, *host, *write, *verbose, *extra, *skipVlanCheck, *createVLANs)
 	if err != nil {
 		log.Fatal(err)
 	}

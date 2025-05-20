@@ -1,10 +1,12 @@
 name: Release Negev Binaries
 
 on:
-  push:
-    tags:
-      - 'v[0-9]+.[0-9]+.[0-9]+' # Aciona automaticamente em tags como v1.0.0
-  workflow_dispatch: # Permite execução manual
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (e.g., v1.0.0)'
+        required: true
+        type: string
 
 jobs:
   build-linux:
@@ -17,7 +19,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.21' # Ajuste para sua versão do Go
+          go-version: '1.21'
 
       - name: Build binary
         run: |
@@ -41,7 +43,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.21' # Ajuste para sua versão do Go
+          go-version: '1.21'
 
       - name: Build binary
         shell: powershell
@@ -59,7 +61,7 @@ jobs:
 
   release:
     name: Create Release
-    needs: [build-linux, build-windows] # Espera os builds concluírem
+    needs: [build-linux, build-windows]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -70,16 +72,11 @@ jobs:
         with:
           path: artifacts
 
-      - name: Set tag for manual run
-        if: github.event_name == 'workflow_dispatch'
+      - name: Set tag
         run: |
-          echo "TAG=manual-${{ github.run_id }}" >> $GITHUB_ENV
-          git tag ${{ env.TAG }}
-          git push origin ${{ env.TAG }}
-
-      - name: Set tag for push event
-        if: github.event_name == 'push'
-        run: echo "TAG=${{ github.ref_name }}" >> $GITHUB_ENV
+          echo "TAG=${{ inputs.version }}" >> $GITHUB_ENV
+          git tag ${{ inputs.version }}
+          git push origin ${{ inputs.version }}
 
       - name: Release
         uses: softprops/action-gh-release@v1
@@ -87,8 +84,8 @@ jobs:
           files: |
             artifacts/negev-linux-amd64/negev-linux-amd64
             artifacts/negev-windows-amd64.exe/negev-windows-amd64.exe
-          name: "Negev ${{ env.TAG }}"
-          tag_name: ${{ env.TAG }}
-          draft: ${{ github.event_name == 'workflow_dispatch' }} # Rascunho para manual
+          name: "Negev ${{ inputs.version }}"
+          tag_name: ${{ inputs.version }}
+          draft: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -34,6 +34,9 @@ func NewTelnetClient(config SwitchConfig) *TelnetClient {
 
 // Connect establishes a Telnet connection to the switch
 func (tc *TelnetClient) Connect() error {
+	if tc.conn != nil {
+		return nil
+	}
 	conn, err := telnet.Dial("tcp", tc.config.Target+":23")
 	if err != nil {
 		return fmt.Errorf("failed to connect to %s: %v", tc.config.Target, err)
@@ -102,7 +105,12 @@ func (tc *TelnetClient) Disconnect() {
 		if tc.config.IsDebugEnabled() {
 			fmt.Println("DEBUG: Disconnected")
 		}
+		tc.conn = nil
 	}
+}
+
+func (tc *TelnetClient) IsConnected() bool {
+	return tc.conn != nil
 }
 
 // ExecuteCommand sends a command to the switch and returns its output
@@ -139,15 +147,8 @@ func NewSwitchManager(config SwitchConfig, globalConfig Config) *SwitchManager {
 	return &SwitchManager{
 		config:       config,
 		globalConfig: globalConfig,
-		client:       newSwitchClient(config),
+		client:       getSwitchClient(config),
 	}
-}
-
-func newSwitchClient(config SwitchConfig) SwitchClient {
-	if config.Transport == "ssh" {
-		return NewSSHClient(config)
-	}
-	return NewTelnetClient(config)
 }
 
 // ProcessPorts processes switch ports and configures VLANs as needed
@@ -155,11 +156,11 @@ func (sm *SwitchManager) ProcessPorts() error {
 	if sm.config.IsDebugEnabled() {
 		fmt.Printf("DEBUG: Switch configuration %s: DefaultVlan=%s, ExcludeMacs=%v, ExcludePorts=%v\n", sm.config.Target, sm.config.DefaultVlan, sm.config.ExcludeMacs, sm.config.ExcludePorts)
 	}
-	err := sm.client.Connect()
-	if err != nil {
-		return err
+	if !sm.client.IsConnected() {
+		if err := sm.client.Connect(); err != nil {
+			return err
+		}
 	}
-	defer sm.client.Disconnect()
 
 	existingVLANs, err := sm.getVlanList()
 	if err != nil {

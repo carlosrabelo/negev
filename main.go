@@ -84,6 +84,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	defer CloseAllClients()
 
 	// Process only the switch specified by -t
 	found := false

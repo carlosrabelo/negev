@@ -27,6 +27,9 @@ func NewSSHClient(config SwitchConfig) *SSHClient {
 }
 
 func (sc *SSHClient) Connect() error {
+	if sc.IsConnected() {
+		return nil
+	}
 	addr := net.JoinHostPort(sc.config.Target, "22")
 	sshConfig := &ssh.ClientConfig{
 		User:            sc.config.Username,
@@ -165,6 +168,10 @@ func (sc *SSHClient) Disconnect() {
 	if sc.config.IsDebugEnabled() {
 		fmt.Println("DEBUG: Disconnected")
 	}
+}
+
+func (sc *SSHClient) IsConnected() bool {
+	return sc.session != nil && sc.client != nil
 }
 
 func (sc *SSHClient) ExecuteCommand(cmd string) (string, error) {

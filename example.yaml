@@ -1,30 +1,31 @@
-host: "192.168.1.1"
+transport: "telnet"
 username: "admin"
 password: "password"
 enable_password: "enable_password"
 default_vlan: "10"
+no_data_vlan: "99"
 mac_to_vlan:
   "3c:2a:f4": "30" # Brother
   "dc:c2:c9": "30" # Canon
   "00:c8:8b": "50" # Cisco AP
-  "10:dc:b6": "10" # Cal-Comp
-  "18:a5:9c": "10" # Cal-Comp
-  "d0:94:66": "10" # Dell Comp
-  "00:0b:82": "31" # Grandstream
-  "00:1a:3f": "31" # Intelbras Tel
-  "18:0d:2c": "32" # Intelbras Cam
-  "24:fd:0d": "32" # Intelbras Cam
-  "78:8c:77": "30" # Lexmark Prn
-  "34:64:a9": "10" # HP
-  "70:5a:0f": "10" # HP
-  "a4:5d:36": "10" # HP
-  "ac:16:2d": "10" # HP
-  "d8:d3:85": "10" # HP
-  "f4:30:b9": "30" # HP Prn
-  "88:1e:59": "10" # Onion Corp
 exclude_macs:
   - "d8:d3:85:d7:0d:b7"
   - "d8:d3:85:6d:b5:ac"
   - "d8:d3:85:6d:d5:36"
   - "d8:d3:85:6d:b5:28"
   - "ac:16:2d:34:bb:da"
+switches:
+  - target: "192.168.1.1"
+    transport: "ssh"
+    username: "admin"
+    password: "password"
+    enable_password: "enable_password"
+    default_vlan: "10"
+    no_data_vlan: "99"
+    exclude_macs:
+      - "00:11:22:33:44:55"
+    exclude_ports:
+      - "gi1/0/24"
+    mac_to_vlan:
+      "a4:bb:6d": "20" # Custom device
+      "88:1e:59": "10" # Onion Corp

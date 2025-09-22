@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"net"
 	"os"
 	"strconv"
 	"strings"
@@ -13,30 +12,39 @@ import (
 // SwitchConfig defines the configuration for a single switch
 type SwitchConfig struct {
 	Target         string            `yaml:"target"`
+	Transport      string            `yaml:"transport"`
 	Username       string            `yaml:"username"`
 	Password       string            `yaml:"password"`
 	EnablePassword string            `yaml:"enable_password"`
 	MacToVlan      map[string]string `yaml:"mac_to_vlan"`
 	ExcludeMacs    []string          `yaml:"exclude_macs"`
+	ExcludePorts   []string          `yaml:"exclude_ports"`
 	DefaultVlan    string            `yaml:"default_vlan"` // Default VLAN per switch
 	NoDataVlan     string            `yaml:"no_data_vlan"` // Quarantine VLAN per switch
 	Sandbox        bool
-	Verbose        bool
-	Extra          bool
+	VerbosityLevel int
 	SkipVlanCheck  bool
 	CreateVLANs    bool
 }
 
+// IsDebugEnabled returns true if debug logs are enabled (VerbosityLevel 1 or 3)
+func (sc SwitchConfig) IsDebugEnabled() bool {
+	return sc.VerbosityLevel == 1 || sc.VerbosityLevel == 3
+}
+
+// IsRawOutputEnabled returns true if raw switch output is enabled (VerbosityLevel 2 or 3)
+func (sc SwitchConfig) IsRawOutputEnabled() bool {
+	return sc.VerbosityLevel == 2 || sc.VerbosityLevel == 3
+}
+
 // Config defines the global configuration
 type Config struct {
-	ServerIP       string            `yaml:"server_ip"`
+	Transport      string            `yaml:"transport"`
 	Username       string            `yaml:"username"`
 	Password       string            `yaml:"password"`
 	EnablePassword string            `yaml:"enable_password"`
-	SnmpCommunity  string            `yaml:"snmp_community"` // SNMP community
-	SnmpPort       int               `yaml:"snmp_port"`      // SNMP port for traps
-	DefaultVlan    string            `yaml:"default_vlan"`   // Global default VLAN
-	NoDataVlan     string            `yaml:"no_data_vlan"`   // Global quarantine VLAN
+	DefaultVlan    string            `yaml:"default_vlan"` // Global default VLAN
+	NoDataVlan     string            `yaml:"no_data_vlan"` // Global quarantine VLAN
 	ExcludeMacs    []string          `yaml:"exclude_macs"`
 	MacToVlan      map[string]string `yaml:"mac_to_vlan"`
 	Switches       []SwitchConfig    `yaml:"switches"`
@@ -72,7 +80,7 @@ func getMacList(devices []Device) []string {
 
 // loadConfig loads and validates the configuration from a YAML file
 // The target parameter filters debug logs to the specified switch
-func loadConfig(yamlFile, target string, sandbox, verbose, extra, skipVlanCheck, createVLANs bool) (*Config, error) {
+func loadConfig(yamlFile, target string, sandbox bool, verbosityLevel int, skipVlanCheck, createVLANs bool) (*Config, error) {
 	data, err := os.ReadFile(yamlFile)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read YAML file %s: %v", yamlFile, err)
@@ -95,35 +103,13 @@ func loadConfig(yamlFile, target string, sandbox, verbose, extra, skipVlanCheck,
 		return nil
 	}
 
-	// Validate server_ip
-	if cfg.ServerIP == "" {
-		return nil, fmt.Errorf("server_ip is required in the YAML configuration")
+	// Validate global transport
+	if cfg.Transport == "" {
+		cfg.Transport = "telnet"
 	}
-	if net.ParseIP(cfg.ServerIP) == nil {
-		return nil, fmt.Errorf("server_ip %s is not a valid IP address", cfg.ServerIP)
-	}
-	// Ensure it's IPv4
-	ip := net.ParseIP(cfg.ServerIP).To4()
-	if ip == nil {
-		return nil, fmt.Errorf("server_ip %s must be an IPv4 address", cfg.ServerIP)
-	}
-
-	// Validate snmp_community
-	if cfg.SnmpCommunity == "" {
-		cfg.SnmpCommunity = "public" // Default value
-		if verbose {
-			fmt.Printf("DEBUG: No snmp_community defined, using default 'public'\n")
-		}
-	}
-
-	// Validate snmp_port
-	if cfg.SnmpPort == 0 {
-		cfg.SnmpPort = 162 // Default value
-		if verbose {
-			fmt.Printf("DEBUG: No snmp_port defined, using default 162\n")
-		}
-	} else if cfg.SnmpPort < 1 || cfg.SnmpPort > 65535 {
-		return nil, fmt.Errorf("snmp_port %d is invalid, must be between 1 and 65535", cfg.SnmpPort)
+	cfg.Transport = strings.ToLower(cfg.Transport)
+	if cfg.Transport != "telnet" && cfg.Transport != "ssh" {
+		return nil, fmt.Errorf("transport %s is invalid, must be 'telnet' or 'ssh'", cfg.Transport)
 	}
 
 	// Validate global default_vlan
@@ -143,8 +129,8 @@ func loadConfig(yamlFile, target string, sandbox, verbose, extra, skipVlanCheck,
 	}
 
 	// Log global configuration values
-	if verbose {
-		fmt.Printf("DEBUG: Global values: ServerIP=%s, SnmpCommunity=%s, SnmpPort=%d, DefaultVlan=%s, NoDataVlan=%s, ExcludeMacs=%v\n", cfg.ServerIP, cfg.SnmpCommunity, cfg.SnmpPort, cfg.DefaultVlan, cfg.NoDataVlan, cfg.ExcludeMacs)
+	if verbosityLevel == 1 || verbosityLevel == 3 {
+		fmt.Printf("DEBUG: Global values: Transport=%s, DefaultVlan=%s, NoDataVlan=%s, ExcludeMacs=%v\n", cfg.Transport, cfg.DefaultVlan, cfg.NoDataVlan, cfg.ExcludeMacs)
 	}
 
 	// Validate global fields used as fallback
@@ -161,7 +147,22 @@ func loadConfig(yamlFile, target string, sandbox, verbose, extra, skipVlanCheck,
 	// Process each switch configuration
 	for i, sw := range cfg.Switches {
 		// Enable debug logs only for the target switch or if no target is specified
-		switchVerbose := verbose && (target == "" || sw.Target == target)
+		switchVerbosity := verbosityLevel
+		if target != "" && sw.Target != target {
+			switchVerbosity = 0 // Disable logs for non-target switches
+		}
+
+		// Inherit or validate transport
+		sw.Transport = strings.ToLower(strings.TrimSpace(sw.Transport))
+		if sw.Transport == "" {
+			sw.Transport = cfg.Transport
+			if switchVerbosity == 1 || switchVerbosity == 3 {
+				fmt.Printf("DEBUG: No transport defined for switch %s, using global %s\n", sw.Target, cfg.Transport)
+			}
+		}
+		if sw.Transport != "telnet" && sw.Transport != "ssh" {
+			return nil, fmt.Errorf("transport %s is invalid for switch %s, must be 'telnet' or 'ssh'", sw.Transport, sw.Target)
+		}
 
 		// Validate required fields
 		if sw.Target == "" {
@@ -180,19 +181,19 @@ func loadConfig(yamlFile, target string, sandbox, verbose, extra, skipVlanCheck,
 		// Apply global defaults
 		if sw.Username == "" {
 			sw.Username = cfg.Username
-			if switchVerbose {
+			if switchVerbosity == 1 || switchVerbosity == 3 {
 				fmt.Printf("DEBUG: No username defined for switch %s, using global %s\n", sw.Target, cfg.Username)
 			}
 		}
 		if sw.Password == "" {
 			sw.Password = cfg.Password
-			if switchVerbose {
+			if switchVerbosity == 1 || switchVerbosity == 3 {
 				fmt.Printf("DEBUG: No password defined for switch %s, using global %s\n", sw.Target, cfg.Password)
 			}
 		}
 		if sw.EnablePassword == "" {
 			sw.EnablePassword = cfg.EnablePassword
-			if switchVerbose {
+			if switchVerbosity == 1 || switchVerbosity == 3 {
 				fmt.Printf("DEBUG: No enable_password defined for switch %s, using global %s\n", sw.Target, cfg.EnablePassword)
 			}
 		}
@@ -212,8 +213,27 @@ func loadConfig(yamlFile, target string, sandbox, verbose, extra, skipVlanCheck,
 		for mac := range normalizedExcludeMacs {
 			sw.ExcludeMacs = append(sw.ExcludeMacs, mac)
 		}
-		if switchVerbose {
+		if switchVerbosity == 1 || switchVerbosity == 3 {
 			fmt.Printf("DEBUG: Merged exclude_macs for switch %s: %v\n", sw.Target, sw.ExcludeMacs)
+		}
+
+		// Normalize exclude_ports
+		if len(sw.ExcludePorts) > 0 {
+			normalizedExcludePorts := make(map[string]struct{})
+			for _, port := range sw.ExcludePorts {
+				trimmed := strings.TrimSpace(port)
+				if trimmed == "" {
+					continue
+				}
+				normalizedExcludePorts[strings.ToLower(trimmed)] = struct{}{}
+			}
+			sw.ExcludePorts = make([]string, 0, len(normalizedExcludePorts))
+			for port := range normalizedExcludePorts {
+				sw.ExcludePorts = append(sw.ExcludePorts, port)
+			}
+			if switchVerbosity == 1 || switchVerbosity == 3 {
+				fmt.Printf("DEBUG: Normalized exclude_ports for switch %s: %v\n", sw.Target, sw.ExcludePorts)
+			}
 		}
 
 		// Merge global and local mac_to_vlan
@@ -224,7 +244,7 @@ func loadConfig(yamlFile, target string, sandbox, verbose, extra, skipVlanCheck,
 		// Process switch-specific mac_to_vlan entries first
 		for mac, vlan := range sw.MacToVlan {
 			if vlan == "0" || vlan == "00" {
-				if switchVerbose {
+				if switchVerbosity == 1 || switchVerbosity == 3 {
 					fmt.Printf("DEBUG: Ignoring invalid VLAN mapping %s for MAC %s on switch %s\n", vlan, mac, sw.Target)
 				}
 				continue
@@ -234,20 +254,20 @@ func loadConfig(yamlFile, target string, sandbox, verbose, extra, skipVlanCheck,
 			}
 			normalizedMac := normalizeMac(mac)
 			newMacToVlan[normalizedMac[:6]] = vlan
-			if switchVerbose {
+			if switchVerbosity == 1 || switchVerbosity == 3 {
 				fmt.Printf("DEBUG: Added switch-specific mac_to_vlan mapping for %s: %s on switch %s\n", normalizedMac[:6], vlan, sw.Target)
 			}
 		}
 		// Add global mac_to_vlan entries only for prefixes not defined by the switch
 		for mac, vlan := range cfg.MacToVlan {
 			if vlan == "0" || vlan == "00" {
-				if switchVerbose {
+				if switchVerbosity == 1 || switchVerbosity == 3 {
 					fmt.Printf("DEBUG: Ignoring invalid global VLAN mapping %s for MAC %s\n", vlan, mac)
 				}
 				continue
 			}
 			if err := validateVLAN(vlan, fmt.Sprintf("global mac_to_vlan for MAC %s", mac)); err != nil {
-				if switchVerbose {
+				if switchVerbosity == 1 || switchVerbosity == 3 {
 					fmt.Printf("DEBUG: Skipping invalid global VLAN %s for MAC %s: %v\n", vlan, mac, err)
 				}
 				continue
@@ -255,20 +275,20 @@ func loadConfig(yamlFile, target string, sandbox, verbose, extra, skipVlanCheck,
 			normalizedMac := normalizeMac(mac)
 			if _, exists := newMacToVlan[normalizedMac[:6]]; !exists {
 				newMacToVlan[normalizedMac[:6]] = vlan
-				if switchVerbose {
+				if switchVerbosity == 1 || switchVerbosity == 3 {
 					fmt.Printf("DEBUG: Inherited global mac_to_vlan mapping for %s: %s on switch %s\n", normalizedMac[:6], vlan, sw.Target)
 				}
 			}
 		}
 		sw.MacToVlan = newMacToVlan
-		if switchVerbose {
+		if switchVerbosity == 1 || switchVerbosity == 3 {
 			fmt.Printf("DEBUG: Merged mac_to_vlan for switch %s: %v\n", sw.Target, sw.MacToVlan)
 		}
 
 		// Inherit global default_vlan if not specified
 		if sw.DefaultVlan == "" {
 			sw.DefaultVlan = cfg.DefaultVlan
-			if switchVerbose {
+			if switchVerbosity == 1 || switchVerbosity == 3 {
 				fmt.Printf("DEBUG: No default_vlan defined for switch %s, inheriting global %s\n", sw.Target, cfg.DefaultVlan)
 			}
 		}
@@ -280,7 +300,7 @@ func loadConfig(yamlFile, target string, sandbox, verbose, extra, skipVlanCheck,
 		// Inherit global no_data_vlan if not specified
 		if sw.NoDataVlan == "" {
 			sw.NoDataVlan = cfg.NoDataVlan
-			if switchVerbose {
+			if switchVerbosity == 1 || switchVerbosity == 3 {
 				fmt.Printf("DEBUG: No no_data_vlan defined for switch %s, inheriting global %s\n", sw.Target, cfg.NoDataVlan)
 			}
 		}
@@ -291,14 +311,13 @@ func loadConfig(yamlFile, target string, sandbox, verbose, extra, skipVlanCheck,
 
 		// Apply command-line flags
 		sw.Sandbox = !sandbox // Invert logic: write=true → Sandbox=false, write=false → Sandbox=true
-		sw.Verbose = verbose
-		sw.Extra = extra
+		sw.VerbosityLevel = verbosityLevel
 		sw.SkipVlanCheck = skipVlanCheck
 		sw.CreateVLANs = createVLANs
 
 		// Log final configuration for the switch
-		if switchVerbose {
-			fmt.Printf("DEBUG: Final configuration for switch %s: DefaultVlan=%s, NoDataVlan=%s, ExcludeMacs=%v, Sandbox=%v\n", sw.Target, sw.DefaultVlan, sw.NoDataVlan, sw.ExcludeMacs, sw.Sandbox)
+		if switchVerbosity == 1 || switchVerbosity == 3 {
+			fmt.Printf("DEBUG: Final configuration for switch %s: Transport=%s, DefaultVlan=%s, NoDataVlan=%s, ExcludeMacs=%v, Sandbox=%v, VerbosityLevel=%d\n", sw.Target, sw.Transport, sw.DefaultVlan, sw.NoDataVlan, sw.ExcludeMacs, sw.Sandbox, sw.VerbosityLevel)
 		}
 
 		// Update the switch configuration in the list

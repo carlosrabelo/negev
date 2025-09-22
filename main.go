@@ -13,17 +13,22 @@ import (
 func main() {
 	yamlFile := flag.String("y", "config.yaml", "YAML configuration file")
 	write := flag.Bool("w", false, "Apply changes (disables sandbox mode)")
-	verbose := flag.Bool("v", false, "Enable debug logs (DEBUG: messages)")
-	extra := flag.Bool("e", false, "Enable display of raw switch outputs")
-	daemon := flag.Bool("d", false, "Enable daemon mode for SNMP traps")
+	verbosity := flag.Int("v", 0, "Verbosity level: 0=none, 1=debug logs, 2=raw switch output, 3=debug+raw output")
 	host := flag.String("t", "", "Switch target (must match a target in YAML, required)")
 	skipVlanCheck := flag.Bool("s", false, "Skip VLAN existence check (use with caution)")
 	createVLANs := flag.Bool("c", false, "Create missing VLANs on the switch")
 	flag.Parse()
 
-	// Check if -t parameter is provided, but only if not in daemon mode
-	if !*daemon && *host == "" {
-		fmt.Fprintf(os.Stderr, "Error: the -t parameter is required outside daemon mode. Specify the switch target with -t <target>\n")
+	// Validate verbosity level
+	if *verbosity < 0 || *verbosity > 3 {
+		fmt.Fprintf(os.Stderr, "Error: -v must be 0, 1, 2, or 3\n")
+		flag.Usage()
+		os.Exit(1)
+	}
+
+	// Check if -t parameter is provided
+	if *host == "" {
+		fmt.Fprintf(os.Stderr, "Error: the -t parameter is required. Specify the switch target with -t <target>\n")
 		flag.Usage()
 		os.Exit(1)
 	}
@@ -58,7 +63,7 @@ func main() {
 			if _, err := os.Stat(path); err == nil {
 				configPath = path
 				found = true
-				if *verbose {
+				if *verbosity >= 1 {
 					fmt.Printf("DEBUG: Configuration file found at %s\n", path)
 				}
 				break
@@ -75,19 +80,9 @@ func main() {
 	}
 
 	// Load configuration, passing the target switch IP for log filtering
-	cfg, err := loadConfig(configPath, *host, *write, *verbose, *extra, *skipVlanCheck, *createVLANs)
+	cfg, err := loadConfig(configPath, *host, *write, *verbosity, *skipVlanCheck, *createVLANs)
 	if err != nil {
 		log.Fatal(err)
-	}
-
-	if *daemon {
-		// Daemon mode: listen for SNMP traps
-		fmt.Println("Starting Negev in daemon mode for SNMP traps...")
-		err = RunSNMP(cfg, *verbose, *extra)
-		if err != nil {
-			log.Fatal(err)
-		}
-		return
 	}
 
 	// Process only the switch specified by -t

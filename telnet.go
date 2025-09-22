@@ -41,7 +41,7 @@ func (tc *TelnetClient) Connect() error {
 	tc.conn = conn
 	tc.conn.SetReadDeadline(time.Now().Add(DefaultTimeout))
 	tc.conn.SetWriteDeadline(time.Now().Add(DefaultTimeout))
-	if tc.config.Verbose {
+	if tc.config.IsDebugEnabled() {
 		fmt.Printf("DEBUG: Connected to %s\n", tc.config.Target)
 	}
 	prompts := []struct {
@@ -62,7 +62,7 @@ func (tc *TelnetClient) Connect() error {
 		}
 		if p.input != "" {
 			tc.conn.Write([]byte(p.input))
-			if tc.config.Verbose {
+			if tc.config.IsDebugEnabled() {
 				fmt.Printf("DEBUG: Sent %s for prompt %s\n", strings.TrimSpace(p.input), p.prompt)
 			}
 		}
@@ -83,7 +83,7 @@ func (tc *TelnetClient) readUntil(pattern string, timeout time.Duration) (string
 		}
 		if n > 0 {
 			output.Write(buffer[:n])
-			if tc.config.Extra {
+			if tc.config.IsRawOutputEnabled() {
 				fmt.Printf("Switch output: Read: %s\n", string(buffer[:n]))
 			}
 			if strings.Contains(output.String(), pattern) {
@@ -99,7 +99,7 @@ func (tc *TelnetClient) readUntil(pattern string, timeout time.Duration) (string
 func (tc *TelnetClient) Disconnect() {
 	if tc.conn != nil {
 		tc.conn.Close()
-		if tc.config.Verbose {
+		if tc.config.IsDebugEnabled() {
 			fmt.Println("DEBUG: Disconnected")
 		}
 	}
@@ -107,7 +107,7 @@ func (tc *TelnetClient) Disconnect() {
 
 // ExecuteCommand sends a command to the switch and returns its output
 func (tc *TelnetClient) ExecuteCommand(cmd string) (string, error) {
-	if tc.config.Verbose {
+	if tc.config.IsDebugEnabled() {
 		fmt.Printf("DEBUG: Executing: %s\n", cmd)
 	}
 	tc.conn.Write([]byte(cmd + "\n"))
@@ -121,17 +121,17 @@ func (tc *TelnetClient) ExecuteCommand(cmd string) (string, error) {
 	} else {
 		output = ""
 	}
-	if tc.config.Extra {
+	if tc.config.IsRawOutputEnabled() {
 		fmt.Printf("Switch output for '%s':\n%s\n", cmd, output)
 	}
 	return output, nil
 }
 
-// SwitchManager manages switch operations via Telnet
+// SwitchManager manages switch operations via a switch client
 type SwitchManager struct {
 	config       SwitchConfig
 	globalConfig Config
-	telnetClient *TelnetClient
+	client       SwitchClient
 }
 
 // NewSwitchManager creates a new switch manager
@@ -139,20 +139,27 @@ func NewSwitchManager(config SwitchConfig, globalConfig Config) *SwitchManager {
 	return &SwitchManager{
 		config:       config,
 		globalConfig: globalConfig,
-		telnetClient: NewTelnetClient(config),
+		client:       newSwitchClient(config),
 	}
+}
+
+func newSwitchClient(config SwitchConfig) SwitchClient {
+	if config.Transport == "ssh" {
+		return NewSSHClient(config)
+	}
+	return NewTelnetClient(config)
 }
 
 // ProcessPorts processes switch ports and configures VLANs as needed
 func (sm *SwitchManager) ProcessPorts() error {
-	if sm.config.Verbose {
-		fmt.Printf("DEBUG: Switch configuration %s: DefaultVlan=%s, ExcludeMacs=%v\n", sm.config.Target, sm.config.DefaultVlan, sm.config.ExcludeMacs)
+	if sm.config.IsDebugEnabled() {
+		fmt.Printf("DEBUG: Switch configuration %s: DefaultVlan=%s, ExcludeMacs=%v, ExcludePorts=%v\n", sm.config.Target, sm.config.DefaultVlan, sm.config.ExcludeMacs, sm.config.ExcludePorts)
 	}
-	err := sm.telnetClient.Connect()
+	err := sm.client.Connect()
 	if err != nil {
 		return err
 	}
-	defer sm.telnetClient.Disconnect()
+	defer sm.client.Disconnect()
 
 	existingVLANs, err := sm.getVlanList()
 	if err != nil {
@@ -194,11 +201,22 @@ func (sm *SwitchManager) ProcessPorts() error {
 		return nil
 	}
 
+	excludedPorts := make(map[string]struct{}, len(sm.config.ExcludePorts))
+	for _, port := range sm.config.ExcludePorts {
+		excludedPorts[strings.ToLower(port)] = struct{}{}
+	}
+
 	var commands []string
 	changed := false
 	for _, port := range activePorts {
+		if _, skip := excludedPorts[strings.ToLower(port.Interface)]; skip {
+			if sm.config.IsDebugEnabled() {
+				fmt.Printf("DEBUG: Skipping excluded port %s\n", port.Interface)
+			}
+			continue
+		}
 		if trunks[port.Interface] {
-			if sm.config.Verbose {
+			if sm.config.IsDebugEnabled() {
 				fmt.Printf("DEBUG: Ignoring trunk interface %s\n", port.Interface)
 			}
 			continue
@@ -210,7 +228,7 @@ func (sm *SwitchManager) ProcessPorts() error {
 			}
 		}
 		if len(portDevices) == 0 {
-			if sm.config.Verbose {
+			if sm.config.IsDebugEnabled() {
 				fmt.Printf("DEBUG: Skipping port %s with no active devices\n", port.Interface)
 			}
 			continue
@@ -224,13 +242,13 @@ func (sm *SwitchManager) ProcessPorts() error {
 		// One device found
 		dev := portDevices[0]
 		normDevMac := normalizeMac(dev.MacFull)
-		if sm.config.Verbose {
+		if sm.config.IsDebugEnabled() {
 			fmt.Printf("DEBUG: Checking MAC %s on port %s against exclude_macs: %v\n", dev.MacFull, port.Interface, sm.config.ExcludeMacs)
 		}
 		isExcluded := false
 		for _, excludeMac := range sm.config.ExcludeMacs {
 			if normDevMac == excludeMac {
-				if sm.config.Verbose {
+				if sm.config.IsDebugEnabled() {
 					fmt.Printf("DEBUG: MAC %s excluded, ignoring port %s\n", dev.MacFull, port.Interface)
 				}
 				isExcluded = true
@@ -241,14 +259,14 @@ func (sm *SwitchManager) ProcessPorts() error {
 			continue
 		}
 		// Proceed only if the MAC is not excluded
-		if sm.config.Verbose {
+		if sm.config.IsDebugEnabled() {
 			fmt.Printf("DEBUG: MAC %s not excluded, checking mac_to_vlan for prefix %s\n", dev.MacFull, normDevMac[:6])
 		}
 		macPrefix := normDevMac[:6]
 		targetVlan = sm.config.MacToVlan[macPrefix]
 		if targetVlan == "" || targetVlan == "0" || targetVlan == "00" {
 			targetVlan = sm.config.DefaultVlan
-			if sm.config.Verbose {
+			if sm.config.IsDebugEnabled() {
 				if targetVlan == "0" || targetVlan == "00" {
 					fmt.Printf("DEBUG: Ignoring invalid VLAN mapping %s for MAC %s (prefix %s) on port %s, using switch default_vlan %s\n", targetVlan, dev.MacFull, macPrefix, port.Interface, sm.config.DefaultVlan)
 				} else {
@@ -256,7 +274,7 @@ func (sm *SwitchManager) ProcessPorts() error {
 				}
 			}
 		} else {
-			if sm.config.Verbose {
+			if sm.config.IsDebugEnabled() {
 				fmt.Printf("DEBUG: MAC %s (prefix %s) mapped to VLAN %s on port %s\n", dev.MacFull, macPrefix, targetVlan, port.Interface)
 			}
 		}
@@ -267,21 +285,21 @@ func (sm *SwitchManager) ProcessPorts() error {
 		}
 
 		if targetVlan != port.Vlan {
-			if sm.config.Verbose {
+			if sm.config.IsDebugEnabled() {
 				fmt.Printf("DEBUG: Changing %s from VLAN %s to %s\n", port.Interface, port.Vlan, targetVlan)
 			}
 			cmds := sm.configureVlan(port.Interface, targetVlan)
 			commands = append(commands, cmds...)
 			changed = true
 		} else {
-			if sm.config.Verbose {
+			if sm.config.IsDebugEnabled() {
 				fmt.Printf("DEBUG: Port %s already configured for VLAN %s, no changes needed\n", port.Interface, targetVlan)
 			}
 		}
 	}
 	fmt.Printf("State before saving: Sandbox=%v, Changed=%v\n", sm.config.Sandbox, changed)
 	if !sm.config.Sandbox && changed {
-		_, err := sm.telnetClient.ExecuteCommand("write memory")
+		_, err := sm.client.ExecuteCommand("write memory")
 		if err != nil {
 			log.Printf("Error saving configuration: %v", err)
 		} else {
@@ -299,7 +317,7 @@ func (sm *SwitchManager) ProcessPorts() error {
 
 // getVlanList retrieves the list of existing VLANs on the switch
 func (sm *SwitchManager) getVlanList() (map[string]bool, error) {
-	output, err := sm.telnetClient.ExecuteCommand("show vlan brief")
+	output, err := sm.client.ExecuteCommand("show vlan brief")
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve VLAN list: %v", err)
 	}
@@ -311,7 +329,7 @@ func (sm *SwitchManager) getVlanList() (map[string]bool, error) {
 			vlans[match[1]] = true
 		}
 	}
-	if sm.config.Verbose {
+	if sm.config.IsDebugEnabled() {
 		fmt.Printf("DEBUG: Existing VLANs: %v\n", vlans)
 	}
 	if len(vlans) == 0 {
@@ -322,7 +340,7 @@ func (sm *SwitchManager) getVlanList() (map[string]bool, error) {
 
 // getTrunkInterfaces retrieves the list of trunk interfaces on the switch
 func (sm *SwitchManager) getTrunkInterfaces() (map[string]bool, error) {
-	output, err := sm.telnetClient.ExecuteCommand("show interfaces trunk")
+	output, err := sm.client.ExecuteCommand("show interfaces trunk")
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve trunk interfaces: %v", err)
 	}
@@ -334,7 +352,7 @@ func (sm *SwitchManager) getTrunkInterfaces() (map[string]bool, error) {
 			trunks[match[1]] = true
 		}
 	}
-	if sm.config.Verbose {
+	if sm.config.IsDebugEnabled() {
 		fmt.Printf("DEBUG: Trunk interfaces: %v\n", trunks)
 	}
 	return trunks, nil
@@ -342,7 +360,7 @@ func (sm *SwitchManager) getTrunkInterfaces() (map[string]bool, error) {
 
 // getActivePorts retrieves the list of active ports on the switch
 func (sm *SwitchManager) getActivePorts() ([]Port, error) {
-	output, err := sm.telnetClient.ExecuteCommand("show interfaces status")
+	output, err := sm.client.ExecuteCommand("show interfaces status")
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve interface status: %v", err)
 	}
@@ -360,7 +378,7 @@ func (sm *SwitchManager) getActivePorts() ([]Port, error) {
 			log.Printf("Warning: Line %s does not contain connected status, ignoring", match[0])
 			continue
 		}
-		if sm.config.Verbose {
+		if sm.config.IsDebugEnabled() {
 			fmt.Printf("DEBUG: Found active port %s with VLAN %s\n", match[1], match[2])
 		}
 		ports = append(ports, Port{
@@ -368,7 +386,7 @@ func (sm *SwitchManager) getActivePorts() ([]Port, error) {
 			Vlan:      match[2],
 		})
 	}
-	if sm.config.Verbose {
+	if sm.config.IsDebugEnabled() {
 		fmt.Printf("DEBUG: Found %d active ports\n", len(ports))
 	}
 	return ports, nil
@@ -376,11 +394,11 @@ func (sm *SwitchManager) getActivePorts() ([]Port, error) {
 
 // getMacTable retrieves the dynamic MAC address table from the switch
 func (sm *SwitchManager) getMacTable() ([]Device, error) {
-	output, err := sm.telnetClient.ExecuteCommand("show mac address-table dynamic")
+	output, err := sm.client.ExecuteCommand("show mac address-table dynamic")
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve MAC table: %v", err)
 	}
-	if sm.config.Extra {
+	if sm.config.IsRawOutputEnabled() {
 		fmt.Printf("Raw output of 'show mac address-table dynamic':\n%s\n", output)
 	}
 	// Get trunk interfaces to filter out trunk ports
@@ -394,7 +412,7 @@ func (sm *SwitchManager) getMacTable() ([]Device, error) {
 	var devices []Device
 	for _, match := range matches {
 		if len(match) < 4 {
-			if sm.config.Verbose {
+			if sm.config.IsDebugEnabled() {
 				fmt.Printf("DEBUG: Ignoring malformed MAC table line: %s\n", match[0])
 			}
 			continue
@@ -404,28 +422,28 @@ func (sm *SwitchManager) getMacTable() ([]Device, error) {
 		iface := match[3]
 		// Validate VLAN
 		if _, err := strconv.Atoi(vlan); err != nil {
-			if sm.config.Verbose {
+			if sm.config.IsDebugEnabled() {
 				fmt.Printf("DEBUG: Ignoring line with invalid VLAN '%s' in MAC table: %s\n", vlan, match[0])
 			}
 			continue
 		}
 		// Validate MAC
 		if !regexp.MustCompile(`^[0-9A-Fa-f]{4}\.[0-9A-Fa-f]{4}\.[0-9A-Fa-f]{4}$`).MatchString(mac) {
-			if sm.config.Verbose {
+			if sm.config.IsDebugEnabled() {
 				fmt.Printf("DEBUG: Ignoring line with invalid MAC '%s' in MAC table: %s\n", mac, match[0])
 			}
 			continue
 		}
 		// Validate interface
 		if !regexp.MustCompile(`^[A-Za-z]+\d+\/\d+(?:\/\d+)?$`).MatchString(iface) {
-			if sm.config.Verbose {
+			if sm.config.IsDebugEnabled() {
 				fmt.Printf("DEBUG: Ignoring line with invalid interface '%s' in MAC table: %s\n", iface, match[0])
 			}
 			continue
 		}
 		// Skip if the interface is a trunk
 		if trunks[iface] {
-			if sm.config.Verbose {
+			if sm.config.IsDebugEnabled() {
 				fmt.Printf("DEBUG: Skipping MAC %s on trunk interface %s\n", mac, iface)
 			}
 			continue
@@ -438,7 +456,7 @@ func (sm *SwitchManager) getMacTable() ([]Device, error) {
 			}
 			macFull.WriteString(macNoDots[i : i+2])
 		}
-		if sm.config.Verbose {
+		if sm.config.IsDebugEnabled() {
 			fmt.Printf("DEBUG: Adding device: VLAN=%s, MAC=%s, Interface=%s\n", vlan, macFull.String(), iface)
 		}
 		devices = append(devices, Device{
@@ -448,7 +466,7 @@ func (sm *SwitchManager) getMacTable() ([]Device, error) {
 			Interface: iface,
 		})
 	}
-	if sm.config.Verbose {
+	if sm.config.IsDebugEnabled() {
 		fmt.Printf("DEBUG: Found %d devices in MAC table\n", len(devices))
 	}
 	return devices, nil
@@ -471,7 +489,7 @@ func (sm *SwitchManager) configureVlan(iface, vlan string) []string {
 		return commands
 	}
 	for _, cmd := range commands {
-		_, err := sm.telnetClient.ExecuteCommand(cmd)
+		_, err := sm.client.ExecuteCommand(cmd)
 		if err != nil {
 			log.Printf("Error executing %s: %v", cmd, err)
 		}
@@ -489,12 +507,12 @@ func (sm *SwitchManager) createVLAN(vlan string) error {
 		"end",
 	}
 	for _, cmd := range commands {
-		_, err := sm.telnetClient.ExecuteCommand(cmd)
+		_, err := sm.client.ExecuteCommand(cmd)
 		if err != nil {
 			return fmt.Errorf("failed to create VLAN %s: %v", vlan, err)
 		}
 	}
-	if sm.config.Verbose {
+	if sm.config.IsDebugEnabled() {
 		fmt.Printf("DEBUG: Created VLAN %s\n", vlan)
 	}
 	return nil

@@ -1,13 +1,16 @@
-package main
+package transport
 
 import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"sync"
+
+	"github.com/carlosrabelo/negev/internal/config"
 )
 
-type SwitchClient interface {
+// Client abstracts a switch transport session
+type Client interface {
 	Connect() error
 	Disconnect()
 	ExecuteCommand(cmd string) (string, error)
@@ -15,11 +18,11 @@ type SwitchClient interface {
 }
 
 var (
-	clientCache   = make(map[string]SwitchClient)
+	clientCache   = make(map[string]Client)
 	clientCacheMu sync.Mutex
 )
 
-func cacheKey(config SwitchConfig) string {
+func cacheKey(cfg config.SwitchConfig) string {
 	keyData := struct {
 		Transport      string
 		Target         string
@@ -27,30 +30,32 @@ func cacheKey(config SwitchConfig) string {
 		Password       string
 		EnablePassword string
 	}{
-		Transport:      config.Transport,
-		Target:         config.Target,
-		Username:       config.Username,
-		Password:       config.Password,
-		EnablePassword: config.EnablePassword,
+		Transport:      cfg.Transport,
+		Target:         cfg.Target,
+		Username:       cfg.Username,
+		Password:       cfg.Password,
+		EnablePassword: cfg.EnablePassword,
 	}
 	bytes, _ := json.Marshal(keyData)
 	hash := sha256.Sum256(bytes)
 	return hex.EncodeToString(hash[:])
 }
 
-func getSwitchClient(config SwitchConfig) SwitchClient {
+// Get returns a cached client for the provided configuration or creates a new one
+func Get(cfg config.SwitchConfig) Client {
 	clientCacheMu.Lock()
 	defer clientCacheMu.Unlock()
-	key := cacheKey(config)
+	key := cacheKey(cfg)
 	if client, exists := clientCache[key]; exists {
 		return client
 	}
-	client := newSwitchClient(config)
+	client := newClient(cfg)
 	clientCache[key] = client
 	return client
 }
 
-func CloseAllClients() {
+// CloseAll releases every cached client session
+func CloseAll() {
 	clientCacheMu.Lock()
 	defer clientCacheMu.Unlock()
 	for key, client := range clientCache {
@@ -59,9 +64,9 @@ func CloseAllClients() {
 	}
 }
 
-func newSwitchClient(config SwitchConfig) SwitchClient {
-	if config.Transport == "ssh" {
-		return NewSSHClient(config)
+func newClient(cfg config.SwitchConfig) Client {
+	if cfg.Transport == "ssh" {
+		return NewSSHClient(cfg)
 	}
-	return NewTelnetClient(config)
+	return NewTelnetClient(cfg)
 }

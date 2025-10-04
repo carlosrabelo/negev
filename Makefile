@@ -1,54 +1,77 @@
-# Makefile for Negev
+# Negev - VLAN automation tool
+# Build automation for Go project
 
-BINARY_NAME = negev
-CONFIG_FILE = config.yaml
-GO = go
-GOFLAGS = -v
-BUILD_DIR = build
-INSTALL_DIR_ROOT = /usr/local/bin
-INSTALL_DIR_LOCAL = ~/.local/bin
+# Variables
+GO		= go
+BIN		= negev
+SRC		= ./cmd/negev
+BUILD_DIR	= ./bin
+VERSION		= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
+BUILD_TIME	= $(shell date +%Y-%m-%dT%H:%M:%S%z)
+LDFLAGS		= -s -w -X main.version=$(VERSION) -X main.buildTime=$(BUILD_TIME)
 
-.PHONY: all help build run run-write run-debug install deps clean
+# Default target - show help
+.DEFAULT_GOAL := help
 
-all: help
+.PHONY: all build clean deps fmt help info install lint mod-tidy run test vet
 
-help:
-	@printf "Make targets\n"
-	@printf "  all            Show this help\n"
-	@printf "  build          Build the binary into %s/\n" $(BUILD_DIR)
-	@printf "  run            Execute in sandbox mode with %s\n" $(CONFIG_FILE)
-	@printf "  run-write      Execute applying changes with %s\n" $(CONFIG_FILE)
-	@printf "  run-debug      Execute with debug logging (verbosity 1)\n"
-	@printf "  install        Copy the binary to %s or %s\n" $(INSTALL_DIR_ROOT) $(INSTALL_DIR_LOCAL)
-	@printf "  deps           Fetch Go dependencies\n"
-	@printf "  clean          Remove build artifacts\n"
+help:	## Show this help
+	@echo "Negev - Available targets:"
+	@echo ""
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-12s %s\n", $$1, $$2}'
 
-build:
+all: clean fmt vet build	## Clean, format, vet and build
+
+build:	## Build the project
+	@echo "Building $(BIN)..."
 	@mkdir -p $(BUILD_DIR)
-	CGO_ENABLED=0 $(GO) build $(GOFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME)
+	CGO_ENABLED=0 $(GO) build -trimpath -tags netgo -ldflags="$(LDFLAGS)" -o $(BUILD_DIR)/$(BIN) $(SRC)
 
-run:
-	$(GO) run . -y $(CONFIG_FILE)
+clean:	## Remove build artifacts and Go caches
+	@echo "Cleaning build artifacts and caches..."
+	@rm -rf $(BUILD_DIR)
+	@$(GO) clean -cache -testcache -modcache 2>/dev/null || true
 
-run-write:
-	$(GO) run . -w -y $(CONFIG_FILE)
+deps:	## Download Go module dependencies
+	$(GO) mod download
 
-run-debug:
-	$(GO) run . -v 1 -y $(CONFIG_FILE)
+fmt:	## Format source code
+	$(GO) fmt ./...
 
-install: build
+info:	## Show project information
+	@echo "Project: Negev"
+	@echo "Binary: $(BIN)"
+	@echo "Source: $(SRC)"
+	@echo "Build: $(BUILD_DIR)"
+	@echo "Version: $(VERSION)"
+	@echo "Build Time: $(BUILD_TIME)"
+	@echo "Go version: $$($(GO) version)"
+
+install: build	## Install binary to user path
 	@if [ "$$(id -u)" -eq 0 ]; then \
-		echo "Installing $(BINARY_NAME) to $(INSTALL_DIR_ROOT)"; \
-		cp $(BUILD_DIR)/$(BINARY_NAME) $(INSTALL_DIR_ROOT)/; \
+		echo "Installing $(BIN) to /usr/local/bin"; \
+		cp $(BUILD_DIR)/$(BIN) /usr/local/bin/; \
 	else \
-		echo "Installing $(BINARY_NAME) to $(INSTALL_DIR_LOCAL)"; \
-		mkdir -p $(INSTALL_DIR_LOCAL); \
-		cp $(BUILD_DIR)/$(BINARY_NAME) $(INSTALL_DIR_LOCAL)/; \
+		echo "Installing $(BIN) to $$HOME/.local/bin"; \
+		mkdir -p $$HOME/.local/bin; \
+		cp $(BUILD_DIR)/$(BIN) $$HOME/.local/bin/; \
 	fi
 
-deps:
-	$(GO) get github.com/ziutek/telnet
-	$(GO) get gopkg.in/yaml.v3
+lint:	## Run golangci-lint if available, install otherwise
+	@command -v golangci-lint >/dev/null 2>&1 || { \
+		echo "Installing golangci-lint..."; \
+		$(GO) install github.com/golangci/golangci-lint/cmd/golangci-lint@latest; \
+	}
+	golangci-lint run ./...
 
-clean:
-	rm -rf $(BUILD_DIR)
+mod-tidy:	## Tidy go.mod and go.sum
+	$(GO) mod tidy
+
+run:	## Run the application with current sources
+	$(GO) run $(SRC)
+
+test:	## Run unit tests
+	$(GO) test ./...
+
+vet:	## Run go vet
+	$(GO) vet ./...

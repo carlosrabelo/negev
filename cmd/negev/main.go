@@ -7,9 +7,17 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+
+	"github.com/carlosrabelo/negev/internal/config"
+	"github.com/carlosrabelo/negev/internal/switchmanager"
+	"github.com/carlosrabelo/negev/internal/transport"
 )
 
-// main is the entry point of the program
+var (
+	version   = "dev"
+	buildTime = "unknown"
+)
+
 func main() {
 	yamlFile := flag.String("y", "config.yaml", "YAML configuration file")
 	write := flag.Bool("w", false, "Apply changes (disables sandbox mode)")
@@ -18,6 +26,8 @@ func main() {
 	skipVlanCheck := flag.Bool("s", false, "Skip VLAN existence check (use with caution)")
 	createVLANs := flag.Bool("c", false, "Create missing VLANs on the switch")
 	flag.Parse()
+
+	fmt.Printf("Negev %s (built %s)\n", version, buildTime)
 
 	// Validate verbosity level
 	if *verbosity < 0 || *verbosity > 3 {
@@ -80,11 +90,11 @@ func main() {
 	}
 
 	// Load configuration, passing the target switch IP for log filtering
-	cfg, err := loadConfig(configPath, *host, *write, *verbosity, *skipVlanCheck, *createVLANs)
+	cfg, err := config.Load(configPath, *host, *write, *verbosity, *skipVlanCheck, *createVLANs)
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer CloseAllClients()
+	defer transport.CloseAll()
 
 	// Process only the switch specified by -t
 	found := false
@@ -92,7 +102,7 @@ func main() {
 		if switchCfg.Target == *host {
 			found = true
 			fmt.Printf("Starting Negev for switch %s\n", switchCfg.Target)
-			sm := NewSwitchManager(switchCfg, *cfg)
+			sm := switchmanager.New(switchCfg, *cfg)
 			err = sm.ProcessPorts()
 			if err != nil {
 				log.Printf("Error processing switch %s: %v", switchCfg.Target, err)

@@ -1,4 +1,4 @@
-package main
+package config
 
 import (
 	"fmt"
@@ -50,37 +50,14 @@ type Config struct {
 	Switches       []SwitchConfig    `yaml:"switches"`
 }
 
-// Port represents a switch port with its VLAN
-type Port struct {
-	Interface string
-	Vlan      string
-}
-
-// Device represents a device connected to a switch port
-type Device struct {
-	Vlan      string
-	Mac       string
-	MacFull   string
-	Interface string
-}
-
-// normalizeMac normalizes a MAC address to a consistent format
-func normalizeMac(mac string) string {
+// NormalizeMAC normalizes a MAC address to a consistent format
+func NormalizeMAC(mac string) string {
 	return strings.ToLower(strings.ReplaceAll(strings.ReplaceAll(mac, ":", ""), ".", ""))
 }
 
-// getMacList returns a list of full MAC addresses from a device slice
-func getMacList(devices []Device) []string {
-	var macs []string
-	for _, d := range devices {
-		macs = append(macs, d.MacFull)
-	}
-	return macs
-}
-
-// loadConfig loads and validates the configuration from a YAML file
+// Load loads and validates the configuration from a YAML file
 // The target parameter filters debug logs to the specified switch
-func loadConfig(yamlFile, target string, sandbox bool, verbosityLevel int, skipVlanCheck, createVLANs bool) (*Config, error) {
+func Load(yamlFile, target string, sandbox bool, verbosityLevel int, skipVlanCheck, createVLANs bool) (*Config, error) {
 	data, err := os.ReadFile(yamlFile)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read YAML file %s: %v", yamlFile, err)
@@ -202,11 +179,11 @@ func loadConfig(yamlFile, target string, sandbox bool, verbosityLevel int, skipV
 		normalizedExcludeMacs := make(map[string]bool)
 		// Add global MACs
 		for _, mac := range cfg.ExcludeMacs {
-			normalizedExcludeMacs[normalizeMac(mac)] = true
+			normalizedExcludeMacs[NormalizeMAC(mac)] = true
 		}
 		// Add or override local MACs
 		for _, mac := range sw.ExcludeMacs {
-			normalizedExcludeMacs[normalizeMac(mac)] = true
+			normalizedExcludeMacs[NormalizeMAC(mac)] = true
 		}
 		// Convert back to list
 		sw.ExcludeMacs = make([]string, 0, len(normalizedExcludeMacs))
@@ -252,7 +229,7 @@ func loadConfig(yamlFile, target string, sandbox bool, verbosityLevel int, skipV
 			if err := validateVLAN(vlan, fmt.Sprintf("mac_to_vlan for MAC %s on switch %s", mac, sw.Target)); err != nil {
 				return nil, err
 			}
-			normalizedMac := normalizeMac(mac)
+			normalizedMac := NormalizeMAC(mac)
 			newMacToVlan[normalizedMac[:6]] = vlan
 			if switchVerbosity == 1 || switchVerbosity == 3 {
 				fmt.Printf("DEBUG: Added switch-specific mac_to_vlan mapping for %s: %s on switch %s\n", normalizedMac[:6], vlan, sw.Target)
@@ -272,7 +249,7 @@ func loadConfig(yamlFile, target string, sandbox bool, verbosityLevel int, skipV
 				}
 				continue
 			}
-			normalizedMac := normalizeMac(mac)
+			normalizedMac := NormalizeMAC(mac)
 			if _, exists := newMacToVlan[normalizedMac[:6]]; !exists {
 				newMacToVlan[normalizedMac[:6]] = vlan
 				if switchVerbosity == 1 || switchVerbosity == 3 {

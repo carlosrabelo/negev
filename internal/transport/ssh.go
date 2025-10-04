@@ -1,4 +1,4 @@
-package main
+package transport
 
 import (
 	"bufio"
@@ -9,11 +9,13 @@ import (
 	"time"
 
 	"golang.org/x/crypto/ssh"
+
+	"github.com/carlosrabelo/negev/internal/config"
 )
 
 // SSHClient manages an SSH session with a switch
 type SSHClient struct {
-	config  SwitchConfig
+	config  config.SwitchConfig
 	client  *ssh.Client
 	session *ssh.Session
 	stdin   io.WriteCloser
@@ -22,8 +24,8 @@ type SSHClient struct {
 }
 
 // NewSSHClient creates a new SSH client with the given configuration
-func NewSSHClient(config SwitchConfig) *SSHClient {
-	return &SSHClient{config: config}
+func NewSSHClient(cfg config.SwitchConfig) *SSHClient {
+	return &SSHClient{config: cfg}
 }
 
 func (sc *SSHClient) Connect() error {

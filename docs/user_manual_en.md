@@ -9,7 +9,7 @@ This manual explains how to operate **Negev** once the binary is available. It f
 
 ## 2. Required Files
 - **Binary**: `negev` (obtained from the GitHub release or other distribution).
-- **Configuration**: YAML file describing switches, credentials, VLAN mappings, and exclusions. Example provided at `configs/example.yaml`.
+- **Configuration**: YAML file describing switches, credentials, VLAN mappings, and exclusions. Example provided at `examples/config.yaml`.
 
 Place `config.yaml` next to the binary or in one of these locations:
 - Current directory (`./config.yaml`).

@@ -3,89 +3,96 @@ name: Release Negev Binaries
 on:
   workflow_dispatch:
     inputs:
-      version:
-        description: 'Version to release (e.g., v1.0.0)'
+      tag:
+        description: 'Release tag (e.g., v1.0.0)'
         required: true
         type: string
 
+permissions:
+  contents: write
+
 jobs:
-  build-linux:
-    name: Build Linux Binary
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: '1.21'
-
-      - name: Build binary
-        run: |
-          GOOS=linux GOARCH=amd64 go build -o negev-linux-amd64 -v
-        env:
-          CGO_ENABLED: 0
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: negev-linux-amd64
-          path: negev-linux-amd64
-
-  build-windows:
-    name: Build Windows Binary
-    runs-on: windows-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: '1.21'
-
-      - name: Build binary
-        shell: powershell
-        run: |
-          $env:GOOS = "windows"
-          $env:GOARCH = "amd64"
-          $env:CGO_ENABLED = "0"
-          go build -o negev-windows-amd64.exe -v
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: negev-windows-amd64.exe
-          path: negev-windows-amd64.exe
-
   release:
-    name: Create Release
-    needs: [build-linux, build-windows]
+    name: Build and Release
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
-      - name: Download artifacts
-        uses: actions/download-artifact@v4
         with:
-          path: artifacts
+          fetch-depth: 0
 
-      - name: Set tag
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+
+      - name: Prepare environment
         run: |
-          echo "TAG=${{ inputs.version }}" >> $GITHUB_ENV
-          git tag ${{ inputs.version }}
-          git push origin ${{ inputs.version }}
+          TAG="${{ inputs.tag }}"
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "Tag $TAG already exists. I stop to avoid overriding release."
+            exit 1
+          fi
+          BUILD_TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          echo "TAG=$TAG" >> $GITHUB_ENV
+          echo "BUILD_TIME=$BUILD_TIME" >> $GITHUB_ENV
+          echo "LD_FLAGS=-s -w -X main.version=$TAG -X main.buildTime=$BUILD_TIME" >> $GITHUB_ENV
 
-      - name: Release
+      - name: Build linux amd64
+        run: |
+          mkdir -p dist/linux-amd64
+          GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -tags netgo -ldflags="$LD_FLAGS" -o dist/linux-amd64/negev ./cmd/negev
+          tar -C dist/linux-amd64 -czf dist/negev_${TAG}_linux_amd64.tar.gz negev
+
+      - name: Build linux arm64
+        run: |
+          mkdir -p dist/linux-arm64
+          GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -trimpath -tags netgo -ldflags="$LD_FLAGS" -o dist/linux-arm64/negev ./cmd/negev
+          tar -C dist/linux-arm64 -czf dist/negev_${TAG}_linux_arm64.tar.gz negev
+
+      - name: Build darwin amd64
+        run: |
+          mkdir -p dist/darwin-amd64
+          GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -tags netgo -ldflags="$LD_FLAGS" -o dist/darwin-amd64/negev ./cmd/negev
+          tar -C dist/darwin-amd64 -czf dist/negev_${TAG}_darwin_amd64.tar.gz negev
+
+      - name: Build darwin arm64
+        run: |
+          mkdir -p dist/darwin-arm64
+          GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -trimpath -tags netgo -ldflags="$LD_FLAGS" -o dist/darwin-arm64/negev ./cmd/negev
+          tar -C dist/darwin-arm64 -czf dist/negev_${TAG}_darwin_arm64.tar.gz negev
+
+      - name: Build windows amd64
+        run: |
+          mkdir -p dist/windows-amd64
+          GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -tags netgo -ldflags="$LD_FLAGS" -o dist/windows-amd64/negev.exe ./cmd/negev
+          (cd dist/windows-amd64 && zip -j ../negev_${TAG}_windows_amd64.zip negev.exe)
+
+      - name: Build windows arm64
+        run: |
+          mkdir -p dist/windows-arm64
+          GOOS=windows GOARCH=arm64 CGO_ENABLED=0 go build -trimpath -tags netgo -ldflags="$LD_FLAGS" -o dist/windows-arm64/negev.exe ./cmd/negev
+          (cd dist/windows-arm64 && zip -j ../negev_${TAG}_windows_arm64.zip negev.exe)
+
+      - name: Create git tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "$TAG"
+          git push origin "$TAG"
+
+      - name: Publish release
         uses: softprops/action-gh-release@v1
         with:
+          name: Negev ${{ env.TAG }}
+          tag_name: ${{ env.TAG }}
+          generate_release_notes: true
           files: |
-            artifacts/negev-linux-amd64/negev-linux-amd64
-            artifacts/negev-windows-amd64.exe/negev-windows-amd64.exe
-          name: "Negev ${{ inputs.version }}"
-          tag_name: ${{ inputs.version }}
-          draft: true
+            dist/negev_${{ env.TAG }}_linux_amd64.tar.gz
+            dist/negev_${{ env.TAG }}_linux_arm64.tar.gz
+            dist/negev_${{ env.TAG }}_darwin_amd64.tar.gz
+            dist/negev_${{ env.TAG }}_darwin_arm64.tar.gz
+            dist/negev_${{ env.TAG }}_windows_amd64.zip
+            dist/negev_${{ env.TAG }}_windows_arm64.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

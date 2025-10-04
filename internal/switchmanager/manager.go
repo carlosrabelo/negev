@@ -350,6 +350,13 @@ func (m *Manager) createVLAN(vlan string) error {
 		fmt.Sprintf("name VLAN_%s", vlan),
 		"end",
 	}
+	if m.cfg.Sandbox {
+		fmt.Printf("SANDBOX: Simulating creation of VLAN %s\n", vlan)
+		for _, cmd := range commands {
+			fmt.Printf("  %s\n", cmd)
+		}
+		return nil
+	}
 	for _, cmd := range commands {
 		if _, err := m.client.ExecuteCommand(cmd); err != nil {
 			return fmt.Errorf("failed to create VLAN %s: %v", vlan, err)

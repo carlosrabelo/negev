@@ -18,7 +18,18 @@ var (
 	buildTime = "unknown"
 )
 
+func printUsage() {
+	fmt.Fprintf(os.Stderr, "Usage of %s:\n", os.Args[0])
+	fmt.Fprintf(os.Stderr, "  -c          Create missing VLANs on the switch\n")
+	fmt.Fprintf(os.Stderr, "  -s          Skip VLAN existence check (use with caution)\n")
+	fmt.Fprintf(os.Stderr, "  -t string   Switch target (must match a target in YAML, required)\n")
+	fmt.Fprintf(os.Stderr, "  -v int      Verbosity level: 0=none, 1=debug logs, 2=raw switch output, 3=debug+raw output\n")
+	fmt.Fprintf(os.Stderr, "  -w          Apply changes (disables sandbox mode)\n")
+	fmt.Fprintf(os.Stderr, "  -y string   YAML configuration file (default \"config.yaml\")\n")
+}
+
 func main() {
+	flag.Usage = printUsage
 	yamlFile := flag.String("y", "config.yaml", "YAML configuration file")
 	write := flag.Bool("w", false, "Apply changes (disables sandbox mode)")
 	verbosity := flag.Int("v", 0, "Verbosity level: 0=none, 1=debug logs, 2=raw switch output, 3=debug+raw output")

@@ -48,21 +48,10 @@ info:	## Show project information
 	@echo "Go version: $$($(GO) version)"
 
 install: build	## Install binary to user path
-	@if [ "$$(id -u)" -eq 0 ]; then \
-		echo "Installing $(BIN) to /usr/local/bin"; \
-		cp $(BUILD_DIR)/$(BIN) /usr/local/bin/; \
-	else \
-		echo "Installing $(BIN) to $$HOME/.local/bin"; \
-		mkdir -p $$HOME/.local/bin; \
-		cp $(BUILD_DIR)/$(BIN) $$HOME/.local/bin/; \
-	fi
+	@./scripts/install.sh
 
-lint:	## Run golangci-lint if available, install otherwise
-	@command -v golangci-lint >/dev/null 2>&1 || { \
-		echo "Installing golangci-lint..."; \
-		$(GO) install github.com/golangci/golangci-lint/cmd/golangci-lint@latest; \
-	}
-	golangci-lint run ./...
+lint:	## Run golangci-lint if available, fallback to go vet
+	@./scripts/lint.sh
 
 mod-tidy:	## Tidy go.mod and go.sum
 	$(GO) mod tidy

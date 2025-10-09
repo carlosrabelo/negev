@@ -26,19 +26,39 @@
 
 ## Installation
 
-Clone the repository and build the tool using the following commands
+Clone the repository and build the tool using the following commands:
 
 ```bash
 git clone https://github.com/carlosrabelo/negev.git
 cd negev
+make build
+./bin/negev -t 192.168.1.1
+```
+
+### Alternative Build Methods
+
+Using Go directly:
+```bash
 go build -o negev ./cmd/negev
 ```
 
-Or rely on the Makefile helpers (recommended):
-
+Using Make with full pipeline:
 ```bash
-make build
-./bin/negev -t 192.168.1.1
+make all  # Clean, format, vet, and build
+```
+
+### Available Make Targets
+
+Run `make help` to see all available targets:
+```bash
+make help     # Show available targets
+make build    # Build the project
+make test     # Run unit tests
+make lint     # Run linter (golangci-lint or go vet)
+make fmt      # Format source code
+make clean    # Remove build artifacts
+make install  # Install binary to user path
+make info     # Show project information
 ```
 
 ## Configuration

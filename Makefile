@@ -32,20 +32,23 @@ clean:	## Remove build artifacts and Go caches
 	@rm -rf $(BUILD_DIR)
 	@$(GO) clean -cache -testcache -modcache 2>/dev/null || true
 
-deps:	## Download Go module dependencies
+deps:	## Download and verify Go module dependencies
 	$(GO) mod download
+	$(GO) mod verify
 
 fmt:	## Format source code
 	$(GO) fmt ./...
 
 info:	## Show project information
-	@echo "Project: Negev"
-	@echo "Binary: $(BIN)"
-	@echo "Source: $(SRC)"
-	@echo "Build: $(BUILD_DIR)"
-	@echo "Version: $(VERSION)"
-	@echo "Build Time: $(BUILD_TIME)"
-	@echo "Go version: $$($(GO) version)"
+	@echo "Project:      Negev - VLAN automation tool for Cisco switches"
+	@echo "Binary:       $(BIN)"
+	@echo "Source:       $(SRC)"
+	@echo "Build dir:    $(BUILD_DIR)"
+	@echo "Version:      $(VERSION)"
+	@echo "Build time:   $(BUILD_TIME)"
+	@echo "Go version:   $$($(GO) version)"
+	@echo "Dependencies: telnet, ssh, yaml parsing"
+	@echo "Platforms:    Linux, macOS, Windows (amd64, arm64)"
 
 install: build	## Install binary to user path
 	@./scripts/install.sh

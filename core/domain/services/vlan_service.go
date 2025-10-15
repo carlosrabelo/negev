@@ -328,7 +328,7 @@ func (v *VLANServiceImpl) GetMacTable() ([]entities.Device, error) {
 	return devices, nil
 }
 
-// ConfigureVlan configura VLAN em uma interface
+// ConfigureVlan configures VLAN on an interface
 func (v *VLANServiceImpl) ConfigureVlan(iface, vlan string) {
 	commands := []string{
 		"configure terminal",

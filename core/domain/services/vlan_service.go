@@ -45,7 +45,6 @@ func (v *VLANServiceImpl) ProcessPorts() error {
 
 	if v.config.CreateVLANs {
 		allowedVLANs := v.getAllowedVLANs()
-		protectedVLANs := v.getProtectedVLANs()
 		if len(allowedVLANs) == 0 {
 			fmt.Println("Skipping VLAN sync: no allowed_vlans configured")
 		} else {
@@ -60,13 +59,13 @@ func (v *VLANServiceImpl) ProcessPorts() error {
 			}
 			// Delete VLANs that exist but are not allowed and not protected
 			for vlan := range existingVLANs {
-				if !allowedVLANs[vlan] && !protectedVLANs[vlan] {
+				if !allowedVLANs[vlan] && !v.isProtectedVLAN(vlan) {
 					fmt.Printf("Deleting VLAN %s from switch\n", vlan)
 					if err := v.DeleteVLAN(vlan); err != nil {
 						return err
 					}
 					delete(existingVLANs, vlan)
-				} else if !allowedVLANs[vlan] && protectedVLANs[vlan] {
+				} else if !allowedVLANs[vlan] && v.isProtectedVLAN(vlan) {
 					fmt.Printf("Skipping deletion of protected VLAN %s\n", vlan)
 				}
 			}
@@ -421,12 +420,25 @@ func (v *VLANServiceImpl) getProtectedVLANs() map[string]bool {
 		protectedVLANs[vlan] = true
 	}
 
-	// Add default protection for VLANs 1000-4094 (extended/system VLANs)
-	for i := 1000; i <= 4094; i++ {
-		protectedVLANs[fmt.Sprintf("%d", i)] = true
+	return protectedVLANs
+}
+
+func (v *VLANServiceImpl) isProtectedVLAN(vlan string) bool {
+	// Check user-defined protected VLANs
+	for _, protected := range v.config.ProtectedVlans {
+		if vlan == protected {
+			return true
+		}
 	}
 
-	return protectedVLANs
+	// Check if VLAN is in extended range (1000-4094)
+	if vlanNum, err := strconv.Atoi(vlan); err == nil {
+		if vlanNum >= 1000 && vlanNum <= 4094 {
+			return true
+		}
+	}
+
+	return false
 }
 
 func filterDevices(devices []entities.Device, port string) []entities.Device {

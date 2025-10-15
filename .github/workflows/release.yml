@@ -4,6 +4,9 @@ on:
   push:
     tags:
       - 'v*'
+    branches:
+      - '!main'
+      - '!master'
   workflow_dispatch:
 
 jobs:
@@ -25,10 +28,16 @@ jobs:
 
       - name: Prepare environment
         run: |
-          TAG="${{ github.ref_name }}"
-          if git rev-parse "$TAG" >/dev/null 2>&1; then
-            echo "Tag $TAG already exists. I stop to avoid overriding release."
-            exit 1
+          if [[ "${{ github.event_name }}" == "push" && "${{ github.ref_type }}" == "tag" ]]; then
+            TAG="${{ github.ref_name }}"
+            if git rev-parse "$TAG" >/dev/null 2>&1; then
+              echo "Tag $TAG already exists. I stop to avoid overriding release."
+              exit 1
+            fi
+          else
+            # Manual release - use timestamp as version
+            TAG="manual-$(date +%Y%m%d-%H%M%S)"
+            echo "Creating manual release with tag: $TAG"
           fi
           BUILD_TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
           echo "TAG=$TAG" >> $GITHUB_ENV
@@ -84,6 +93,7 @@ jobs:
           (cd dist/windows-arm64 && zip -j ../negev_${TAG}_windows_arm64.zip negev.exe)
 
       - name: Create git tag
+        if: github.event_name == 'workflow_dispatch'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"

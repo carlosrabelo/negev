@@ -10,14 +10,13 @@
 - **SSH Management**: Connects to Cisco switches via SSH when Telnet is disabled or undesired.
 - **MAC-Based VLAN Assignment**: Assigns VLANs based on the first three bytes of MAC addresses, with a default VLAN for unmapped devices.
 - **Sandbox Mode**: Simulates configuration changes without applying them to the switch.
-- **Configuration Persistence**: Saves changes to the switch's running configuration (with `-w` flag).
+- **Configuration Persistence**: Saves changes to the switch's running configuration (with `--write` flag).
 - **MAC Exclusion**: Ignores specified MAC addresses during VLAN assignment.
 - **Port Exclusion**: Lets you skip interfaces that should never be touched.
 - **Trunk Interface Detection**: Automatically skips trunk interfaces to avoid misconfiguration.
-- **VLAN Creation**: Optionally creates missing VLANs on the switch (with `-c` flag).
-- **Verbose Logging**: Provides detailed debug output for troubleshooting (use `-v 1`).
-- **Raw Output Display**: Shows raw switch outputs for debugging (use `-v 2` or `-v 3`).
-- **VLAN Validation**: Optionally skips VLAN existence checks (with `-s` flag).
+- **VLAN Creation**: Optionally creates missing VLANs on the switch (with `--create-vlans` flag).
+- **Verbose Logging**: Provides detailed debug output for troubleshooting (use `--verbose 1`).
+- **Raw Output Display**: Shows raw switch outputs for debugging (use `--verbose 2` or `--verbose 3`).
 
 ## User Manuals
 
@@ -38,14 +37,14 @@ Or rely on the Makefile helpers (recommended):
 
 ```bash
 make build
-./bin/negev -t 192.168.1.1
+./bin/negev --target 192.168.1.1
 ```
 
 ## Configuration
 
 The configuration is defined in a YAML file, specifying the default VLAN, MAC-to-VLAN mappings, and exclusions. A full sample lives in `examples/config.yaml`. Below is an excerpt:
 
-```bash
+```yaml
 transport: "telnet"
 username: "admin"
 password: "password"
@@ -98,13 +97,13 @@ switches:
 ## Security
 
 - **Telnet** Telnet is insecure and transmits credentials in plain text. Use only on trusted networks.
-- **Sandbox Mode** Always test in sandbox mode (default) before applying changes with -w.
+- **Sandbox Mode** Always test in sandbox mode (default) before applying changes with --write.
 - **Credentials** Store sensitive information (username, password, enable_password) securely.
 
 ## Limitations
 
 - **Transport** Telnet is the default; SSH support depends on the device having an interactive CLI similar to Telnet.
-- **Single Switch** Each execution processes one switch (specified with `-t`).
+- **Single Switch** Each execution processes one switch (specified with `--target`).
 - **No Reversion** Changes are not automatically reverted in case of failure.
 - **Single MAC per Port** Ports with multiple MAC addresses are skipped to avoid ambiguity.
 - **Switch Output Parsing** The tool assumes standard Cisco switch output formats; unexpected formats may cause parsing errors.

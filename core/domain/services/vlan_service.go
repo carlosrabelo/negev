@@ -152,7 +152,7 @@ func (v *VLANServiceImpl) ProcessPorts() error {
 			fmt.Printf("DEBUG: MAC %s (prefix %s) maps to VLAN %s\n", dev.MacFull, macPrefix, targetVlan)
 		}
 
-		if !v.config.SkipVlanCheck && !existingVLANs[targetVlan] {
+		if !existingVLANs[targetVlan] {
 			log.Printf("Error: VLAN %s does not exist on switch, ignoring port %s", targetVlan, port.Interface)
 			continue
 		}
@@ -328,7 +328,7 @@ func (v *VLANServiceImpl) GetMacTable() ([]entities.Device, error) {
 	return devices, nil
 }
 
-// ConfigureVlan configura VLAN em uma interface
+// ConfigureVlan configures VLAN on an interface
 func (v *VLANServiceImpl) ConfigureVlan(iface, vlan string) {
 	commands := []string{
 		"configure terminal",

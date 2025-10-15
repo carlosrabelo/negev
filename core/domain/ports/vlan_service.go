@@ -11,4 +11,5 @@ type VLANService interface {
 	GetMacTable() ([]entities.Device, error)
 	ConfigureVlan(iface, vlan string)
 	CreateVLAN(vlan string) error
+	DeleteVLAN(vlan string) error
 }

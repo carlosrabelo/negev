@@ -20,7 +20,7 @@ var (
 
 func printUsage() {
 	fmt.Fprintf(os.Stderr, "Usage of %s:\n", os.Args[0])
-	fmt.Fprintf(os.Stderr, "  -c          Create missing VLANs on the switch\n")
+	fmt.Fprintf(os.Stderr, "  -c          Sync VLANs on switch (create missing, delete extra)\n")
 	fmt.Fprintf(os.Stderr, "  -s          Skip VLAN existence check (use with caution)\n")
 	fmt.Fprintf(os.Stderr, "  -t string   Switch target (must match a target in YAML, required)\n")
 	fmt.Fprintf(os.Stderr, "  -v int      Verbosity level: 0=none, 1=debug logs, 2=raw switch output, 3=debug+raw output\n")
@@ -35,7 +35,7 @@ func main() {
 	verbosity := flag.Int("v", 0, "Verbosity level: 0=none, 1=debug logs, 2=raw switch output, 3=debug+raw output")
 	host := flag.String("t", "", "Switch target (must match a target in YAML, required)")
 	skipVlanCheck := flag.Bool("s", false, "Skip VLAN existence check (use with caution)")
-	createVLANs := flag.Bool("c", false, "Create missing VLANs on the switch")
+	createVLANs := flag.Bool("c", false, "Sync VLANs on switch (create missing, delete extra)")
 	flag.Parse()
 
 	fmt.Printf("Negev %s (built %s)\n", version, buildTime)

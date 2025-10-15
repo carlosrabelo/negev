@@ -357,7 +357,6 @@ func (v *VLANServiceImpl) CreateVLAN(vlan string) error {
 	commands := []string{
 		"configure terminal",
 		fmt.Sprintf("vlan %s", vlan),
-		fmt.Sprintf("name VLAN_%s", vlan),
 		"end",
 	}
 	if v.config.Sandbox {

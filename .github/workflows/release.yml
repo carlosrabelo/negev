@@ -25,7 +25,7 @@ jobs:
 
       - name: Prepare environment
         run: |
-          TAG="${{ inputs.tag }}"
+          TAG="${{ github.ref_name }}"
           if git rev-parse "$TAG" >/dev/null 2>&1; then
             echo "Tag $TAG already exists. I stop to avoid overriding release."
             exit 1

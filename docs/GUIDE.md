@@ -5,7 +5,7 @@ This manual explains how to operate **Negev** once the binary is available. It f
 ## 1. Quick Overview
 - Negev automates VLAN assignments on Cisco switches using Telnet or SSH.
 - Decisions are based on MAC address prefixes, explicit exclusions, and default VLAN rules.
-- By default, Negev works in *sandbox mode* (simulation only). Add `-w` to apply changes.
+- By default, Negev works in *sandbox mode* (simulation only). Add `--write` to apply changes.
 
 ## 2. Required Files
 - **Binary**: `negev` (obtained from the GitHub release or other distribution).
@@ -56,7 +56,7 @@ switches:
       "00:c8:8b": "70"
 ```
 
-- `target` is mandatory and must match the `-t` flag when running Negev.
+- `target` is mandatory and must match the `--target` flag when running Negev.
 - `transport`, credentials, and VLAN settings override global values only for that switch.
 - `exclude_ports` (case-insensitive) prevents Negev from touching sensitive interfaces.
 - Merge logic: switch mappings take precedence over global mappings for the same prefix.
@@ -70,33 +70,32 @@ switches:
 ## 4. Running Negev
 Basic command:
 ```bash
-negev -t 192.168.1.10
+negev --target 192.168.1.10
 ```
 
 ### Useful Flags
-- `-y path/file.yaml` use a custom configuration path.
-- `-w` apply changes instead of simulating.
-- `-v 1` enable debug logs (merge decisions, exclusions).
-- `-v 2` show raw switch output.
-- `-v 3` enable both debug and raw logs.
-- `-s` skip VLAN existence check (risky; use only if you know the VLAN is missing intentionally).
-- `-c` create VLANs that are required by the mappings but absent on the switch.
+- `--config path/file.yaml` use a custom configuration path.
+- `--write` apply changes instead of simulating.
+- `--verbose 1` enable debug logs (merge decisions, exclusions).
+- `--verbose 2` show raw switch output.
+- `--verbose 3` enable both debug and raw logs.
+- `--create-vlans` create VLANs that are required by the mappings but absent on the switch.
 
 ### Typical Workflow
 1. Run in sandbox mode to review changes:
    ```bash
-   negev -t 192.168.1.10 -v 1
+   negev --target 192.168.1.10 --verbose 1
    ```
 2. If output looks correct, apply changes:
    ```bash
-   negev -t 192.168.1.10 -w -v 1
+   negev --target 192.168.1.10 --write --verbose 1
    ```
 
 ### Reading the Output
 - `SANDBOX: ...` lines show the commands that would run.
 - `Configured Gi1/0/1 to VLAN 20` confirms a successful change.
 - `Warning: Multiple MACs detected on port ...` means Negev skips that port to avoid mistakes.
-- `Error: VLAN 50 does not exist on the switch` indicates the VLAN must be created (use `-c` if appropriate).
+- `Error: VLAN 50 does not exist on the switch` indicates the VLAN must be created (use `--create-vlans` if appropriate).
 
 ## 5. Maintaining Configuration
 - Keep the YAML in version control without real passwords (use placeholders or environment variables).
@@ -108,20 +107,20 @@ negev -t 192.168.1.10
 | Symptom | Possible Cause | Suggested Action |
 | --- | --- | --- |
 | "target ... not registered" | Missing switch entry | Ensure the `switches` list contains the target IP and correct casing |
-| "No devices found" | Switch not reporting MAC table | Verify the switch supports the command; try `-v 2` to inspect raw output |
+| "No devices found" | Switch not reporting MAC table | Verify the switch supports the command; try `--verbose 2` to inspect raw output |
 | SSH errors | Credentials or host key issues | Confirm login data, allow SSH, or switch to Telnet temporarily |
 | VLAN mismatch keeps returning | Switch may revert changes or multiple devices exist | Check for trunk ports, port security, or multiple MACs warning |
 
 ## 7. Frequently Asked Questions
-- **Does Negev support multiple switches per run?** No. Run once per switch using `-t` with the desired target.
-- **Can I dry-run even with `-w` set?** No. Without `-w`, Negev always simulates. Use two runs: one sandbox, one real.
+- **Does Negev support multiple switches per run?** No. Run once per switch using `--target` with the desired target.
+- **Can I dry-run even with `--write` set?** No. Without `--write`, Negev always simulates. Use two runs: one sandbox, one real.
 - **How does Negev treat trunk ports?** It automatically detects them and skips adjustments.
 - **What happens to ports with more than one MAC?** They are ignored to avoid guessing the correct device.
 
 ## 8. Safety Checklist Before Applying Changes
-- Are the required VLANs already present? If not, consider `-c`.
+- Are the required VLANs already present? If not, consider `--create-vlans`.
 - Are all critical ports added to `exclude_ports`?
 - Did you review mappings for typos (`aa:bb:c1` vs `aa:bb:c1`)?
-- For sensitive environments, run with `-v 3` during the first deployment.
+- For sensitive environments, run with `--verbose 3` during the first deployment.
 
 Following this guide helps you keep VLAN assignments tidy while avoiding surprises. Adjust the configuration iteratively, monitor logs, and enjoy a more automated network routine.

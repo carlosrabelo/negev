@@ -44,7 +44,7 @@ make build
 
 The configuration is defined in a YAML file, specifying the default VLAN, MAC-to-VLAN mappings, and exclusions. A full sample lives in `examples/config.yaml`. Below is an excerpt:
 
-```bash
+```yaml
 transport: "telnet"
 username: "admin"
 password: "password"

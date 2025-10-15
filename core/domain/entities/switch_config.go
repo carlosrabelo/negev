@@ -12,6 +12,8 @@ type SwitchConfig struct {
 	ExcludePorts   []string          `yaml:"exclude_ports"`
 	DefaultVlan    string            `yaml:"default_vlan"`
 	NoDataVlan     string            `yaml:"no_data_vlan"`
+	AllowedVlans   []string          `yaml:"allowed_vlans"`
+	ProtectedVlans []string          `yaml:"protected_vlans"`
 	Sandbox        bool
 	VerbosityLevel int
 	SkipVlanCheck  bool

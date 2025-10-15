@@ -1,0 +1,31 @@
+transport: "telnet"
+username: "admin"
+password: "password"
+enable_password: "enable_password"
+default_vlan: "10"
+no_data_vlan: "99"
+mac_to_vlan:
+  "3c:2a:f4": "30" # Brother
+  "dc:c2:c9": "30" # Canon
+  "00:c8:8b": "50" # Cisco AP
+exclude_macs:
+  - "d8:d3:85:d7:0d:b7"
+  - "d8:d3:85:6d:b5:ac"
+  - "d8:d3:85:6d:d5:36"
+  - "d8:d3:85:6d:b5:28"
+  - "ac:16:2d:34:bb:da"
+switches:
+  - target: "192.168.1.1"
+    transport: "ssh"
+    username: "admin"
+    password: "password"
+    enable_password: "enable_password"
+    default_vlan: "10"
+    no_data_vlan: "99"
+    exclude_macs:
+      - "00:11:22:33:44:55"
+    exclude_ports:
+      - "gi1/0/24"
+    mac_to_vlan:
+      "a4:bb:6d": "20" # Custom device
+      "88:1e:59": "10" # Onion Corp

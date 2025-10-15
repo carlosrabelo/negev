@@ -19,5 +19,11 @@ echo "Usage: ${BIN_DIR}/${BIN} -t <switch_ip> [options]"
 echo "Example: ${BIN_DIR}/${BIN} -t 192.168.1.1 -v 1 -y examples/config.yaml"
 echo ""
 
-# Execute with all passed arguments
-exec "${BIN_DIR}/${BIN}" "$@"
+# If no arguments provided, use example configuration
+if [ $# -eq 0 ]; then
+    echo "No arguments provided, using example configuration..."
+    exec "${BIN_DIR}/${BIN}" -t 192.168.1.1 -v 1 -y examples/config.yaml
+else
+    # Execute with all passed arguments
+    exec "${BIN_DIR}/${BIN}" "$@"
+fi

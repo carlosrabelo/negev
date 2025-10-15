@@ -38,37 +38,49 @@ jobs:
       - name: Build linux amd64
         run: |
           mkdir -p dist/linux-amd64
-          GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -tags netgo -ldflags="$LD_FLAGS" -o dist/linux-amd64/negev ./cmd/negev
+          cd core
+          GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -tags netgo -ldflags="$LD_FLAGS" -o ../dist/linux-amd64/negev ./cmd/negev
+          cd ..
           tar -C dist/linux-amd64 -czf dist/negev_${TAG}_linux_amd64.tar.gz negev
 
       - name: Build linux arm64
         run: |
           mkdir -p dist/linux-arm64
-          GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -trimpath -tags netgo -ldflags="$LD_FLAGS" -o dist/linux-arm64/negev ./cmd/negev
+          cd core
+          GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -trimpath -tags netgo -ldflags="$LD_FLAGS" -o ../dist/linux-arm64/negev ./cmd/negev
+          cd ..
           tar -C dist/linux-arm64 -czf dist/negev_${TAG}_linux_arm64.tar.gz negev
 
       - name: Build darwin amd64
         run: |
           mkdir -p dist/darwin-amd64
-          GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -tags netgo -ldflags="$LD_FLAGS" -o dist/darwin-amd64/negev ./cmd/negev
+          cd core
+          GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -tags netgo -ldflags="$LD_FLAGS" -o ../dist/darwin-amd64/negev ./cmd/negev
+          cd ..
           tar -C dist/darwin-amd64 -czf dist/negev_${TAG}_darwin_amd64.tar.gz negev
 
       - name: Build darwin arm64
         run: |
           mkdir -p dist/darwin-arm64
-          GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -trimpath -tags netgo -ldflags="$LD_FLAGS" -o dist/darwin-arm64/negev ./cmd/negev
+          cd core
+          GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -trimpath -tags netgo -ldflags="$LD_FLAGS" -o ../dist/darwin-arm64/negev ./cmd/negev
+          cd ..
           tar -C dist/darwin-arm64 -czf dist/negev_${TAG}_darwin_arm64.tar.gz negev
 
       - name: Build windows amd64
         run: |
           mkdir -p dist/windows-amd64
-          GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -tags netgo -ldflags="$LD_FLAGS" -o dist/windows-amd64/negev.exe ./cmd/negev
+          cd core
+          GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -tags netgo -ldflags="$LD_FLAGS" -o ../dist/windows-amd64/negev.exe ./cmd/negev
+          cd ..
           (cd dist/windows-amd64 && zip -j ../negev_${TAG}_windows_amd64.zip negev.exe)
 
       - name: Build windows arm64
         run: |
           mkdir -p dist/windows-arm64
-          GOOS=windows GOARCH=arm64 CGO_ENABLED=0 go build -trimpath -tags netgo -ldflags="$LD_FLAGS" -o dist/windows-arm64/negev.exe ./cmd/negev
+          cd core
+          GOOS=windows GOARCH=arm64 CGO_ENABLED=0 go build -trimpath -tags netgo -ldflags="$LD_FLAGS" -o ../dist/windows-arm64/negev.exe ./cmd/negev
+          cd ..
           (cd dist/windows-arm64 && zip -j ../negev_${TAG}_windows_arm64.zip negev.exe)
 
       - name: Create git tag

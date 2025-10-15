@@ -357,6 +357,9 @@ func (v *VLANServiceImpl) CreateVLAN(vlan string) error {
 	commands := []string{
 		"configure terminal",
 		fmt.Sprintf("vlan %s", vlan),
+		"exit",
+		fmt.Sprintf("interface vlan %s", vlan),
+		"no shutdown",
 		"end",
 	}
 	if v.config.Sandbox {
@@ -372,7 +375,7 @@ func (v *VLANServiceImpl) CreateVLAN(vlan string) error {
 		}
 	}
 	if v.config.IsDebugEnabled() {
-		fmt.Printf("DEBUG: Created VLAN %s\n", vlan)
+		fmt.Printf("DEBUG: Created VLAN %s with interface\n", vlan)
 	}
 	return nil
 }
@@ -381,6 +384,11 @@ func (v *VLANServiceImpl) CreateVLAN(vlan string) error {
 func (v *VLANServiceImpl) DeleteVLAN(vlan string) error {
 	commands := []string{
 		"configure terminal",
+		fmt.Sprintf("interface vlan %s", vlan),
+		"shutdown",
+		"exit",
+		fmt.Sprintf("no interface vlan %s", vlan),
+		"exit",
 		fmt.Sprintf("no vlan %s", vlan),
 		"end",
 	}
@@ -397,7 +405,7 @@ func (v *VLANServiceImpl) DeleteVLAN(vlan string) error {
 		}
 	}
 	if v.config.IsDebugEnabled() {
-		fmt.Printf("DEBUG: Deleted VLAN %s\n", vlan)
+		fmt.Printf("DEBUG: Deleted VLAN %s with interface\n", vlan)
 	}
 	return nil
 }

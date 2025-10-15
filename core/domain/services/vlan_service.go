@@ -421,10 +421,9 @@ func (v *VLANServiceImpl) getProtectedVLANs() map[string]bool {
 		protectedVLANs[vlan] = true
 	}
 
-	// Add default Cisco system VLANs that should never be deleted
-	defaultProtectedVLANs := []string{"1002", "1003", "1004", "1005"}
-	for _, vlan := range defaultProtectedVLANs {
-		protectedVLANs[vlan] = true
+	// Add default protection for VLANs 1000-4094 (extended/system VLANs)
+	for i := 1000; i <= 4094; i++ {
+		protectedVLANs[fmt.Sprintf("%d", i)] = true
 	}
 
 	return protectedVLANs

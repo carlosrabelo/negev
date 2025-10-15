@@ -10,14 +10,13 @@
 - **Gerenciamento SSH**: Conecta-se a switches Cisco via SSH quando Telnet está desabilitado ou não é desejado.
 - **Atribuição de VLAN Baseada em MAC**: Atribui VLANs com base nos primeiros três bytes de endereços MAC, com uma VLAN padrão para dispositivos não mapeados.
 - **Modo Sandbox**: Simula alterações de configuração sem aplicá-las ao switch.
-- **Persistência de Configuração**: Salva alterações na configuração em execução do switch (com flag `-w`).
+- **Persistência de Configuração**: Salva alterações na configuração em execução do switch (com flag `--write`).
 - **Exclusão de MAC**: Ignora endereços MAC especificados durante a atribuição de VLAN.
 - **Exclusão de Portas**: Permite pular interfaces que nunca devem ser tocadas.
 - **Detecção de Interface Trunk**: Ignora automaticamente interfaces trunk para evitar configuração incorreta.
-- **Criação de VLAN**: Opcionalmente cria VLANs ausentes no switch (com flag `-c`).
-- **Logging Detalhado**: Fornece saída de debug detalhada para solução de problemas (use `-v 1`).
-- **Exibição de Saída Bruta**: Mostra saídas brutas do switch para debug (use `-v 2` ou `-v 3`).
-- **Validação de VLAN**: Opcionalmente pula verificações de existência de VLAN (com flag `-s`).
+- **Criação de VLAN**: Opcionalmente cria VLANs ausentes no switch (com flag `--create-vlans`).
+- **Logging Detalhado**: Fornece saída de debug detalhada para solução de problemas (use `--verbose 1`).
+- **Exibição de Saída Bruta**: Mostra saídas brutas do switch para debug (use `--verbose 2` ou `--verbose 3`).
 
 ## Manuais do Usuário
 
@@ -38,7 +37,7 @@ Ou use os helpers do Makefile (recomendado):
 
 ```bash
 make build
-./bin/negev -t 192.168.1.1
+./bin/negev --target 192.168.1.1
 ```
 
 ## Configuração
@@ -98,13 +97,13 @@ switches:
 ## ⚠️ Segurança
 
 - **Telnet** Telnet é inseguro e transmite credenciais em texto plano. Use apenas em redes confiáveis.
-- **Modo Sandbox** Sempre teste em modo sandbox (padrão) antes de aplicar alterações com -w.
+- **Modo Sandbox** Sempre teste em modo sandbox (padrão) antes de aplicar alterações com --write.
 - **Credenciais** Armazene informações sensíveis (username, password, enable_password) com segurança.
 
 ## Limitações
 
 - **Transporte** Telnet é o padrão; suporte SSH depende do dispositivo ter uma CLI interativa similar ao Telnet.
-- **Switch Único** Cada execução processa um switch (especificado com `-t`).
+- **Switch Único** Cada execução processa um switch (especificado com `--target`).
 - **Sem Reversão** Alterações não são revertidas automaticamente em caso de falha.
 - **MAC Único por Porta** Portas com múltiplos endereços MAC são ignoradas para evitar ambiguidade.
 - **Parse de Saída do Switch** A ferramenta assume formatos de saída padrão de switches Cisco; formatos inesperados podem causar erros de parse.

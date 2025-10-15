@@ -31,7 +31,7 @@ func NormalizeMAC(mac string) string {
 }
 
 // Load loads and validates configuration from a YAML file
-func Load(yamlFile, target string, sandbox bool, verbosityLevel int, skipVlanCheck, createVLANs bool) (*Config, error) {
+func Load(yamlFile, target string, sandbox bool, verbosityLevel int, createVLANs bool) (*Config, error) {
 	data, err := os.ReadFile(yamlFile)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read YAML file %s: %v", yamlFile, err)
@@ -291,7 +291,6 @@ func Load(yamlFile, target string, sandbox bool, verbosityLevel int, skipVlanChe
 
 		sw.Sandbox = !sandbox
 		sw.VerbosityLevel = verbosityLevel
-		sw.SkipVlanCheck = skipVlanCheck
 		sw.CreateVLANs = createVLANs
 
 		if switchVerbosity == 1 || switchVerbosity == 3 {

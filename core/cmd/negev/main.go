@@ -20,36 +20,34 @@ var (
 
 func printUsage() {
 	fmt.Fprintf(os.Stderr, "Usage of %s:\n", os.Args[0])
-	fmt.Fprintf(os.Stderr, "  -c          Sync VLANs on switch (create missing, delete extra)\n")
-	fmt.Fprintf(os.Stderr, "  -s          Skip VLAN existence check (use with caution)\n")
-	fmt.Fprintf(os.Stderr, "  -t string   Switch target (must match a target in YAML, required)\n")
-	fmt.Fprintf(os.Stderr, "  -v int      Verbosity level: 0=none, 1=debug logs, 2=raw switch output, 3=debug+raw output\n")
-	fmt.Fprintf(os.Stderr, "  -w          Apply changes (disables sandbox mode)\n")
-	fmt.Fprintf(os.Stderr, "  -y string   YAML configuration file (default \"config.yaml\")\n")
+	fmt.Fprintf(os.Stderr, "  --create-vlans     Sync VLANs on switch (create missing, delete extra)\n")
+	fmt.Fprintf(os.Stderr, "  --target string    Switch target (must match a target in YAML, required)\n")
+	fmt.Fprintf(os.Stderr, "  --verbose int      Verbosity level: 0=none, 1=debug logs, 2=raw switch output, 3=debug+raw output\n")
+	fmt.Fprintf(os.Stderr, "  --write            Apply changes (disables sandbox mode)\n")
+	fmt.Fprintf(os.Stderr, "  --config string    YAML configuration file (default \"config.yaml\")\n")
 }
 
 func main() {
 	flag.Usage = printUsage
-	yamlFile := flag.String("y", "config.yaml", "YAML configuration file")
-	write := flag.Bool("w", false, "Apply changes (disables sandbox mode)")
-	verbosity := flag.Int("v", 0, "Verbosity level: 0=none, 1=debug logs, 2=raw switch output, 3=debug+raw output")
-	host := flag.String("t", "", "Switch target (must match a target in YAML, required)")
-	skipVlanCheck := flag.Bool("s", false, "Skip VLAN existence check (use with caution)")
-	createVLANs := flag.Bool("c", false, "Sync VLANs on switch (create missing, delete extra)")
+	yamlFile := flag.String("config", "config.yaml", "YAML configuration file")
+	write := flag.Bool("write", false, "Apply changes (disables sandbox mode)")
+	verbosity := flag.Int("verbose", 0, "Verbosity level: 0=none, 1=debug logs, 2=raw switch output, 3=debug+raw output")
+	host := flag.String("target", "", "Switch target (must match a target in YAML, required)")
+	createVLANs := flag.Bool("create-vlans", false, "Sync VLANs on switch (create missing, delete extra)")
 	flag.Parse()
 
 	fmt.Printf("Negev %s (built %s)\n", version, buildTime)
 
 	// Validate verbosity level
 	if *verbosity < 0 || *verbosity > 3 {
-		fmt.Fprintf(os.Stderr, "Error: -v must be 0, 1, 2, or 3\n")
+		fmt.Fprintf(os.Stderr, "Error: --verbose must be 0, 1, 2, or 3\n")
 		flag.Usage()
 		os.Exit(1)
 	}
 
-	// Check if -t parameter is provided
+	// Check if --target parameter is provided
 	if *host == "" {
-		fmt.Fprintf(os.Stderr, "Error: the -t parameter is required. Specify the switch target with -t <target>\n")
+		fmt.Fprintf(os.Stderr, "Error: the --target parameter is required. Specify the switch target with --target <target>\n")
 		flag.Usage()
 		os.Exit(1)
 	}
@@ -101,7 +99,7 @@ func main() {
 	}
 
 	// Load configuration, passing the target switch IP for log filtering
-	cfg, err := config.Load(configPath, *host, *write, *verbosity, *skipVlanCheck, *createVLANs)
+	cfg, err := config.Load(configPath, *host, *write, *verbosity, *createVLANs)
 	if err != nil {
 		log.Fatal(err)
 	}

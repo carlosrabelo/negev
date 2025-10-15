@@ -16,7 +16,6 @@ type SwitchConfig struct {
 	ProtectedVlans []string          `yaml:"protected_vlans"`
 	Sandbox        bool
 	VerbosityLevel int
-	SkipVlanCheck  bool
 	CreateVLANs    bool
 }
 

@@ -4,6 +4,15 @@ password: "password"
 enable_password: "enable_password"
 default_vlan: "10"
 no_data_vlan: "99"
+allowed_vlans:
+  - "10"  # Default VLAN
+  - "20"  # Management VLAN
+  - "30"  # Printers VLAN
+  - "50"  # Wireless VLAN
+  - "99"  # No data VLAN
+protected_vlans:
+  - "1"   # Default management VLAN
+  - "100" # Switch management VLAN
 mac_to_vlan:
   "3c:2a:f4": "30" # Brother
   "dc:c2:c9": "30" # Canon
@@ -22,6 +31,14 @@ switches:
     enable_password: "enable_password"
     default_vlan: "10"
     no_data_vlan: "99"
+    allowed_vlans:
+      - "10"  # Default VLAN
+      - "20"  # Custom device VLAN
+      - "30"  # Printers VLAN
+      - "99"  # No data VLAN
+    protected_vlans:
+      - "1"   # Default management VLAN
+      - "100" # Switch management VLAN
     exclude_macs:
       - "00:11:22:33:44:55"
     exclude_ports:

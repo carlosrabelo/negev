@@ -20,6 +20,8 @@ type Config struct {
 	NoDataVlan     string                  `yaml:"no_data_vlan"`
 	ExcludeMacs    []string                `yaml:"exclude_macs"`
 	MacToVlan      map[string]string       `yaml:"mac_to_vlan"`
+	AllowedVlans   []string                `yaml:"allowed_vlans"`
+	ProtectedVlans []string                `yaml:"protected_vlans"`
 	Switches       []entities.SwitchConfig `yaml:"switches"`
 }
 
@@ -71,6 +73,20 @@ func Load(yamlFile, target string, sandbox bool, verbosityLevel int, skipVlanChe
 	}
 	if err := validateVLAN(cfg.NoDataVlan, "global no_data_vlan"); err != nil {
 		return nil, err
+	}
+
+	// Validate allowed_vlans if provided
+	for i, vlan := range cfg.AllowedVlans {
+		if err := validateVLAN(vlan, fmt.Sprintf("global allowed_vlans[%d]", i)); err != nil {
+			return nil, err
+		}
+	}
+
+	// Validate protected_vlans if provided
+	for i, vlan := range cfg.ProtectedVlans {
+		if err := validateVLAN(vlan, fmt.Sprintf("global protected_vlans[%d]", i)); err != nil {
+			return nil, err
+		}
 	}
 
 	if verbosityLevel == 1 || verbosityLevel == 3 {
@@ -233,6 +249,44 @@ func Load(yamlFile, target string, sandbox bool, verbosityLevel int, skipVlanChe
 		}
 		if err := validateVLAN(sw.NoDataVlan, fmt.Sprintf("no_data_vlan for switch %s", sw.Target)); err != nil {
 			return nil, err
+		}
+
+		// Merge allowed_vlans from global and switch-specific
+		normalizedAllowedVlans := make(map[string]bool)
+		for _, vlan := range cfg.AllowedVlans {
+			normalizedAllowedVlans[vlan] = true
+		}
+		for _, vlan := range sw.AllowedVlans {
+			if err := validateVLAN(vlan, fmt.Sprintf("allowed_vlans for switch %s", sw.Target)); err != nil {
+				return nil, err
+			}
+			normalizedAllowedVlans[vlan] = true
+		}
+		sw.AllowedVlans = make([]string, 0, len(normalizedAllowedVlans))
+		for vlan := range normalizedAllowedVlans {
+			sw.AllowedVlans = append(sw.AllowedVlans, vlan)
+		}
+		if switchVerbosity == 1 || switchVerbosity == 3 {
+			fmt.Printf("DEBUG: Merged allowed_vlans for switch %s: %v\n", sw.Target, sw.AllowedVlans)
+		}
+
+		// Merge protected_vlans from global and switch-specific
+		normalizedProtectedVlans := make(map[string]bool)
+		for _, vlan := range cfg.ProtectedVlans {
+			normalizedProtectedVlans[vlan] = true
+		}
+		for _, vlan := range sw.ProtectedVlans {
+			if err := validateVLAN(vlan, fmt.Sprintf("protected_vlans for switch %s", sw.Target)); err != nil {
+				return nil, err
+			}
+			normalizedProtectedVlans[vlan] = true
+		}
+		sw.ProtectedVlans = make([]string, 0, len(normalizedProtectedVlans))
+		for vlan := range normalizedProtectedVlans {
+			sw.ProtectedVlans = append(sw.ProtectedVlans, vlan)
+		}
+		if switchVerbosity == 1 || switchVerbosity == 3 {
+			fmt.Printf("DEBUG: Merged protected_vlans for switch %s: %v\n", sw.Target, sw.ProtectedVlans)
 		}
 
 		sw.Sandbox = !sandbox

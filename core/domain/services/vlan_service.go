@@ -44,14 +44,31 @@ func (v *VLANServiceImpl) ProcessPorts() error {
 	}
 
 	if v.config.CreateVLANs {
-		requiredVLANs := v.getRequiredVLANs()
-		for _, vlan := range sortedKeys(requiredVLANs) {
-			if !existingVLANs[vlan] {
-				fmt.Printf("Creating VLAN %s on switch\n", vlan)
-				if err := v.CreateVLAN(vlan); err != nil {
-					return err
+		allowedVLANs := v.getAllowedVLANs()
+		protectedVLANs := v.getProtectedVLANs()
+		if len(allowedVLANs) == 0 {
+			fmt.Println("Skipping VLAN sync: no allowed_vlans configured")
+		} else {
+			for _, vlan := range sortedKeys(allowedVLANs) {
+				if !existingVLANs[vlan] {
+					fmt.Printf("Creating VLAN %s on switch\n", vlan)
+					if err := v.CreateVLAN(vlan); err != nil {
+						return err
+					}
+					existingVLANs[vlan] = true
 				}
-				existingVLANs[vlan] = true
+			}
+			// Delete VLANs that exist but are not allowed and not protected
+			for vlan := range existingVLANs {
+				if !allowedVLANs[vlan] && !protectedVLANs[vlan] {
+					fmt.Printf("Deleting VLAN %s from switch\n", vlan)
+					if err := v.DeleteVLAN(vlan); err != nil {
+						return err
+					}
+					delete(existingVLANs, vlan)
+				} else if !allowedVLANs[vlan] && protectedVLANs[vlan] {
+					fmt.Printf("Skipping deletion of protected VLAN %s\n", vlan)
+				}
 			}
 		}
 	}
@@ -336,7 +353,7 @@ func (v *VLANServiceImpl) ConfigureVlan(iface, vlan string) {
 	fmt.Printf("Configured %s to VLAN %s\n", iface, vlan)
 }
 
-// CreateVLAN cria uma nova VLAN
+// CreateVLAN creates a new VLAN
 func (v *VLANServiceImpl) CreateVLAN(vlan string) error {
 	commands := []string{
 		"configure terminal",
@@ -362,17 +379,46 @@ func (v *VLANServiceImpl) CreateVLAN(vlan string) error {
 	return nil
 }
 
-// Helper functions
-func (v *VLANServiceImpl) getRequiredVLANs() map[string]bool {
-	requiredVLANs := make(map[string]bool)
-	requiredVLANs[v.config.DefaultVlan] = true
-	for _, vlan := range v.config.MacToVlan {
-		if vlan == "0" || vlan == "00" {
-			continue
-		}
-		requiredVLANs[vlan] = true
+// DeleteVLAN deletes an existing VLAN
+func (v *VLANServiceImpl) DeleteVLAN(vlan string) error {
+	commands := []string{
+		"configure terminal",
+		fmt.Sprintf("no vlan %s", vlan),
+		"end",
 	}
-	return requiredVLANs
+	if v.config.Sandbox {
+		fmt.Printf("SANDBOX: Simulating deletion of VLAN %s\n", vlan)
+		for _, cmd := range commands {
+			fmt.Printf("  %s\n", cmd)
+		}
+		return nil
+	}
+	for _, cmd := range commands {
+		if _, err := v.switchRepo.ExecuteCommand(cmd); err != nil {
+			return fmt.Errorf("failed to delete VLAN %s: %v", vlan, err)
+		}
+	}
+	if v.config.IsDebugEnabled() {
+		fmt.Printf("DEBUG: Deleted VLAN %s\n", vlan)
+	}
+	return nil
+}
+
+// Helper functions
+func (v *VLANServiceImpl) getAllowedVLANs() map[string]bool {
+	allowedVLANs := make(map[string]bool)
+	for _, vlan := range v.config.AllowedVlans {
+		allowedVLANs[vlan] = true
+	}
+	return allowedVLANs
+}
+
+func (v *VLANServiceImpl) getProtectedVLANs() map[string]bool {
+	protectedVLANs := make(map[string]bool)
+	for _, vlan := range v.config.ProtectedVlans {
+		protectedVLANs[vlan] = true
+	}
+	return protectedVLANs
 }
 
 func filterDevices(devices []entities.Device, port string) []entities.Device {

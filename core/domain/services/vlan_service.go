@@ -415,9 +415,18 @@ func (v *VLANServiceImpl) getAllowedVLANs() map[string]bool {
 
 func (v *VLANServiceImpl) getProtectedVLANs() map[string]bool {
 	protectedVLANs := make(map[string]bool)
+
+	// Add user-defined protected VLANs
 	for _, vlan := range v.config.ProtectedVlans {
 		protectedVLANs[vlan] = true
 	}
+
+	// Add default Cisco system VLANs that should never be deleted
+	defaultProtectedVLANs := []string{"1002", "1003", "1004", "1005"}
+	for _, vlan := range defaultProtectedVLANs {
+		protectedVLANs[vlan] = true
+	}
+
 	return protectedVLANs
 }
 

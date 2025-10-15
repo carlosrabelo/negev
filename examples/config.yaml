@@ -13,6 +13,7 @@ allowed_vlans:
 protected_vlans:
   - "1"   # Default management VLAN
   - "100" # Switch management VLAN
+  # Note: Cisco system VLANs (1002-1005) are automatically protected by default
 mac_to_vlan:
   "3c:2a:f4": "30" # Brother
   "dc:c2:c9": "30" # Canon
@@ -39,6 +40,7 @@ switches:
     protected_vlans:
       - "1"   # Default management VLAN
       - "100" # Switch management VLAN
+      # Note: Cisco system VLANs (1002-1005) are automatically protected by default
     exclude_macs:
       - "00:11:22:33:44:55"
     exclude_ports:

@@ -21,8 +21,8 @@
 
 ## Manuais do Usuário
 
-- [User manual (English)](docs/user_manual_en.md)
-- [Manual do usuário (Português)](docs/user_manual_pt.md)
+- [User Guide (English)](docs/GUIDE.md)
+- [Guia do Usuário (Português)](docs/GUIDE-PT.md)
 
 ## Instalação
 
@@ -31,7 +31,7 @@ Clone o repositório e construa a ferramenta usando os seguintes comandos:
 ```bash
 git clone https://github.com/carlosrabelo/negev.git
 cd negev
-go build -o negev ./cmd/negev
+go build -o negev ./core/cmd/negev
 ```
 
 Ou use os helpers do Makefile (recomendado):
@@ -111,13 +111,15 @@ switches:
 
 ## Estrutura do Projeto
 
-- `cmd/negev`: Ponto de entrada da CLI e tratamento de flags
-- `internal/config`: Parse YAML e validação de configuração
-- `internal/transport`: Clientes de transporte Telnet/SSH com cache
-- `internal/switchmanager`: Lógica de orquestração de VLAN sobre a camada de transporte
-- `docs/`: Manuais do usuário em Inglês (`user_manual_en.md`) e Português (`user_manual_pt.md`)
+- `core/cmd/negev`: Ponto de entrada da CLI e tratamento de flags
+- `core/infrastructure/config`: Parse YAML e validação de configuração
+- `core/infrastructure/transport`: Clientes de transporte Telnet/SSH com cache
+- `core/application/services`: Serviços de aplicação para VLAN
+- `core/domain/`: Entidades de domínio e lógica de negócio
+- `docs/`: Guias do usuário em Inglês (`GUIDE.md`) e Português (`GUIDE-PT.md`)
 - `examples/`: Arquivos de configuração de referência como `config.yaml`
 - `bin/`: Artefatos de build gerados por `make build`
+- `scripts/`: Scripts de build e utilitários
 
 ## Contribuindo
 

@@ -95,7 +95,7 @@ negev -t 192.168.1.10
 ### Reading the Output
 - `SANDBOX: ...` lines show the commands that would run.
 - `Configured Gi1/0/1 to VLAN 20` confirms a successful change.
-- `Warning: Multiple MACs detected on port ...` means Negev skipps that port to avoid mistakes.
+- `Warning: Multiple MACs detected on port ...` means Negev skips that port to avoid mistakes.
 - `Error: VLAN 50 does not exist on the switch` indicates the VLAN must be created (use `-c` if appropriate).
 
 ## 5. Maintaining Configuration

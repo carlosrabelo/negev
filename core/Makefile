@@ -13,6 +13,8 @@ LDFLAGS ?= -ldflags "-X main.version=$(VERSION) -X main.buildTime=$(BUILD_TIME)"
 BIN_DIR := ../bin
 
 # Go settings
+GOTOOLCHAIN ?= go1.24.7
+GOCACHE_DIR ?= $(CURDIR)/.gocache
 GOOS ?= $(shell go env GOOS)
 GOARCH ?= $(shell go env GOARCH)
 
@@ -22,7 +24,8 @@ GOARCH ?= $(shell go env GOARCH)
 build: ## Build binary for current platform
 	@echo "Building $(BIN) for $(GOOS)/$(GOARCH)..."
 	@mkdir -p $(BIN_DIR)
-	go build $(LDFLAGS) -o $(BIN_DIR)/$(BIN) ./cmd/$(BIN)
+	@mkdir -p $(GOCACHE_DIR)
+	GOCACHE=$(GOCACHE_DIR) GOTOOLCHAIN=$(GOTOOLCHAIN) go build $(LDFLAGS) -o $(BIN_DIR)/$(BIN) ./cmd/$(BIN)
 
 # Development targets
 run: ## Run binary via go run
@@ -33,7 +36,8 @@ run: ## Run binary via go run
 # Testing targets
 test: ## Run module tests
 	@echo "Running tests..."
-	go test -v ./...
+	@mkdir -p $(GOCACHE_DIR)
+	GOCACHE=$(GOCACHE_DIR) GOTOOLCHAIN=$(GOTOOLCHAIN) go test -v ./...
 
 # Code quality targets
 lint: ## Check code quality
@@ -44,21 +48,27 @@ lint: ## Check code quality
 		echo "golangci-lint not found. Install with: go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest"; \
 	fi
 
+
 fmt: ## Format source code
 	@echo "Formatting code..."
-	go fmt ./...
+	@mkdir -p $(GOCACHE_DIR)
+	GOCACHE=$(GOCACHE_DIR) GOTOOLCHAIN=$(GOTOOLCHAIN) go fmt ./...
 	@if command -v goimports >/dev/null 2>&1; then \
-		goimports -w .; \
+		GOCACHE=$(GOCACHE_DIR) GOTOOLCHAIN=$(GOTOOLCHAIN) goimports -w .; \
 	fi
 
 # Dependency management
+
 deps: ## Download Go dependencies
 	@echo "Downloading dependencies..."
-	go mod download
+	@mkdir -p $(GOCACHE_DIR)
+	GOCACHE=$(GOCACHE_DIR) GOTOOLCHAIN=$(GOTOOLCHAIN) go mod download
+
 
 deps-tidy: ## Clean and organize dependencies
 	@echo "Tidying dependencies..."
-	go mod tidy
+	@mkdir -p $(GOCACHE_DIR)
+	GOCACHE=$(GOCACHE_DIR) GOTOOLCHAIN=$(GOTOOLCHAIN) go mod tidy
 
 # Maintenance targets
 clean: ## Clean build artifacts

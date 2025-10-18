@@ -12,6 +12,8 @@ import (
 
 // Config defines the global configuration
 type Config struct {
+	Platform       string                  `yaml:"platform"`
+	LegacyVendor   string                  `yaml:"vendor"`
 	Transport      string                  `yaml:"transport"`
 	Username       string                  `yaml:"username"`
 	Password       string                  `yaml:"password"`
@@ -28,6 +30,15 @@ type Config struct {
 // NormalizeMAC normalizes a MAC address to consistent format
 func NormalizeMAC(mac string) string {
 	return strings.ToLower(strings.ReplaceAll(strings.ReplaceAll(mac, ":", ""), ".", ""))
+}
+
+func validatePlatform(platform string) error {
+	switch platform {
+	case "ios", "dmos", "auto":
+		return nil
+	default:
+		return fmt.Errorf("platform %s is invalid, must be 'ios', 'dmos', or 'auto'", platform)
+	}
 }
 
 // Load loads and validates configuration from a YAML file
@@ -51,6 +62,18 @@ func Load(yamlFile, target string, sandbox bool, verbosityLevel int, createVLANs
 			return fmt.Errorf("invalid VLAN number in %s: %s must be between 1 and 4094", context, vlan)
 		}
 		return nil
+	}
+
+	primaryPlatform := cfg.Platform
+	if primaryPlatform == "" {
+		primaryPlatform = cfg.LegacyVendor
+	}
+	cfg.Platform = strings.ToLower(strings.TrimSpace(primaryPlatform))
+	if cfg.Platform == "" {
+		cfg.Platform = "ios"
+	}
+	if err := validatePlatform(cfg.Platform); err != nil {
+		return nil, err
 	}
 
 	if cfg.Transport == "" {
@@ -90,7 +113,7 @@ func Load(yamlFile, target string, sandbox bool, verbosityLevel int, createVLANs
 	}
 
 	if verbosityLevel == 1 || verbosityLevel == 3 {
-		fmt.Printf("DEBUG: Global values: Transport=%s, DefaultVlan=%s, NoDataVlan=%s, ExcludeMacs=%v\n", cfg.Transport, cfg.DefaultVlan, cfg.NoDataVlan, cfg.ExcludeMacs)
+		fmt.Printf("DEBUG: Global values: Platform=%s, Transport=%s, DefaultVlan=%s, NoDataVlan=%s, ExcludeMacs=%v\n", cfg.Platform, cfg.Transport, cfg.DefaultVlan, cfg.NoDataVlan, cfg.ExcludeMacs)
 	}
 
 	if cfg.Username == "" {
@@ -118,6 +141,21 @@ func Load(yamlFile, target string, sandbox bool, verbosityLevel int, createVLANs
 		}
 		if sw.Transport != "telnet" && sw.Transport != "ssh" {
 			return nil, fmt.Errorf("transport %s is invalid for switch %s, must be 'telnet' or 'ssh'", sw.Transport, sw.Target)
+		}
+
+		rawPlatform := sw.Platform
+		if rawPlatform == "" {
+			rawPlatform = sw.LegacyPlatform
+		}
+		sw.Platform = strings.ToLower(strings.TrimSpace(rawPlatform))
+		if sw.Platform == "" {
+			sw.Platform = cfg.Platform
+			if switchVerbosity == 1 || switchVerbosity == 3 {
+				fmt.Printf("DEBUG: No platform defined for switch %s, using global %s\n", sw.Target, cfg.Platform)
+			}
+		}
+		if err := validatePlatform(sw.Platform); err != nil {
+			return nil, fmt.Errorf("invalid platform for switch %s: %w", sw.Target, err)
 		}
 
 		if sw.Target == "" {
@@ -294,7 +332,7 @@ func Load(yamlFile, target string, sandbox bool, verbosityLevel int, createVLANs
 		sw.CreateVLANs = createVLANs
 
 		if switchVerbosity == 1 || switchVerbosity == 3 {
-			fmt.Printf("DEBUG: Final configuration for switch %s: Transport=%s, DefaultVlan=%s, NoDataVlan=%s, ExcludeMacs=%v, Sandbox=%v, VerbosityLevel=%d\n", sw.Target, sw.Transport, sw.DefaultVlan, sw.NoDataVlan, sw.ExcludeMacs, sw.Sandbox, sw.VerbosityLevel)
+			fmt.Printf("DEBUG: Final configuration for switch %s: Platform=%s, Transport=%s, DefaultVlan=%s, NoDataVlan=%s, ExcludeMacs=%v, Sandbox=%v, VerbosityLevel=%d\n", sw.Target, sw.Platform, sw.Transport, sw.DefaultVlan, sw.NoDataVlan, sw.ExcludeMacs, sw.Sandbox, sw.VerbosityLevel)
 		}
 
 		cfg.Switches[i] = sw

@@ -1,7 +1,11 @@
 package entities
 
+import "strings"
+
 // SwitchConfig defines the configuration for a single switch
 type SwitchConfig struct {
+	Platform       string            `yaml:"platform"`
+	LegacyPlatform string            `yaml:"vendor"`
 	Target         string            `yaml:"target"`
 	Transport      string            `yaml:"transport"`
 	Username       string            `yaml:"username"`
@@ -27,4 +31,16 @@ func (sc SwitchConfig) IsDebugEnabled() bool {
 // IsRawOutputEnabled returns true if raw switch output is enabled
 func (sc SwitchConfig) IsRawOutputEnabled() bool {
 	return sc.VerbosityLevel == 2 || sc.VerbosityLevel == 3
+}
+
+// PlatformID returns the normalized platform identifier, defaulting to ios.
+func (sc SwitchConfig) PlatformID() string {
+	platform := strings.ToLower(strings.TrimSpace(sc.Platform))
+	if platform == "" {
+		platform = strings.ToLower(strings.TrimSpace(sc.LegacyPlatform))
+	}
+	if platform == "" {
+		return "ios"
+	}
+	return platform
 }

@@ -3,6 +3,8 @@
 
 set -e
 
+export GOTOOLCHAIN="${GOTOOLCHAIN:-go1.24.7}"
+
 # Variables
 BIN="${BIN:-negev}"
 VERSION="${VERSION:-$(git describe --tags --always --dirty 2>/dev/null || echo "dev")}"
@@ -20,6 +22,6 @@ mkdir -p "${BIN_DIR}"
 
 # Build from core directory
 cd core
-go build -ldflags "-X main.version=${VERSION} -X main.buildTime=${BUILD_TIME}" -o "../${BIN_DIR}/${BIN}" ./cmd/${BIN}
+GOTOOLCHAIN="${GOTOOLCHAIN}" go build -ldflags "-X main.version=${VERSION} -X main.buildTime=${BUILD_TIME}" -o "../${BIN_DIR}/${BIN}" ./cmd/${BIN}
 
 echo "Build completed: ${BIN_DIR}/${BIN}"

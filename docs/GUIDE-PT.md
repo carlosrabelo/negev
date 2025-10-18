@@ -3,9 +3,10 @@
 Este manual mostra como operar o **Negev** depois de ter o binário disponível. O foco é explicar o fluxo de uso diário, a configuração e a solução de problemas.
 
 ## 1. Visão Geral
-- Negev automatiza a atribuição de VLAN em switches Cisco usando Telnet ou SSH.
+- Negev automatiza a atribuição de VLAN em switches de acesso suportados (perfis Cisco IOS e Datacom DM3000 incluídos) usando Telnet ou SSH.
 - As decisões se baseiam em prefixos de MAC, exclusões explícitas e VLAN padrão.
 - Por padrão, Negev roda em *modo sandbox* (apenas simula). Use `--write` para aplicar mudanças de verdade.
+- Requer Go 1.24 ou superior para compilar (os scripts configuram `GOTOOLCHAIN=go1.24.7` automaticamente quando disponível).
 
 ## 2. Arquivos Necessários
 - **Binário**: `negev` (baixado do release do GitHub ou outra distribuição sua).
@@ -21,6 +22,7 @@ Cada seção controla o comportamento do Negev.
 
 ### 3.1 Configurações Globais
 ```yaml
+platform: "ios"          # perfil padrão (ios, dmos ou auto)
 transport: "ssh"        # protocolo padrão (telnet ou ssh)
 username: "admin"       # usuário padrão
 password: "secret"       # senha padrão
@@ -33,6 +35,7 @@ mac_to_vlan:
   "aa:bb:cc": "20"      # prefixo → VLAN
 ```
 
+- `platform` escolhe o perfil de CLI para todos os switches (use `dmos` para equipamentos Datacom baseados em DmOS, como a linha DM3000, ou `auto` para detectar).
 - Credenciais globais servem como fallback para switches que não definem credenciais próprias.
 - `mac_to_vlan` usa os três primeiros bytes do MAC (seis caracteres hexadecimais) para decidir a VLAN.
 - `exclude_macs` lista MACs completos que devem ser ignorados.
@@ -41,6 +44,7 @@ mac_to_vlan:
 ```yaml
 switches:
   - target: "192.168.1.10"
+    platform: "dmos"
     transport: "telnet"
     username: "switch-admin"
     password: "switch-pass"
@@ -57,6 +61,7 @@ switches:
 ```
 
 - `target` é obrigatório e deve bater com o `--target` na hora de rodar.
+- `platform` permite sobrescrever o perfil de CLI por switch (usa o valor global por padrão).
 - `transport`, credenciais e VLANs definidas aqui substituem os valores globais só para esse switch.
 - `exclude_ports` (não diferencia maiúsculas/minúsculas) evita que o Negev toque em portas sensíveis.
 - Ao mesclar, as regras do switch têm prioridade sobre as globais para o mesmo prefixo.

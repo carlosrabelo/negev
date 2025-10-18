@@ -13,6 +13,7 @@ BIN_DIR := bin
 CORE_DIR := core
 
 # Go settings
+GOTOOLCHAIN ?= go1.24.7
 GOOS ?= $(shell go env GOOS)
 GOARCH ?= $(shell go env GOARCH)
 

@@ -5,6 +5,7 @@ import (
 	"github.com/carlosrabelo/negev/core/domain/ports"
 	"github.com/carlosrabelo/negev/core/domain/services"
 	"github.com/carlosrabelo/negev/core/infrastructure/transport"
+	"github.com/carlosrabelo/negev/core/platform"
 )
 
 // VLANApplicationService orchestrates the use of VLAN services
@@ -13,9 +14,9 @@ type VLANApplicationService struct {
 }
 
 // NewVLANApplicationService creates a new instance of the VLAN application service
-func NewVLANApplicationService(switchConfig entities.SwitchConfig, transportClient transport.Client) *VLANApplicationService {
+func NewVLANApplicationService(switchConfig entities.SwitchConfig, transportClient transport.Client, driver platform.SwitchDriver) *VLANApplicationService {
 	switchAdapter := transport.NewSwitchAdapter(transportClient)
-	vlanService := services.NewVLANService(switchAdapter, switchConfig)
+	vlanService := services.NewVLANService(switchAdapter, switchConfig, driver)
 
 	return &VLANApplicationService{
 		vlanService: vlanService,

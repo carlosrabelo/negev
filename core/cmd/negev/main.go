@@ -11,6 +11,7 @@ import (
 	"github.com/carlosrabelo/negev/core/application/services"
 	"github.com/carlosrabelo/negev/core/infrastructure/config"
 	"github.com/carlosrabelo/negev/core/infrastructure/transport"
+	"github.com/carlosrabelo/negev/core/platform"
 )
 
 var (
@@ -112,9 +113,31 @@ func main() {
 			found = true
 			fmt.Printf("Starting Negev for switch %s\n", switchCfg.Target)
 
-			// Usar a nova arquitetura hexagonal
 			client := transport.Get(switchCfg)
-			vlanAppService := services.NewVLANApplicationService(switchCfg, client)
+			adapter := transport.NewSwitchAdapter(client)
+
+			platformName := switchCfg.PlatformID()
+			var driver platform.SwitchDriver
+			if platformName == "auto" {
+				detected, err := platform.Detect(adapter)
+				if err != nil {
+					log.Fatalf("Failed to auto-detect switch platform: %v", err)
+				}
+				driver = detected
+				platformName = detected.Name()
+				if switchCfg.IsDebugEnabled() {
+					fmt.Printf("DEBUG: Platform auto-detected as %s\n", platformName)
+				}
+			} else {
+				resolved, err := platform.Get(platformName)
+				if err != nil {
+					log.Fatalf("%v", err)
+				}
+				driver = resolved
+			}
+
+			switchCfg.Platform = platformName
+			vlanAppService := services.NewVLANApplicationService(switchCfg, client, driver)
 			err = vlanAppService.ProcessPorts()
 			if err != nil {
 				log.Printf("Error processing switch %s: %v", switchCfg.Target, err)

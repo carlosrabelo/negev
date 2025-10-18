@@ -3,9 +3,10 @@
 This manual explains how to operate **Negev** once the binary is available. It focuses on day-to-day usage, configuration scenarios, and troubleshooting.
 
 ## 1. Quick Overview
-- Negev automates VLAN assignments on Cisco switches using Telnet or SSH.
+- Negev automates VLAN assignments on supported access switches (Cisco IOS and Datacom DM3000 profiles included) using Telnet or SSH.
 - Decisions are based on MAC address prefixes, explicit exclusions, and default VLAN rules.
 - By default, Negev works in *sandbox mode* (simulation only). Add `--write` to apply changes.
+- Requires Go 1.24 or newer to build (the project sets `GOTOOLCHAIN=go1.24.7` automatically when available).
 
 ## 2. Required Files
 - **Binary**: `negev` (obtained from the GitHub release or other distribution).
@@ -21,6 +22,7 @@ Each section dictates how Negev should behave.
 
 ### 3.1 Global Settings
 ```yaml
+platform: "ios"          # default platform profile (ios, dmos, or auto)
 transport: "ssh"        # default protocol for switches (telnet or ssh)
 username: "admin"       # fallback username
 password: "secret"       # fallback password
@@ -33,6 +35,7 @@ mac_to_vlan:
   "aa:bb:cc": "20"      # prefix → VLAN mapping
 ```
 
+- `platform` selects the CLI profile for all switches (use `dmos` for Datacom DmOS-based devices such as the DM3000 series, or `auto` for detection).
 - Global credentials act as defaults for switches that do not define their own.
 - `mac_to_vlan` keys must be three-byte prefixes (six hex characters) and determine target VLANs.
 - `exclude_macs` uses full MAC addresses; excluded devices are ignored.
@@ -41,6 +44,7 @@ mac_to_vlan:
 ```yaml
 switches:
   - target: "192.168.1.10"
+    platform: "dmos"
     transport: "telnet"
     username: "switch-admin"
     password: "switch-pass"
@@ -57,6 +61,7 @@ switches:
 ```
 
 - `target` is mandatory and must match the `--target` flag when running Negev.
+- `platform` lets you override the CLI profile per switch (defaults to the global platform).
 - `transport`, credentials, and VLAN settings override global values only for that switch.
 - `exclude_ports` (case-insensitive) prevents Negev from touching sensitive interfaces.
 - Merge logic: switch mappings take precedence over global mappings for the same prefix.

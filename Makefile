@@ -14,14 +14,15 @@ CORE_DIR := core
 
 # Go settings
 GOTOOLCHAIN ?= go1.24.7
-GOOS ?= $(shell go env GOOS)
-GOARCH ?= $(shell go env GOARCH)
+GO_BIN ?= $(shell if [ -x "$(HOME)/go/bin/$(GOTOOLCHAIN)" ]; then echo "$(HOME)/go/bin/$(GOTOOLCHAIN)"; else echo "go"; fi)
+GOOS ?= $(shell $(GO_BIN) env GOOS)
+GOARCH ?= $(shell $(GO_BIN) env GOARCH)
 
 .PHONY: build clean help info run test lint fmt deps install
 
 # Build targets
 build: ## Build binary for current platform
-	@./scripts/build.sh
+	@GO_BIN=$(GO_BIN) GOTOOLCHAIN=$(GOTOOLCHAIN) ./scripts/build.sh
 
 # Development targets
 run: build ## Run compiled binary
@@ -29,18 +30,18 @@ run: build ## Run compiled binary
 
 # Testing targets
 test: ## Run project tests
-	$(MAKE) -C $(CORE_DIR) test
+	GO_BIN=$(GO_BIN) GOTOOLCHAIN=$(GOTOOLCHAIN) $(MAKE) -C $(CORE_DIR) test
 
 # Code quality targets
 lint: ## Check code quality
-	$(MAKE) -C $(CORE_DIR) lint
+	GO_BIN=$(GO_BIN) GOTOOLCHAIN=$(GOTOOLCHAIN) $(MAKE) -C $(CORE_DIR) lint
 
 fmt: ## Format source code
-	$(MAKE) -C $(CORE_DIR) fmt
+	GO_BIN=$(GO_BIN) GOTOOLCHAIN=$(GOTOOLCHAIN) $(MAKE) -C $(CORE_DIR) fmt
 
 # Dependency management
 deps: ## Download Go dependencies
-	$(MAKE) -C $(CORE_DIR) deps
+	GO_BIN=$(GO_BIN) GOTOOLCHAIN=$(GOTOOLCHAIN) $(MAKE) -C $(CORE_DIR) deps
 
 # Installation targets
 install: build ## Install binary (root: /usr/local/bin, user: ~/.local/bin)
@@ -57,7 +58,7 @@ info: ## Show project information
 	@echo "Binary: $(BIN)"
 	@echo "Version: $(VERSION)"
 	@echo "Build Time: $(BUILD_TIME)"
-	@echo "Go Version: $(shell go version)"
+	@echo "Go Version: $(shell $(GO_BIN) version)"
 	@echo "Platform: $(GOOS)/$(GOARCH)"
 	@echo "Binary Dir: $(BIN_DIR)"
 

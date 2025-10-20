@@ -3,26 +3,28 @@ package services
 import (
 	"fmt"
 	"log"
-	"regexp"
 	"sort"
 	"strconv"
 	"strings"
 
 	"github.com/carlosrabelo/negev/core/domain/entities"
 	"github.com/carlosrabelo/negev/core/domain/ports"
+	"github.com/carlosrabelo/negev/core/platform"
 )
 
 // VLANServiceImpl implements the VLAN management service
 type VLANServiceImpl struct {
 	switchRepo ports.SwitchRepository
 	config     entities.SwitchConfig
+	driver     platform.SwitchDriver
 }
 
 // NewVLANService creates a new instance of the VLAN service
-func NewVLANService(switchRepo ports.SwitchRepository, config entities.SwitchConfig) *VLANServiceImpl {
+func NewVLANService(switchRepo ports.SwitchRepository, config entities.SwitchConfig, driver platform.SwitchDriver) *VLANServiceImpl {
 	return &VLANServiceImpl{
 		switchRepo: switchRepo,
 		config:     config,
+		driver:     driver,
 	}
 }
 
@@ -110,7 +112,7 @@ func (v *VLANServiceImpl) ProcessPorts() error {
 			}
 			continue
 		}
-		if trunks[port.Interface] {
+		if trunks[strings.ToLower(port.Interface)] {
 			if v.config.IsDebugEnabled() {
 				fmt.Printf("DEBUG: Ignoring trunk interface %s\n", port.Interface)
 			}
@@ -130,7 +132,13 @@ func (v *VLANServiceImpl) ProcessPorts() error {
 		}
 
 		dev := portDevices[0]
-		normDevMac := normalizeMAC(dev.MacFull)
+		normDevMac := dev.Mac
+		if len(normDevMac) < 6 {
+			if v.config.IsDebugEnabled() {
+				fmt.Printf("DEBUG: Ignoring malformed MAC %s on port %s\n", dev.MacFull, port.Interface)
+			}
+			continue
+		}
 		if v.config.IsDebugEnabled() {
 			fmt.Printf("DEBUG: Checking MAC %s on port %s against exclude list %v\n", dev.MacFull, port.Interface, v.config.ExcludeMacs)
 		}
@@ -170,11 +178,7 @@ func (v *VLANServiceImpl) ProcessPorts() error {
 
 	fmt.Printf("State before saving: Sandbox=%v Changed=%v\n", v.config.Sandbox, changed)
 	if !v.config.Sandbox && changed {
-		if _, err := v.switchRepo.ExecuteCommand("write memory"); err != nil {
-			log.Printf("Error saving configuration: %v", err)
-		} else {
-			fmt.Println("Configuration saved")
-		}
+		v.saveConfiguration()
 	} else {
 		if !changed {
 			fmt.Println("No changes required")
@@ -187,20 +191,9 @@ func (v *VLANServiceImpl) ProcessPorts() error {
 
 // GetVlanList gets the list of existing VLANs
 func (v *VLANServiceImpl) GetVlanList() (map[string]bool, error) {
-	output, err := v.switchRepo.ExecuteCommand("show vlan brief")
+	vlans, err := v.driver.GetVLANList(v.switchRepo, v.config)
 	if err != nil {
-		return nil, fmt.Errorf("failed to retrieve VLAN list: %v", err)
-	}
-	re := regexp.MustCompile(`(?m)^(\d+)\s+\S+`)
-	matches := re.FindAllStringSubmatch(output, -1)
-	vlans := make(map[string]bool)
-	for _, match := range matches {
-		if len(match) > 1 {
-			vlans[match[1]] = true
-		}
-	}
-	if v.config.IsDebugEnabled() {
-		fmt.Printf("DEBUG: Existing VLANs: %v\n", vlans)
+		return nil, err
 	}
 	if len(vlans) == 0 {
 		fmt.Println("Warning: No VLANs found on the switch. Maybe create them first.")
@@ -210,133 +203,22 @@ func (v *VLANServiceImpl) GetVlanList() (map[string]bool, error) {
 
 // GetTrunkInterfaces gets trunk interfaces
 func (v *VLANServiceImpl) GetTrunkInterfaces() (map[string]bool, error) {
-	output, err := v.switchRepo.ExecuteCommand("show interfaces trunk")
-	if err != nil {
-		return nil, fmt.Errorf("failed to retrieve trunk interfaces: %v", err)
-	}
-	re := regexp.MustCompile(`(?m)^\s*([A-Za-z]+\d+\/\d+(?:\/\d+)?)`)
-	matches := re.FindAllStringSubmatch(output, -1)
-	trunks := make(map[string]bool)
-	for _, match := range matches {
-		if len(match) > 1 {
-			trunks[match[1]] = true
-		}
-	}
-	if v.config.IsDebugEnabled() {
-		fmt.Printf("DEBUG: Trunk interfaces: %v\n", trunks)
-	}
-	return trunks, nil
+	return v.driver.GetTrunkInterfaces(v.switchRepo, v.config)
 }
 
 // GetActivePorts gets active ports
 func (v *VLANServiceImpl) GetActivePorts() ([]entities.Port, error) {
-	output, err := v.switchRepo.ExecuteCommand("show interfaces status")
-	if err != nil {
-		return nil, fmt.Errorf("failed to retrieve interface status: %v", err)
-	}
-	re := regexp.MustCompile(`(?m)^([A-Za-z]+\d+\/\d+(?:\/\d+)?)\s+(?:[^\s]*\s+)?connected\s+(\d+|trunk)\s+.*$`)
-	matches := re.FindAllStringSubmatch(output, -1)
-	ports := make([]entities.Port, 0, len(matches))
-	for _, match := range matches {
-		if len(match) < 3 {
-			log.Printf("Warning: Ignoring malformed interface line: %s", match[0])
-			continue
-		}
-		if !strings.Contains(match[0], "connected") {
-			log.Printf("Warning: Line %s does not show connected status, ignoring", match[0])
-			continue
-		}
-		ports = append(ports, entities.Port{Interface: match[1], Vlan: match[2]})
-	}
-	if v.config.IsDebugEnabled() {
-		fmt.Printf("DEBUG: Found %d active ports\n", len(ports))
-	}
-	return ports, nil
+	return v.driver.GetActivePorts(v.switchRepo, v.config)
 }
 
 // GetMacTable gets MAC address table
 func (v *VLANServiceImpl) GetMacTable() ([]entities.Device, error) {
-	output, err := v.switchRepo.ExecuteCommand("show mac address-table dynamic")
-	if err != nil {
-		return nil, fmt.Errorf("failed to retrieve MAC table: %v", err)
-	}
-	if v.config.IsRawOutputEnabled() {
-		fmt.Printf("Raw output of 'show mac address-table dynamic':\n%s\n", output)
-	}
-	trunks, err := v.GetTrunkInterfaces()
-	if err != nil {
-		return nil, fmt.Errorf("failed to retrieve trunk interfaces: %v", err)
-	}
-	re := regexp.MustCompile(`(?m)^\s*(\d+)\s+([0-9A-Fa-f]{4}\.[0-9A-Fa-f]{4}\.[0-9A-Fa-f]{4})\s+DYNAMIC\s+(\S+)\s*$`)
-	matches := re.FindAllStringSubmatch(output, -1)
-	devices := make([]entities.Device, 0, len(matches))
-	for _, match := range matches {
-		if len(match) < 4 {
-			if v.config.IsDebugEnabled() {
-				fmt.Printf("DEBUG: Ignoring malformed MAC table line: %s\n", match[0])
-			}
-			continue
-		}
-		vlan := match[1]
-		mac := match[2]
-		iface := match[3]
-		if _, err := strconv.Atoi(vlan); err != nil {
-			if v.config.IsDebugEnabled() {
-				fmt.Printf("DEBUG: Ignoring line with invalid VLAN '%s': %s\n", vlan, match[0])
-			}
-			continue
-		}
-		if !regexp.MustCompile(`^[0-9A-Fa-f]{4}\.[0-9A-Fa-f]{4}\.[0-9A-Fa-f]{4}$`).MatchString(mac) {
-			if v.config.IsDebugEnabled() {
-				fmt.Printf("DEBUG: Ignoring line with invalid MAC '%s': %s\n", mac, match[0])
-			}
-			continue
-		}
-		if !regexp.MustCompile(`^[A-Za-z]+\d+\/\d+(?:\/\d+)?$`).MatchString(iface) {
-			if v.config.IsDebugEnabled() {
-				fmt.Printf("DEBUG: Ignoring line with invalid interface '%s': %s\n", iface, match[0])
-			}
-			continue
-		}
-		if trunks[iface] {
-			if v.config.IsDebugEnabled() {
-				fmt.Printf("DEBUG: Skipping MAC %s on trunk interface %s\n", mac, iface)
-			}
-			continue
-		}
-		macNoDots := strings.ReplaceAll(mac, ".", "")
-		var macFull strings.Builder
-		for i := 0; i < len(macNoDots); i += 2 {
-			if i > 0 {
-				macFull.WriteString(":")
-			}
-			macFull.WriteString(macNoDots[i : i+2])
-		}
-		if v.config.IsDebugEnabled() {
-			fmt.Printf("DEBUG: Adding device VLAN=%s MAC=%s Interface=%s\n", vlan, macFull.String(), iface)
-		}
-		devices = append(devices, entities.Device{
-			Vlan:      vlan,
-			Mac:       mac,
-			MacFull:   macFull.String(),
-			Interface: iface,
-		})
-	}
-	if v.config.IsDebugEnabled() {
-		fmt.Printf("DEBUG: Found %d devices in MAC table\n", len(devices))
-	}
-	return devices, nil
+	return v.driver.GetMacTable(v.switchRepo, v.config)
 }
 
 // ConfigureVlan configures VLAN on an interface
 func (v *VLANServiceImpl) ConfigureVlan(iface, vlan string) {
-	commands := []string{
-		"configure terminal",
-		"interface " + iface,
-		"switchport mode access",
-		"switchport access vlan " + vlan,
-		"end",
-	}
+	commands := v.driver.ConfigureAccessCommands(iface, vlan)
 	if v.config.Sandbox {
 		fmt.Printf("SANDBOX: Simulating configuration for %s to VLAN %s\n", iface, vlan)
 		for _, cmd := range commands {
@@ -354,14 +236,7 @@ func (v *VLANServiceImpl) ConfigureVlan(iface, vlan string) {
 
 // CreateVLAN creates a new VLAN
 func (v *VLANServiceImpl) CreateVLAN(vlan string) error {
-	commands := []string{
-		"configure terminal",
-		fmt.Sprintf("vlan %s", vlan),
-		"exit",
-		fmt.Sprintf("interface vlan %s", vlan),
-		"no shutdown",
-		"end",
-	}
+	commands := v.driver.CreateVLANCommands(vlan)
 	if v.config.Sandbox {
 		fmt.Printf("SANDBOX: Simulating creation of VLAN %s\n", vlan)
 		for _, cmd := range commands {
@@ -382,16 +257,7 @@ func (v *VLANServiceImpl) CreateVLAN(vlan string) error {
 
 // DeleteVLAN deletes an existing VLAN
 func (v *VLANServiceImpl) DeleteVLAN(vlan string) error {
-	commands := []string{
-		"configure terminal",
-		fmt.Sprintf("interface vlan %s", vlan),
-		"shutdown",
-		"exit",
-		fmt.Sprintf("no interface vlan %s", vlan),
-		"exit",
-		fmt.Sprintf("no vlan %s", vlan),
-		"end",
-	}
+	commands := v.driver.DeleteVLANCommands(vlan)
 	if v.config.Sandbox {
 		fmt.Printf("SANDBOX: Simulating deletion of VLAN %s\n", vlan)
 		for _, cmd := range commands {
@@ -408,6 +274,24 @@ func (v *VLANServiceImpl) DeleteVLAN(vlan string) error {
 		fmt.Printf("DEBUG: Deleted VLAN %s with interface\n", vlan)
 	}
 	return nil
+}
+
+func (v *VLANServiceImpl) saveConfiguration() {
+	commands := v.driver.SaveCommands()
+	for idx, cmd := range commands {
+		if v.config.IsDebugEnabled() {
+			fmt.Printf("DEBUG: Saving configuration using '%s'\n", cmd)
+		}
+		if _, err := v.switchRepo.ExecuteCommand(cmd); err != nil {
+			log.Printf("Error saving configuration with '%s': %v", cmd, err)
+			if idx == len(commands)-1 {
+				fmt.Println("Warning: Unable to persist configuration automatically; please save manually.")
+			}
+			continue
+		}
+		fmt.Printf("Configuration saved using '%s'\n", cmd)
+		return
+	}
 }
 
 // Helper functions
@@ -451,7 +335,7 @@ func (v *VLANServiceImpl) isProtectedVLAN(vlan string) bool {
 func filterDevices(devices []entities.Device, port string) []entities.Device {
 	filtered := make([]entities.Device, 0, len(devices))
 	for _, dev := range devices {
-		if dev.Interface == port {
+		if strings.EqualFold(dev.Interface, port) {
 			filtered = append(filtered, dev)
 		}
 	}
@@ -473,10 +357,6 @@ func isExcluded(mac string, excluded []string) bool {
 		}
 	}
 	return false
-}
-
-func normalizeMAC(mac string) string {
-	return strings.ToLower(strings.ReplaceAll(strings.ReplaceAll(mac, ":", ""), ".", ""))
 }
 
 func sortedKeys(set map[string]bool) []string {

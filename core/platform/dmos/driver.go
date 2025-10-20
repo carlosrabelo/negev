@@ -23,6 +23,17 @@ func (d *Driver) Name() string {
 	return driverName
 }
 
+// GetAuthenticationSequence returns the DmOS login sequence
+// DmOS goes directly to privileged mode after password, no enable command needed
+func (d *Driver) GetAuthenticationSequence(username, password, enablePassword string) []entities.AuthPrompt {
+	return []entities.AuthPrompt{
+		{WaitFor: "login:", SendCmd: username + "\n"},
+		{WaitFor: "Password:", SendCmd: password + "\n"},
+		{WaitFor: "#", SendCmd: "terminal length 0\n"},
+		{WaitFor: "#", SendCmd: ""},
+	}
+}
+
 // Detect determines if the connected device is running DmOS.
 func (d *Driver) Detect(repo ports.SwitchRepository) (bool, error) {
 	if !repo.IsConnected() {
@@ -40,7 +51,8 @@ func (d *Driver) Detect(repo ports.SwitchRepository) (bool, error) {
 
 // GetVLANList retrieves existing VLAN identifiers.
 func (d *Driver) GetVLANList(repo ports.SwitchRepository, cfg entities.SwitchConfig) (map[string]bool, error) {
-	commands := []string{"show vlan", "show vlan brief"}
+	// DmOS uses "show vlan table" instead of "show vlan" or "show vlan brief"
+	commands := []string{"show vlan table", "show vlan"}
 	var lastErr error
 	for _, cmd := range commands {
 		output, err := repo.ExecuteCommand(cmd)
@@ -68,13 +80,25 @@ func (d *Driver) GetVLANList(repo ports.SwitchRepository, cfg entities.SwitchCon
 	return map[string]bool{}, nil
 }
 
+// switchportCache stores the cached output to avoid executing slow command twice
+var switchportCache struct {
+	output string
+	target string
+}
+
 // GetTrunkInterfaces returns trunk-capable links.
 func (d *Driver) GetTrunkInterfaces(repo ports.SwitchRepository, cfg entities.SwitchConfig) (map[string]bool, error) {
-	output, err := repo.ExecuteCommand("show vlan port")
-	if err != nil {
-		return nil, fmt.Errorf("failed to retrieve VLAN membership: %w", err)
+	// Get switchport info (will be cached for GetActivePorts)
+	if switchportCache.target != cfg.Target || switchportCache.output == "" {
+		output, err := repo.ExecuteCommand("show interfaces switchport")
+		if err != nil {
+			return nil, fmt.Errorf("failed to retrieve switchport info: %w", err)
+		}
+		switchportCache.output = output
+		switchportCache.target = cfg.Target
 	}
-	trunks := parseDmOSTrunks(output)
+
+	trunks := parseDmOSTrunksFromSwitchport(switchportCache.output)
 	if cfg.IsDebugEnabled() {
 		fmt.Printf("DEBUG: Trunk interfaces: %v\n", trunks)
 	}
@@ -83,15 +107,37 @@ func (d *Driver) GetTrunkInterfaces(repo ports.SwitchRepository, cfg entities.Sw
 
 // GetActivePorts lists access interfaces with link-up state.
 func (d *Driver) GetActivePorts(repo ports.SwitchRepository, cfg entities.SwitchConfig) ([]entities.Port, error) {
-	output, err := repo.ExecuteCommand("show interfaces status")
+	// Get link status
+	statusOutput, err := repo.ExecuteCommand("show interfaces status")
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve interface status: %w", err)
 	}
-	ports := parseDmOSInterfaceStatus(output)
-	if cfg.IsDebugEnabled() {
-		fmt.Printf("DEBUG: Found %d active ports\n", len(ports))
+
+	// Reuse cached switchport info if available
+	if switchportCache.target != cfg.Target || switchportCache.output == "" {
+		output, err := repo.ExecuteCommand("show interfaces switchport")
+		if err != nil {
+			return nil, fmt.Errorf("failed to retrieve switchport info: %w", err)
+		}
+		switchportCache.output = output
+		switchportCache.target = cfg.Target
 	}
-	return ports, nil
+
+	// Parse both outputs
+	activePorts := parseDmOSInterfaceStatus(statusOutput)
+	vlanMap := parseDmOSSwitchportVLANs(switchportCache.output)
+
+	// Merge VLAN info with active ports
+	for i := range activePorts {
+		if vlan, ok := vlanMap[activePorts[i].Interface]; ok {
+			activePorts[i].Vlan = vlan
+		}
+	}
+
+	if cfg.IsDebugEnabled() {
+		fmt.Printf("DEBUG: Found %d active ports\n", len(activePorts))
+	}
+	return activePorts, nil
 }
 
 // GetMacTable fetches the MAC address table.
@@ -100,12 +146,13 @@ func (d *Driver) GetMacTable(repo ports.SwitchRepository, cfg entities.SwitchCon
 	if err != nil {
 		return nil, err
 	}
-	output, err := repo.ExecuteCommand("show mac-address-table dynamic")
+	// DmOS uses "show mac-address-table" without "dynamic"
+	output, err := repo.ExecuteCommand("show mac-address-table")
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve MAC table: %w", err)
 	}
 	if cfg.IsRawOutputEnabled() {
-		fmt.Printf("Raw output of 'show mac-address-table dynamic':\n%s\n", output)
+		fmt.Printf("Raw output of 'show mac-address-table':\n%s\n", output)
 	}
 	devices := parseDmOSMACTable(output, trunks)
 	if cfg.IsDebugEnabled() {
@@ -118,7 +165,7 @@ func (d *Driver) GetMacTable(repo ports.SwitchRepository, cfg entities.SwitchCon
 func (d *Driver) ConfigureAccessCommands(iface, vlan string) []string {
 	port := normalizePort(iface)
 	return []string{
-		"configure terminal",
+		"configure",
 		fmt.Sprintf("interface vlan %s", vlan),
 		fmt.Sprintf("set-member untagged %s", port),
 		"exit",
@@ -133,7 +180,7 @@ func (d *Driver) ConfigureAccessCommands(iface, vlan string) []string {
 // CreateVLANCommands ensures the VLAN interface exists (DmOS creates on demand).
 func (d *Driver) CreateVLANCommands(vlan string) []string {
 	return []string{
-		"configure terminal",
+		"configure",
 		fmt.Sprintf("interface vlan %s", vlan),
 		"exit",
 		"end",
@@ -143,7 +190,7 @@ func (d *Driver) CreateVLANCommands(vlan string) []string {
 // DeleteVLANCommands removes a VLAN definition.
 func (d *Driver) DeleteVLANCommands(vlan string) []string {
 	return []string{
-		"configure terminal",
+		"configure",
 		fmt.Sprintf("no interface vlan %s", vlan),
 		"end",
 	}

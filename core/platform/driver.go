@@ -15,6 +15,9 @@ type SwitchDriver interface {
 	Name() string
 	Detect(repo ports.SwitchRepository) (bool, error)
 
+	// GetAuthenticationSequence returns the login sequence for this platform
+	GetAuthenticationSequence(username, password, enablePassword string) []entities.AuthPrompt
+
 	GetVLANList(repo ports.SwitchRepository, cfg entities.SwitchConfig) (map[string]bool, error)
 	GetTrunkInterfaces(repo ports.SwitchRepository, cfg entities.SwitchConfig) (map[string]bool, error)
 	GetActivePorts(repo ports.SwitchRepository, cfg entities.SwitchConfig) ([]entities.Port, error)

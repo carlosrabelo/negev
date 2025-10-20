@@ -15,14 +15,14 @@ if [ ! -f "${BIN_DIR}/${BIN}" ]; then
 fi
 
 echo "Running ${BIN}..."
-echo "Usage: ${BIN_DIR}/${BIN} -t <switch_ip> [options]"
-echo "Example: ${BIN_DIR}/${BIN} -t 192.168.1.1 -v 1 -y examples/config.yaml"
+echo "Usage: ${BIN_DIR}/${BIN} --target <switch_ip> [options]"
+echo "Example: ${BIN_DIR}/${BIN} --target 192.168.1.1 --verbose 1 --config examples/config.yaml"
 echo ""
 
 # If no arguments provided, use example configuration
 if [ $# -eq 0 ]; then
     echo "No arguments provided, using example configuration..."
-    exec "${BIN_DIR}/${BIN}" -t 192.168.1.1 -v 1 -y examples/config.yaml
+    exec "${BIN_DIR}/${BIN}" --target 192.168.1.1 --verbose 1 --config examples/config.yaml
 else
     # Execute with all passed arguments
     exec "${BIN_DIR}/${BIN}" "$@"

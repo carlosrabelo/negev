@@ -37,7 +37,7 @@ func (sc *SSHClient) Connect() error {
 		User:            sc.config.Username,
 		Auth:            []ssh.AuthMethod{ssh.Password(sc.config.Password)},
 		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
-		Timeout:         DefaultTimeout,
+		Timeout:         120 * time.Second, // Match telnet timeout for consistency
 	}
 
 	dialer := &net.Dialer{Timeout: DefaultTimeout}

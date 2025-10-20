@@ -23,6 +23,18 @@ func (d *Driver) Name() string {
 	return driverName
 }
 
+// GetAuthenticationSequence returns the IOS login sequence
+func (d *Driver) GetAuthenticationSequence(username, password, enablePassword string) []entities.AuthPrompt {
+	return []entities.AuthPrompt{
+		{WaitFor: "Username:", SendCmd: username + "\n"},
+		{WaitFor: "Password:", SendCmd: password + "\n"},
+		{WaitFor: ">", SendCmd: "enable\n"},
+		{WaitFor: "Password:", SendCmd: enablePassword + "\n"},
+		{WaitFor: "#", SendCmd: "terminal length 0\n"},
+		{WaitFor: "#", SendCmd: ""},
+	}
+}
+
 // Detect inspects the device to determine whether it is running IOS.
 func (d *Driver) Detect(repo ports.SwitchRepository) (bool, error) {
 	if !repo.IsConnected() {

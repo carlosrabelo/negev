@@ -1,0 +1,51 @@
+openapi: 3.1.0
+info:
+  title: "Negev CLI - Contrato Operacional"
+  version: "0.1.0"
+  description: >
+    O projeto Negev não expõe API HTTP. Este documento serve como referência formal
+    da interface de linha de comando utilizada por agentes humanos e artificiais.
+servers: []
+paths: {}
+x-cli-interface:
+  comando: "negev"
+  descricao: "Ferramenta de automação de VLAN em switches Cisco."
+  parametros:
+    - flag: "--target"
+      tipo: "string"
+      obrigatorio: true
+      descricao: "Endereço ou apelido do switch conforme definido no YAML."
+    - flag: "--config"
+      tipo: "string"
+      obrigatorio: false
+      padrao: "config.yaml"
+      descricao: "Caminho para o arquivo YAML de configuração."
+    - flag: "--write"
+      tipo: "booleano"
+      obrigatorio: false
+      descricao: "Aplica mudanças no switch (desativa modo sandbox)."
+    - flag: "--verbose"
+      tipo: "inteiro (0-3)"
+      obrigatorio: false
+      descricao: "Define nível de logs: 0 silencioso, 1 debug, 2 saída bruta, 3 debug+bruta."
+    - flag: "--create-vlans"
+      tipo: "booleano"
+      obrigatorio: false
+      descricao: "Sincroniza VLANs permitidas criando ausentes e removendo excedentes."
+  entradas:
+    - origem: "Arquivo YAML"
+      exemplo: "examples/config.yaml"
+      descricao: "Contém parâmetros globais e por switch, além de listas de VLAN."
+  saidas:
+    - tipo: "stdout"
+      descricao: "Relatórios de ações, mudanças simuladas ou aplicadas."
+    - tipo: "stderr"
+      descricao: "Erros de validação, credenciais ausentes ou VLANs inválidas."
+  codigos-de-saida:
+    - codigo: 0
+      descricao: "Execução concluída sem erros."
+    - codigo: 1
+      descricao: "Erro de uso (flags inválidos ou ausência de --target)."
+    - codigo: 2
+      descricao: "Falha de comunicação com o switch ou erro de aplicação de VLAN."
+x-nota: "Para expor futura API HTTP, criar novo módulo e versionar OpenAPI real neste arquivo."

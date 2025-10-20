@@ -64,17 +64,13 @@ func Load(yamlFile, target string, sandbox bool, verbosityLevel int, createVLANs
 		return nil
 	}
 
+	// Platform is now required per-switch, not globally
+	// Keep global platform for backward compatibility but don't use it as fallback
 	primaryPlatform := cfg.Platform
 	if primaryPlatform == "" {
 		primaryPlatform = cfg.LegacyVendor
 	}
 	cfg.Platform = strings.ToLower(strings.TrimSpace(primaryPlatform))
-	if cfg.Platform == "" {
-		cfg.Platform = "ios"
-	}
-	if err := validatePlatform(cfg.Platform); err != nil {
-		return nil, err
-	}
 
 	if cfg.Transport == "" {
 		cfg.Transport = "telnet"
@@ -149,10 +145,7 @@ func Load(yamlFile, target string, sandbox bool, verbosityLevel int, createVLANs
 		}
 		sw.Platform = strings.ToLower(strings.TrimSpace(rawPlatform))
 		if sw.Platform == "" {
-			sw.Platform = cfg.Platform
-			if switchVerbosity == 1 || switchVerbosity == 3 {
-				fmt.Printf("DEBUG: No platform defined for switch %s, using global %s\n", sw.Target, cfg.Platform)
-			}
+			return nil, fmt.Errorf("platform is required for switch %s (must be 'ios', 'dmos', or 'auto')", sw.Target)
 		}
 		if err := validatePlatform(sw.Platform); err != nil {
 			return nil, fmt.Errorf("invalid platform for switch %s: %w", sw.Target, err)

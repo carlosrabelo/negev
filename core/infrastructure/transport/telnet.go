@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	DefaultTimeout    = 30 * time.Second
+	DefaultTimeout    = 120 * time.Second // Increased for slow DmOS commands (switchport, MAC table)
 	BufferSize        = 4096
 	PromptUsername    = "Username:"
 	PromptPassword    = "Password:"
@@ -22,13 +22,19 @@ const (
 
 // TelnetClient manages a Telnet connection to a switch
 type TelnetClient struct {
-	conn   *telnet.Conn
-	config entities.SwitchConfig
+	conn         *telnet.Conn
+	config       entities.SwitchConfig
+	authSequence []entities.AuthPrompt
 }
 
 // NewTelnetClient creates a new Telnet client with the given configuration
 func NewTelnetClient(cfg entities.SwitchConfig) *TelnetClient {
 	return &TelnetClient{config: cfg}
+}
+
+// SetAuthSequence configures the authentication sequence for this client
+func (tc *TelnetClient) SetAuthSequence(prompts []entities.AuthPrompt) {
+	tc.authSequence = prompts
 }
 
 // Connect establishes a Telnet connection to the switch
@@ -46,26 +52,32 @@ func (tc *TelnetClient) Connect() error {
 	if tc.config.IsDebugEnabled() {
 		fmt.Printf("DEBUG: Connected to %s\n", tc.config.Target)
 	}
-	prompts := []struct {
-		prompt string
-		input  string
-	}{
-		{PromptUsername, tc.config.Username + "\n"},
-		{PromptPassword, tc.config.Password + "\n"},
-		{PromptEnable, "enable\n"},
-		{PromptPassword, tc.config.EnablePassword + "\n"},
-		{PromptPrivileged, TerminalLengthCmd},
-		{PromptPrivileged, ""},
-	}
-	for _, p := range prompts {
-		output, err := tc.readUntil(p.prompt, DefaultTimeout)
-		if err != nil {
-			return fmt.Errorf("failed to wait for %s: %v, output: %s", p.prompt, err, output)
+
+	// Use custom auth sequence if configured, otherwise use default IOS sequence
+	var prompts []entities.AuthPrompt
+	if len(tc.authSequence) > 0 {
+		prompts = tc.authSequence
+	} else {
+		// Default to Cisco IOS authentication sequence
+		prompts = []entities.AuthPrompt{
+			{WaitFor: PromptUsername, SendCmd: tc.config.Username + "\n"},
+			{WaitFor: PromptPassword, SendCmd: tc.config.Password + "\n"},
+			{WaitFor: PromptEnable, SendCmd: "enable\n"},
+			{WaitFor: PromptPassword, SendCmd: tc.config.EnablePassword + "\n"},
+			{WaitFor: PromptPrivileged, SendCmd: TerminalLengthCmd},
+			{WaitFor: PromptPrivileged, SendCmd: ""},
 		}
-		if p.input != "" {
-			tc.conn.Write([]byte(p.input))
+	}
+
+	for _, p := range prompts {
+		output, err := tc.readUntil(p.WaitFor, DefaultTimeout)
+		if err != nil {
+			return fmt.Errorf("failed to wait for %s: %v, output: %s", p.WaitFor, err, output)
+		}
+		if p.SendCmd != "" {
+			tc.conn.Write([]byte(p.SendCmd))
 			if tc.config.IsDebugEnabled() {
-				fmt.Printf("DEBUG: Sent %s for prompt %s\n", strings.TrimSpace(p.input), p.prompt)
+				fmt.Printf("DEBUG: Sent %s for prompt %s\n", strings.TrimSpace(p.SendCmd), p.WaitFor)
 			}
 		}
 	}

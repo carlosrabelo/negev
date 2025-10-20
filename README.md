@@ -2,12 +2,12 @@
 
 [![Go Report Card](https://goreportcard.com/badge/github.com/carlosrabelo/negev)](https://goreportcard.com/report/github.com/carlosrabelo/negev)
 
-**Negev** is a VLAN automation tool for Cisco switches over Telnet or SSH. It dynamically assigns VLANs based on MAC address prefixes, manages switch configurations, and keeps your playbook in sync with what is connected on each interface.
+**Negev** is a VLAN automation tool for access switches (Cisco IOS and Datacom DMOS platforms such as the DM3000 out of the box) over Telnet or SSH. It dynamically assigns VLANs based on MAC address prefixes, manages switch configurations, and keeps your playbook in sync with what is connected on each interface.
 
 ## Features
 
-- **Telnet Management**: Connects to Cisco switches via Telnet to retrieve MAC address tables and configure VLANs.
-- **SSH Management**: Connects to Cisco switches via SSH when Telnet is disabled or undesired.
+- **Telnet Management**: Connects to supported switches via Telnet to retrieve MAC address tables and configure VLANs.
+- **SSH Management**: Connects to supported switches via SSH when Telnet is disabled or undesired.
 - **MAC-Based VLAN Assignment**: Assigns VLANs based on the first three bytes of MAC addresses, with a default VLAN for unmapped devices.
 - **Sandbox Mode**: Simulates configuration changes without applying them to the switch.
 - **Configuration Persistence**: Saves changes to the switch's running configuration (with `--write` flag).
@@ -15,6 +15,7 @@
 - **Port Exclusion**: Lets you skip interfaces that should never be touched.
 - **Trunk Interface Detection**: Automatically skips trunk interfaces to avoid misconfiguration.
 - **VLAN Creation**: Optionally creates missing VLANs on the switch (with `--create-vlans` flag).
+- **Platform Profiles**: Selectable CLI profiles (`ios` default, `dmos` included) with optional auto-detection.
 - **Verbose Logging**: Provides detailed debug output for troubleshooting (use `--verbose 1`).
 - **Raw Output Display**: Shows raw switch outputs for debugging (use `--verbose 2` or `--verbose 3`).
 
@@ -24,6 +25,12 @@
 - [Guia do Usuário (Português)](docs/GUIDE-PT.md)
 
 ## Installation
+
+### Requirements
+
+- Go 1.24 or newer (build scripts set `GOTOOLCHAIN=go1.24.7` automatically)
+
+### From Source
 
 Clone the repository and build the tool using the following commands
 
@@ -45,6 +52,7 @@ make build
 The configuration is defined in a YAML file, specifying the default VLAN, MAC-to-VLAN mappings, and exclusions. A full sample lives in `examples/config.yaml`. Below is an excerpt:
 
 ```yaml
+platform: "ios"
 transport: "telnet"
 username: "admin"
 password: "password"
@@ -60,6 +68,7 @@ mac_to_vlan:
   "00:c8:8b": "50"  # Cisco AP
 switches:
   - target: "192.168.1.1"
+    platform: "dmos"
     transport: "ssh"
     username: "admin"
     password: "password"
@@ -76,6 +85,7 @@ switches:
 
 #### Required Global Fields:
 
+- **platform (optional)** Default switch platform profile (`ios` by default, set to `dmos` for Datacom DmOS-based models like the DM3000 series, or `auto` to detect).
 - **transport (optional)** Global transport for switch sessions (`telnet` by default, accepts `ssh`).
 - **username, password, enable_password** Default credentials for switches (used if not specified per switch).
 - **default_vlan** Global default VLAN for unmapped MACs.
@@ -85,7 +95,8 @@ switches:
 
 #### Per-Switch Fields:
 
-- **target** IP address of the Cisco switch.
+- **target** IP address of the switch.
+- **platform (optional)** Overrides the platform profile for the switch (`ios`, `dmos`, or `auto`).
 - **transport (optional)** Overrides the global transport (`telnet` or `ssh`).
 - **username, password, enable_password (optional)** Switch-specific credentials (falls back to global).
 - **default_vlan (optional)** Switch-specific default VLAN (falls back to global).
@@ -106,7 +117,7 @@ switches:
 - **Single Switch** Each execution processes one switch (specified with `--target`).
 - **No Reversion** Changes are not automatically reverted in case of failure.
 - **Single MAC per Port** Ports with multiple MAC addresses are skipped to avoid ambiguity.
-- **Switch Output Parsing** The tool assumes standard Cisco switch output formats; unexpected formats may cause parsing errors.
+- **Switch Output Parsing** The tool assumes typical CLI output for the selected platform profile; unexpected formats may require adjustments or new drivers.
 
 ## Project Layout
 

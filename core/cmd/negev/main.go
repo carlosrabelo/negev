@@ -11,6 +11,7 @@ import (
 	"github.com/carlosrabelo/negev/core/application/services"
 	"github.com/carlosrabelo/negev/core/infrastructure/config"
 	"github.com/carlosrabelo/negev/core/infrastructure/transport"
+	"github.com/carlosrabelo/negev/core/platform"
 )
 
 var (
@@ -112,12 +113,67 @@ func main() {
 			found = true
 			fmt.Printf("Starting Negev for switch %s\n", switchCfg.Target)
 
-			// Usar a nova arquitetura hexagonal
-			client := transport.Get(switchCfg)
-			vlanAppService := services.NewVLANApplicationService(switchCfg, client)
-			err = vlanAppService.ProcessPorts()
-			if err != nil {
-				log.Printf("Error processing switch %s: %v", switchCfg.Target, err)
+			platformName := switchCfg.PlatformID()
+			var driver platform.SwitchDriver
+
+			// Get the driver first (before creating client)
+			if platformName == "auto" {
+				// For auto-detect, we need to connect first with default IOS auth
+				client := transport.Get(switchCfg)
+				adapter := transport.NewSwitchAdapter(client)
+
+				detected, err := platform.Detect(adapter)
+				if err != nil {
+					log.Fatalf("Failed to auto-detect switch platform: %v", err)
+				}
+				driver = detected
+				platformName = detected.Name()
+				if switchCfg.IsDebugEnabled() {
+					fmt.Printf("DEBUG: Platform auto-detected as %s\n", platformName)
+				}
+
+				// Now configure auth sequence for the detected platform
+				if authConfigurable, ok := client.(transport.AuthConfigurable); ok {
+					authSeq := driver.GetAuthenticationSequence(
+						switchCfg.Username,
+						switchCfg.Password,
+						switchCfg.EnablePassword,
+					)
+					authConfigurable.SetAuthSequence(authSeq)
+				}
+
+				switchCfg.Platform = platformName
+				vlanAppService := services.NewVLANApplicationService(switchCfg, client, driver)
+				err = vlanAppService.ProcessPorts()
+				if err != nil {
+					log.Printf("Error processing switch %s: %v", switchCfg.Target, err)
+				}
+			} else {
+				// Platform is explicitly set, configure auth before connecting
+				resolved, err := platform.Get(platformName)
+				if err != nil {
+					log.Fatalf("%v", err)
+				}
+				driver = resolved
+
+				client := transport.Get(switchCfg)
+
+				// Configure auth sequence before connecting
+				if authConfigurable, ok := client.(transport.AuthConfigurable); ok {
+					authSeq := driver.GetAuthenticationSequence(
+						switchCfg.Username,
+						switchCfg.Password,
+						switchCfg.EnablePassword,
+					)
+					authConfigurable.SetAuthSequence(authSeq)
+				}
+
+				switchCfg.Platform = platformName
+				vlanAppService := services.NewVLANApplicationService(switchCfg, client, driver)
+				err = vlanAppService.ProcessPorts()
+				if err != nil {
+					log.Printf("Error processing switch %s: %v", switchCfg.Target, err)
+				}
 			}
 			break
 		}

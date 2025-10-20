@@ -1,3 +1,4 @@
+platform: "ios"
 transport: "telnet"
 username: "admin"
 password: "password"
@@ -26,6 +27,7 @@ exclude_macs:
   - "ac:16:2d:34:bb:da"
 switches:
   - target: "192.168.1.1"
+    platform: "dmos"
     transport: "ssh"
     username: "admin"
     password: "password"

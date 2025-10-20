@@ -2,12 +2,12 @@
 
 [![Go Report Card](https://goreportcard.com/badge/github.com/carlosrabelo/negev)](https://goreportcard.com/report/github.com/carlosrabelo/negev)
 
-**Negev** é uma ferramenta de automação de VLAN para switches Cisco via Telnet ou SSH. Ele atribui dinamicamente VLANs com base em prefixos de endereços MAC, gerencia configurações de switch e mantém seu playbook sincronizado com o que está conectado em cada interface.
+**Negev** é uma ferramenta de automação de VLAN para switches de acesso (Cisco IOS e plataformas Datacom DMOS como a linha DM3000) via Telnet ou SSH. Ele atribui dinamicamente VLANs com base em prefixos de endereços MAC, gerencia configurações de switch e mantém seu playbook sincronizado com o que está conectado em cada interface.
 
 ## Recursos
 
-- **Gerenciamento Telnet**: Conecta-se a switches Cisco via Telnet para recuperar tabelas de endereços MAC e configurar VLANs.
-- **Gerenciamento SSH**: Conecta-se a switches Cisco via SSH quando Telnet está desabilitado ou não é desejado.
+- **Gerenciamento Telnet**: Conecta-se a switches suportados via Telnet para recuperar tabelas de endereços MAC e configurar VLANs.
+- **Gerenciamento SSH**: Conecta-se a switches suportados via SSH quando Telnet está desabilitado ou não é desejado.
 - **Atribuição de VLAN Baseada em MAC**: Atribui VLANs com base nos primeiros três bytes de endereços MAC, com uma VLAN padrão para dispositivos não mapeados.
 - **Modo Sandbox**: Simula alterações de configuração sem aplicá-las ao switch.
 - **Persistência de Configuração**: Salva alterações na configuração em execução do switch (com flag `--write`).
@@ -15,6 +15,7 @@
 - **Exclusão de Portas**: Permite pular interfaces que nunca devem ser tocadas.
 - **Detecção de Interface Trunk**: Ignora automaticamente interfaces trunk para evitar configuração incorreta.
 - **Criação de VLAN**: Opcionalmente cria VLANs ausentes no switch (com flag `--create-vlans`).
+- **Perfis de Plataforma**: Perfis de CLI selecionáveis ("ios" por padrão, "dmos" incluído) com opção de auto-detecção.
 - **Logging Detalhado**: Fornece saída de debug detalhada para solução de problemas (use `--verbose 1`).
 - **Exibição de Saída Bruta**: Mostra saídas brutas do switch para debug (use `--verbose 2` ou `--verbose 3`).
 
@@ -24,6 +25,10 @@
 - [Guia do Usuário (Português)](docs/GUIDE-PT.md)
 
 ## Instalação
+
+### Requisitos
+
+- Go 1.24 ou superior (os scripts definem `GOTOOLCHAIN=go1.24.7` automaticamente)
 
 Clone o repositório e construa a ferramenta usando os seguintes comandos:
 
@@ -45,6 +50,7 @@ make build
 A configuração é definida em um arquivo YAML, especificando a VLAN padrão, mapeamentos MAC-to-VLAN e exclusões. Um exemplo completo está em `examples/config.yaml`. Abaixo está um trecho:
 
 ```yaml
+platform: "ios"
 transport: "telnet"
 username: "admin"
 password: "password"
@@ -60,6 +66,7 @@ mac_to_vlan:
   "00:c8:8b": "50"  # Cisco AP
 switches:
   - target: "192.168.1.1"
+    platform: "dmos"
     transport: "ssh"
     username: "admin"
     password: "password"
@@ -76,6 +83,7 @@ switches:
 
 #### Campos Globais Obrigatórios:
 
+- **platform (opcional)** Perfil de plataforma padrão (`ios` por padrão; use `dmos` para equipamentos Datacom baseados em DmOS, como a linha DM3000, ou `auto` para detectar).
 - **transport (opcional)** Transporte global para sessões de switch (`telnet` por padrão, aceita `ssh`).
 - **username, password, enable_password** Credenciais padrão para switches (usadas se não especificadas por switch).
 - **default_vlan** VLAN padrão global para MACs não mapeados.
@@ -85,7 +93,8 @@ switches:
 
 #### Campos por Switch:
 
-- **target** Endereço IP do switch Cisco.
+- **target** Endereço IP do switch.
+- **platform (opcional)** Sobrescreve o perfil de plataforma para o switch (`ios`, `dmos` ou `auto`).
 - **transport (opcional)** Sobrescreve o transporte global (`telnet` ou `ssh`).
 - **username, password, enable_password (opcional)** Credenciais específicas do switch (volta para o global).
 - **default_vlan (opcional)** VLAN padrão específica do switch (volta para o global).
@@ -106,7 +115,7 @@ switches:
 - **Switch Único** Cada execução processa um switch (especificado com `--target`).
 - **Sem Reversão** Alterações não são revertidas automaticamente em caso de falha.
 - **MAC Único por Porta** Portas com múltiplos endereços MAC são ignoradas para evitar ambiguidade.
-- **Parse de Saída do Switch** A ferramenta assume formatos de saída padrão de switches Cisco; formatos inesperados podem causar erros de parse.
+- **Parse de Saída do Switch** A ferramenta assume formatos típicos de CLI para o perfil selecionado; formatos inesperados podem exigir ajustes ou novos drivers.
 
 ## Estrutura do Projeto
 

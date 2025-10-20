@@ -1,5 +1,9 @@
 package transport
 
+import (
+	"github.com/carlosrabelo/negev/core/domain/entities"
+)
+
 // SwitchAdapter implements the SwitchRepository port using existing infrastructure
 type SwitchAdapter struct {
 	client Client
@@ -38,4 +42,9 @@ type Client interface {
 	Disconnect()
 	ExecuteCommand(cmd string) (string, error)
 	IsConnected() bool
+}
+
+// AuthConfigurable allows setting authentication prompts after client creation
+type AuthConfigurable interface {
+	SetAuthSequence(prompts []entities.AuthPrompt)
 }

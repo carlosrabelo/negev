@@ -13,8 +13,11 @@ LDFLAGS ?= -ldflags "-X main.version=$(VERSION) -X main.buildTime=$(BUILD_TIME)"
 BIN_DIR := ../bin
 
 # Go settings
-GOOS ?= $(shell go env GOOS)
-GOARCH ?= $(shell go env GOARCH)
+GOTOOLCHAIN ?= go1.24.7
+GO_BIN ?= $(shell if [ -x "$(HOME)/go/bin/$(GOTOOLCHAIN)" ]; then echo "$(HOME)/go/bin/$(GOTOOLCHAIN)"; else echo "go"; fi)
+GOCACHE_DIR ?= $(CURDIR)/.gocache
+GOOS ?= $(shell $(GO_BIN) env GOOS)
+GOARCH ?= $(shell $(GO_BIN) env GOARCH)
 
 .PHONY: build clean help info run test lint fmt deps
 
@@ -22,7 +25,8 @@ GOARCH ?= $(shell go env GOARCH)
 build: ## Build binary for current platform
 	@echo "Building $(BIN) for $(GOOS)/$(GOARCH)..."
 	@mkdir -p $(BIN_DIR)
-	go build $(LDFLAGS) -o $(BIN_DIR)/$(BIN) ./cmd/$(BIN)
+	@mkdir -p $(GOCACHE_DIR)
+	GOCACHE=$(GOCACHE_DIR) GOTOOLCHAIN=$(GOTOOLCHAIN) $(GO_BIN) build $(LDFLAGS) -o $(BIN_DIR)/$(BIN) ./cmd/$(BIN)
 
 # Development targets
 run: ## Run binary via go run
@@ -33,7 +37,8 @@ run: ## Run binary via go run
 # Testing targets
 test: ## Run module tests
 	@echo "Running tests..."
-	go test -v ./...
+	@mkdir -p $(GOCACHE_DIR)
+	GOCACHE=$(GOCACHE_DIR) GOTOOLCHAIN=$(GOTOOLCHAIN) $(GO_BIN) test -v ./...
 
 # Code quality targets
 lint: ## Check code quality
@@ -44,21 +49,27 @@ lint: ## Check code quality
 		echo "golangci-lint not found. Install with: go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest"; \
 	fi
 
+
 fmt: ## Format source code
 	@echo "Formatting code..."
-	go fmt ./...
+	@mkdir -p $(GOCACHE_DIR)
+	GOCACHE=$(GOCACHE_DIR) GOTOOLCHAIN=$(GOTOOLCHAIN) $(GO_BIN) fmt ./...
 	@if command -v goimports >/dev/null 2>&1; then \
-		goimports -w .; \
+		GOCACHE=$(GOCACHE_DIR) GOTOOLCHAIN=$(GOTOOLCHAIN) goimports -w .; \
 	fi
 
 # Dependency management
+
 deps: ## Download Go dependencies
 	@echo "Downloading dependencies..."
-	go mod download
+	@mkdir -p $(GOCACHE_DIR)
+	GOCACHE=$(GOCACHE_DIR) GOTOOLCHAIN=$(GOTOOLCHAIN) $(GO_BIN) mod download
+
 
 deps-tidy: ## Clean and organize dependencies
 	@echo "Tidying dependencies..."
-	go mod tidy
+	@mkdir -p $(GOCACHE_DIR)
+	GOCACHE=$(GOCACHE_DIR) GOTOOLCHAIN=$(GOTOOLCHAIN) $(GO_BIN) mod tidy
 
 # Maintenance targets
 clean: ## Clean build artifacts
@@ -70,10 +81,10 @@ clean: ## Clean build artifacts
 info: ## Show module information
 	@echo "Core Module - Negev VLAN Automation"
 	@echo "===================================="
-	@echo "Module: $(shell go list -m)"
+	@echo "Module: $(shell $(GO_BIN) list -m)"
 	@echo "Binary: $(BIN)"
 	@echo "Version: $(VERSION)"
-	@echo "Go Version: $(shell go version)"
+	@echo "Go Version: $(shell $(GO_BIN) version)"
 	@echo "Platform: $(GOOS)/$(GOARCH)"
 
 help: ## Show this help

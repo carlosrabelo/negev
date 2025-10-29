@@ -13,7 +13,7 @@ BIN_DIR := bin
 CORE_DIR := core
 
 # Go settings
-GOTOOLCHAIN ?= go1.24.7
+GOTOOLCHAIN ?= go1.25.3
 GO_BIN ?= $(shell if [ -x "$(HOME)/go/bin/$(GOTOOLCHAIN)" ]; then echo "$(HOME)/go/bin/$(GOTOOLCHAIN)"; else echo "go"; fi)
 GOOS ?= $(shell $(GO_BIN) env GOOS)
 GOARCH ?= $(shell $(GO_BIN) env GOARCH)

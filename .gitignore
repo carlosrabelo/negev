@@ -49,4 +49,5 @@ build/
 bin/*
 !bin/.gitkeep
 
-commit.diff
+# Go cache
+core/.gocache/

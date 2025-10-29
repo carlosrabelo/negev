@@ -28,7 +28,7 @@
 
 ### Requirements
 
-- Go 1.24 or newer (build scripts set `GOTOOLCHAIN=go1.24.7` automatically)
+- Go 1.25.3 or newer (build scripts set `GOTOOLCHAIN=go1.25.3` automatically)
 
 ### From Source
 

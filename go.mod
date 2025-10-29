@@ -1,5 +1,3 @@
 module github.com/carlosrabelo/negev
 
-go 1.24.0
-
-toolchain go1.24.7
+go 1.25.3

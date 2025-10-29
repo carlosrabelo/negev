@@ -117,7 +117,16 @@ func (m *mockDriver) DeleteVLANCommands(vlan string) []string {
 }
 
 func (m *mockDriver) SaveCommands() []string {
-	return cloneStrings(m.saveCommands)
+	return []string{"write memory"}
+}
+
+func (m *mockDriver) GetAuthenticationSequence(username, password, enablePassword string) []entities.AuthPrompt {
+	return []entities.AuthPrompt{
+		{WaitFor: "Username:", SendCmd: username},
+		{WaitFor: "Password:", SendCmd: password},
+		{WaitFor: ">", SendCmd: "enable"},
+		{WaitFor: "Password:", SendCmd: enablePassword},
+	}
 }
 
 func cloneBoolMap(in map[string]bool) map[string]bool {

@@ -1,6 +1,6 @@
 module github.com/carlosrabelo/negev/core
 
-go 1.25.3
+go 1.25.4
 
 require (
 	github.com/ziutek/telnet v0.1.0

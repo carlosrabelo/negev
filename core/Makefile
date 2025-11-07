@@ -13,7 +13,7 @@ LDFLAGS ?= -ldflags "-X main.version=$(VERSION) -X main.buildTime=$(BUILD_TIME)"
 BIN_DIR := ../bin
 
 # Go settings
-GOTOOLCHAIN ?= go1.25.3
+GOTOOLCHAIN ?= go1.25.4
 GO_BIN ?= $(shell if [ -x "$(HOME)/go/bin/$(GOTOOLCHAIN)" ]; then echo "$(HOME)/go/bin/$(GOTOOLCHAIN)"; else echo "go"; fi)
 GOCACHE_DIR ?= $(CURDIR)/.gocache
 GOOS ?= $(shell $(GO_BIN) env GOOS)
